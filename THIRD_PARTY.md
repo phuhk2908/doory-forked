@@ -19,7 +19,7 @@ CC-BY, CC-BY-SA, CC-BY-NC, custom or "free for ..." terms) needs a recorded deci
 ## Keeping this file correct
 
 ```bash
-cd frontend && npm ci && cd ..                       # the script reads the installed npm packages
+cd frontend && bun install --frozen-lockfile && cd .. # the script reads the installed JavaScript packages
 backend/.venv/bin/python licenses/audit.py --check  # or the Python of any environment with backend/requirements-dev.txt
 backend/.venv/bin/python licenses/audit.py --write  # after changing a dependency: rewrites the generated files
 ```
@@ -180,7 +180,7 @@ the small libraries behind the video and GIF export; the type declarations they 
 <!-- END direct-dependencies -->
 
 Test only: `yjs`, `y-protocols` and `lib0` also form the reference Yjs client of
-`backend/apps/collab/tests/interop` (pinned in its own `package.json`, installed with `npm ci` there, never shipped).
+`backend/apps/collab/tests/interop` (pinned in its own `package.json`, installed with `bun install` there, never shipped).
 
 ## Assets in this repository
 
@@ -248,7 +248,7 @@ anyway.
 | Inter (variable), the default body font of text in designs, the same way — `@fontsource-variable/inter` | https://fontsource.org/fonts/inter, Copyright 2016 The Inter Project Authors (https://github.com/rsms/inter) | OFL-1.1 |
 | Plus Jakarta Sans (variable), the default heading font of text in designs, the same way — `@fontsource-variable/plus-jakarta-sans` | https://fontsource.org/fonts/plus-jakarta-sans, Copyright 2020 The Plus Jakarta Sans Project Authors (https://github.com/tokotype/PlusJakartaSans) | OFL-1.1 |
 | The editor's font catalogue: fonts fetched at run time by `manage.py sync_fonts` (never committed; stored under `MEDIA_ROOT/fonts/system/`; served unmodified to the browsers that open a design) | Fontsource npm packages `@fontsource/<id>` via jsDelivr, the 253 families of `backend/data/popular_fonts.json` | Each family keeps its own licence. Checked against the Fontsource API on 2026-10-09: 239 families OFL-1.1, 12 Apache-2.0 (Permanent Marker, Satisfy, Yellowtail, Rock Salt, Schoolbell, Roboto Slab, Chewy, Luckiest Guy, Special Elite, Just Another Hand, Homemade Apple, Walter Turncoat), 2 UFL-1.0 (see the decisions). `sync_fonts` accepts only OFL, SIL, Apache, UFL and Ubuntu families and records the licence on `FontFamily.license` |
-| Fonts the starter templates use (Anton, Archivo, Lora, Oswald, Pinyon Script, Playfair Display): fetched at build time by `npm run templates:build` into `frontend/node_modules/.cache/` (never committed) to measure and photograph the text; installed for users by `manage.py sync_fonts` | Fontsource npm packages `@fontsource/<id>` via jsDelivr | OFL-1.1 |
+| Fonts the starter templates use (Anton, Archivo, Lora, Oswald, Pinyon Script, Playfair Display): fetched at build time by `bun run templates:build` into `frontend/node_modules/.cache/` (never committed) to measure and photograph the text; installed for users by `manage.py sync_fonts` | Fontsource npm packages `@fontsource/<id>` via jsDelivr | OFL-1.1 |
 | Fonts that users upload | The users | Their own; they are stored with the licence `user-supplied` (`apps/fonts/uploads.py`), never committed and not part of the catalogue |
 
 The OFL asks that the copyright notice and licence travel with the font. The OFL text with the copyright line of each of

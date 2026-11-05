@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Size report and budget check of the production build (`npm run build` first; Vite writes `dist/.vite/manifest.json`).
+ * Size report and budget check of the production build (`bun run build` first; Vite writes `dist/.vite/manifest.json`).
  *
  *   node scripts/bundleReport.mjs            prints the table of chunk sizes
  *   node scripts/bundleReport.mjs --check    also exits 1 when a budget below is exceeded (CI runs it after the build)
@@ -54,7 +54,7 @@ const ROUTES = [
 const dist = resolve(dirname(fileURLToPath(import.meta.url)), '..', process.env.BUNDLE_DIST ?? 'dist')
 const manifestPath = join(dist, '.vite', 'manifest.json')
 if (!existsSync(manifestPath)) {
-  console.error(`No ${manifestPath}: run "npm run build" first.`)
+  console.error(`No ${manifestPath}: run "bun run build" first.`)
   process.exit(2)
 }
 const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))

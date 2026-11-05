@@ -16,7 +16,7 @@ import { appConfig, DIST, MEDIA_ROOT, modelConfig, readCutout, scenePng, seedIma
 const model = modelConfig()
 const servers: CspServer[] = []
 
-test.skip(!existsSync(path.join(DIST, 'index.html')), `Build the app first ("npm run build"): this spec serves ${DIST} with the production headers.`)
+test.skip(!existsSync(path.join(DIST, 'index.html')), `Build the app first ("bun run build"): this spec serves ${DIST} with the production headers.`)
 
 async function serve(options: Partial<CspServerOptions> = {}): Promise<CspServer> {
   const server = await startCspServer({ dist: DIST, mediaRoot: MEDIA_ROOT, ...options })

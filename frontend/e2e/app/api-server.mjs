@@ -1,4 +1,4 @@
-// Starts the real backend for the app-shell specs (`npm run e2e:app`): Django on SQLite in a fresh temporary directory,
+// Starts the real backend for the app-shell specs (`bun run e2e:app`): Django on SQLite in a fresh temporary directory,
 // the starter content installed offline, a local SMTP sink that keeps every e-mail the API sends, and uvicorn on top.
 //
 //   DOORY_PYTHON       interpreter with the backend requirements (default: backend/.venv/bin/python, else python3)

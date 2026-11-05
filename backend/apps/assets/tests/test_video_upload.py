@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core.management import call_command
 from django.utils import timezone
 from PIL import Image, features
 
@@ -128,6 +129,7 @@ class TestConvertedClips:
         assert (body["status"], body["url"], body["poster_url"]) == ("processing", "", "")
         asset = Asset.objects.get(pk=body["id"])
         assert asset.size == len(clip("mpeg4", size="640x360"))  # the source size is held against the quota
+        assert asset.processing_source.name
 
         for callback in callbacks:
             callback()
@@ -136,8 +138,30 @@ class TestConvertedClips:
             done["status"] == "ready" and done["url"].endswith(".mp4") and done["audio_url"].endswith(".m4a")
         )
         converted = Asset.objects.get(pk=asset.pk)
+        assert not converted.processing_source.name
         info = video.probe(Path(converted.file.path))
         assert (info.codec, info.width, info.height, info.audio_codec) == ("h264", 640, 360, "aac")
+
+    def test_a_persisted_job_can_run_after_the_upload_workdir_is_gone(
+        self, api, settings, monkeypatch, tmp_path, django_capture_on_commit_callbacks
+    ):
+        settings.VIDEO_WORK_DIR = str(tmp_path)
+        monkeypatch.setattr(video_jobs, "submit", lambda asset_id: None)
+        monkeypatch.setattr(video_jobs.video, "probe", lambda path: described_clip(codec_name="hevc"))
+        monkeypatch.setattr(video_jobs, "convert", lambda source, info: converted(source.parent))
+
+        body = post(api, clip("mpeg4"), "queued.mov").json()
+        asset = Asset.objects.get(pk=body["id"])
+        source_name = asset.processing_source.name
+        assert source_name and not list(tmp_path.iterdir())
+
+        with django_capture_on_commit_callbacks(execute=True):
+            output = io.StringIO()
+            call_command("process_video_jobs", stdout=output)
+            assert "Attempted 1 durable video job(s)" in output.getvalue()
+        asset.refresh_from_db()
+        assert asset.status == Asset.Status.READY and not asset.processing_source.name
+        assert not asset.file.storage.exists(source_name)
 
     def test_a_failed_conversion_says_so(
         self, api, inline_jobs, monkeypatch, django_capture_on_commit_callbacks
@@ -257,7 +281,7 @@ class TestPerPersonLimit:
         res = self.upload(api)
         assert res.status_code == 429 and res.json()["error"]["code"] == "too_many_conversions"
         assert Asset.objects.count() == 2
-        assert len(list(tmp_path.iterdir())) == 2  # the refused upload's work folder is gone
+        assert not list(tmp_path.iterdir())  # persisted sources no longer need local work folders
 
     def test_others_are_not_held_up(self, api, user, other_api):
         for _ in range(2):

@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "packageManager": "bun@1.4.2",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
@@ -21,7 +22,7 @@
     "e2e:collab": "VITE_E2E=true vite build --outDir dist-collab && playwright test -c playwright.collab.config.ts",
     "e2e:comments": "playwright test -c playwright.comments.config.ts",
     "e2e:print": "playwright test -c playwright.print.config.ts",
-    "e2e:bg": "npm run build && playwright test -c playwright.bg.config.ts",
+    "e2e:bg": "bun run build && playwright test -c playwright.bg.config.ts",
     "templates:build": "vite-node scripts/templates/build.ts --",
     "templates:qa": "vite-node scripts/templates/qa.ts --"
   },
@@ -74,5 +75,11 @@
     "typescript-eslint": "^8.71.2",
     "vite": "^8.3.4",
     "vitest": "^5.0.4"
-  }
+  },
+  "overrides": {
+    "@typescript-eslint/typescript-estree": {
+      "minimatch": "^11.0.1"
+    }
+  },
+  "trustedDependencies": ["canvas"]
 }

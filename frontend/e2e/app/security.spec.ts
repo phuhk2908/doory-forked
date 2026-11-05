@@ -23,7 +23,7 @@ test.describe('the policy the web container sends', () => {
   })
 
   test('the production build runs under that policy on every shell route, the guest editor included, without one violation', async ({ browser }) => {
-    test.skip(process.env.E2E_APP_PROD !== 'true', 'checks the production build: run `npm run e2e:app:prod`')
+    test.skip(process.env.E2E_APP_PROD !== 'true', 'checks the production build: run `bun run e2e:app:prod`')
     test.setTimeout(180_000)
     const csp = header('Content-Security-Policy')
     const account = await createAccount('Policy Pia')

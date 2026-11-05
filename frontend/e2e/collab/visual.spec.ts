@@ -3,7 +3,7 @@ import { type Account, type Client, Network, call, createAccounts, createDesign,
 
 /**
  * Visual QA of the presence UI in light and dark: writes PNGs to $SCREENSHOT_DIR (skipped without it). It is a review aid,
- * not an assertion suite.   SCREENSHOT_DIR=/tmp/shots npm run e2e:collab -- visual
+ * not an assertion suite.   SCREENSHOT_DIR=/tmp/shots bun run e2e:collab -- visual
  */
 const OUT = process.env.SCREENSHOT_DIR
 test.skip(!OUT, 'set SCREENSHOT_DIR to write screenshots')

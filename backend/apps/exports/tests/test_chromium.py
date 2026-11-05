@@ -753,7 +753,7 @@ def test_browser_processes_that_outlive_the_worker_are_killed_with_their_work_di
 DIST = Path(__file__).resolve().parents[4] / "frontend" / "dist"
 requires_dist = pytest.mark.skipif(
     not (DIST / "render.html").is_file(),
-    reason=f"no built frontend at {DIST}; run `npm run build` in frontend/",
+    reason=f"no built frontend at {DIST}; run `bun run build` in frontend/",
 )
 
 

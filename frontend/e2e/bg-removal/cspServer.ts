@@ -57,7 +57,7 @@ export function readSecurityHeaders(file: string): Record<string, string> {
 export async function startCspServer(options: CspServerOptions): Promise<CspServer> {
   const dist = path.resolve(options.dist)
   const media = path.resolve(options.mediaRoot)
-  if (!existsSync(path.join(dist, 'index.html'))) throw new Error(`${dist}/index.html is missing: run "npm run build" first.`)
+  if (!existsSync(path.join(dist, 'index.html'))) throw new Error(`${dist}/index.html is missing: run "bun run build" first.`)
   const headers = readSecurityHeaders(options.headersFile ?? path.resolve('nginx/security-headers.conf'))
   const policy = options.policy ? options.policy(headers['Content-Security-Policy']) : headers['Content-Security-Policy']
   headers['Content-Security-Policy'] = policy

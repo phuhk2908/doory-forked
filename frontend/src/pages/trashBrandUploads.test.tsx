@@ -88,8 +88,8 @@ describe('uploads page', () => {
     })
     expect(await screen.findByText('cat.png')).toBeInTheDocument()
     expect(screen.getByText('pets')).toBeInTheDocument()
-    expect(await screen.findByText(/of 100 MB used/)).toBeInTheDocument()
-    expect(screen.getByRole('progressbar', { name: 'Storage used' })).toHaveAttribute('value', '5')
+    expect(await screen.findAllByText(/of 100 MB used/)).toHaveLength(2)
+    expect(within(screen.getByRole('main')).getByRole('progressbar', { name: 'Storage used' })).toHaveAttribute('value', '5')
   })
 
   it('renames an upload and edits its tags', async () => {

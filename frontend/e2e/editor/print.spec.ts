@@ -1,6 +1,6 @@
 /**
  * [engine] The print options of the Download dialog and the PDF the browser makes with them (no server PDF in the guest
- * editor). The same options against the real print server are in print-stack.spec.ts (`npm run e2e:print`). Opening the
+ * editor). The same options against the real print server are in print-stack.spec.ts (`bun run e2e:print`). Opening the
  * dialog and giving a page its own size are [layout] steps.
  *
  *   PRINT_SHOTS=<folder>   also saves screenshots of the dialog (light and dark) and a picture of a printed page there

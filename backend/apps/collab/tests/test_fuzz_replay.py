@@ -8,7 +8,7 @@ every intermediate state must be one the server could save, and the final design
 
 Regenerate the fixture after changing the fuzz catalogue:
     cd frontend && FUZZ_FIXTURE=../backend/apps/collab/tests/fixtures/fuzz_replay.json \
-        npx vitest run src/editor/collab/fuzz/fuzz.test.ts -t "records what"
+        bunx --no-install vitest run src/editor/collab/fuzz/fuzz.test.ts -t "records what"
 """
 
 from __future__ import annotations

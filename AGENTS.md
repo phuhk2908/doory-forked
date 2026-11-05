@@ -16,7 +16,7 @@ make fmt        # format the backend code
 - Use Node.js 22. Newer versions make some frontend tests fail.
 - Migrations must match the models: `cd backend && python manage.py makemigrations --check --dry-run`.
 - On macOS, the export tests need short temp paths: `EXPORT_WORK_DIR=/tmp/dxw TMPDIR=/tmp/dxt`. Image export
-  tests also need the built frontend (`cd frontend && npm run build`).
+  tests also need the built frontend (`cd frontend && bun run build`).
 - CI only runs when started by hand, so local `make test` and `make lint` are the real check.
 
 More detail: [docs/development/README.md](docs/development/README.md) and [docs/development/testing.md](docs/development/testing.md).

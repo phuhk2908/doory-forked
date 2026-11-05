@@ -51,12 +51,28 @@ def blank_document(width: int, height: int, preset: str = "") -> dict:
     return document
 
 
-def _apply_document(design: Design, document: dict, info: DocumentInfo) -> list[str]:
-    """Copy the document and the facts derived from it onto `design`; returns the fields touched."""
-    design.document = document
-    design.width, design.height = info.width, info.height
-    design.page_count, design.preset = info.page_count, info.preset
-    return ["document", "width", "height", "page_count", "preset"]
+def document_values(document: dict, *, info: DocumentInfo | None = None) -> dict[str, object]:
+    """Return the canonical `Design` fields projected from a validated document.
+
+    Callers own validation, transactions, revisions and version policy. This seam keeps every document writer
+    in sync when the stored document's derived fields change.
+    """
+    info = info or describe_document(document)
+    return {
+        "document": document,
+        "width": info.width,
+        "height": info.height,
+        "page_count": info.page_count,
+        "preset": info.preset,
+    }
+
+
+def apply_document(design: Design, document: dict, *, info: DocumentInfo | None = None) -> list[str]:
+    """Apply `document_values` to an in-memory design and return the fields touched."""
+    values = document_values(document, info=info)
+    for field, value in values.items():
+        setattr(design, field, value)
+    return list(values)
 
 
 def _lock(design_id, owner, *, defer_document: bool = True) -> Design:
@@ -95,7 +111,7 @@ def create_design(
     with transaction.atomic():
         _check_design_limit(owner)
         design = Design(owner=owner, title=title, folder=folder)
-        _apply_document(design, document, info)
+        apply_document(design, document, info=info)
         if thumbnail:
             design.thumbnail.save(f"{design.id}.webp", thumbnail, save=False)
         design.save()
@@ -251,7 +267,7 @@ def update_design(design_id, owner, data: dict) -> Design:
         if "document" in data:
             if design.revision != data["base_revision"]:
                 raise RevisionConflict(design.revision, design.updated_at)
-            touched += _apply_document(design, data["document"], describe_document(data["document"]))
+            touched += apply_document(design, data["document"], info=describe_document(data["document"]))
             design.revision += 1
             touched += ["revision", "updated_at"]
             _maybe_record_auto_version(design, owner)
@@ -328,7 +344,7 @@ def restore_version(design_id, version_id, owner) -> Design:
             raise Http404 from exc
         validate_document(version.document, max_bytes=settings.MAX_DESIGN_DOCUMENT_BYTES)
         _record_version(design, owner, is_auto=True, label="Before restore")
-        touched = _apply_document(design, version.document, describe_document(version.document))
+        touched = apply_document(design, version.document, info=describe_document(version.document))
         design.revision += 1
         design.save(update_fields=[*touched, "revision", "updated_at"])
         prune_auto_versions(design)

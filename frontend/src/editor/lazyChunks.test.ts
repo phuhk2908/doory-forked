@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
  * The editor's first load is the code its entry reaches through static imports. Parts that
  * only some sessions use must sit behind `import()` (see `ui/loadable.tsx`); one static import of them from the eager side
  * would pull the whole feature back into the first download, and nothing would fail except the page getting slower. This
- * reads the sources, so it holds whatever the bundler does; `npm run bundle:check` measures the real bytes after a build.
+ * reads the sources, so it holds whatever the bundler does; `bun run bundle:check` measures the real bytes after a build.
  */
 const sources = import.meta.glob<string>(['/src/**/*.{ts,tsx}', '!/src/**/*.test.{ts,tsx}'], { query: '?raw', import: 'default', eager: true })
 

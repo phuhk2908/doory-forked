@@ -136,7 +136,7 @@ that runs Doory: yours, if you self-host. Uploads can go to a local volume or to
 
 ## Built with
 
-React 19, TypeScript, Vite, Fabric.js, Yjs and Zustand in the browser; Django 5, Django REST Framework,
+React 19, TypeScript, Vite, Fabric.js, Yjs and Zustand in the browser; Django 6.1, Django REST Framework,
 Channels and PostgreSQL on the server; Docker Compose with nginx, optional Redis and S3-compatible storage.
 
 ## Contributing

@@ -9,7 +9,7 @@ process.env.E2E_COLLAB_PORT = String(WEB)
  * Print-quality PDF against the real backend: Django (SQLite, started by the co-editing specs' `api-server.mjs`) with its
  * headless Chromium print worker, and the Vite dev server. The downloaded file is read with pypdf, so `DOORY_PYTHON` must
  * name an interpreter with the backend requirements (default `backend/.venv/bin/python`). `PW_CHROMIUM` (default
- * `/opt/pw-browsers/chromium`) is the browser of the test and of the print worker. `npm run e2e:print`
+ * `/opt/pw-browsers/chromium`) is the browser of the test and of the print worker. `bun run e2e:print`
  * ("Export" > Tests).
  */
 const CHROMIUM = process.env.PW_CHROMIUM ?? '/opt/pw-browsers/chromium'
@@ -46,7 +46,7 @@ export default defineConfig({
       },
     },
     {
-      command: `npx vite --port ${WEB} --strictPort`,
+      command: `bunx --no-install vite --port ${WEB} --strictPort`,
       url: `http://localhost:${WEB}/`,
       timeout: 60_000,
       reuseExistingServer: false,

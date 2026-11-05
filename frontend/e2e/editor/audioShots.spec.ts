@@ -2,7 +2,7 @@
  * Visual QA for the audio screens: the Audio tool (library, tracks with the trim editor, uploads, recording), the
  * timeline rows and the slideshow's sound button, in light and dark at 1440, 1024 and 390 px. Writes PNGs to
  * $SCREENSHOT_DIR and is skipped without it (a review aid, not an assertion suite):
- *   SCREENSHOT_DIR=/tmp/shots npx playwright test e2e/editor/audioShots.spec.ts
+ *   SCREENSHOT_DIR=/tmp/shots bunx --no-install playwright test e2e/editor/audioShots.spec.ts
  */
 import { expect, test, type Page } from '@playwright/test'
 import { openEditor } from './helpers'

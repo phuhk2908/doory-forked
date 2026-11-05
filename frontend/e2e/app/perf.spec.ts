@@ -1,5 +1,5 @@
 /**
- * First load of every shell route on the production build (`npm run e2e:app:prod`): what is downloaded (gzip size of scripts and
+ * First load of every shell route on the production build (`bun run e2e:app:prod`): what is downloaded (gzip size of scripts and
  * styles, fonts, images), the largest contentful paint, and that nothing of the editor is fetched by pages that do not open it.
  * It prints a table of the first load by route.
  */
@@ -10,7 +10,7 @@ import type { Browser } from '@playwright/test'
 import { expect, test, Api, createAccount, openContext, type Account } from './support/stack'
 import { seedDesigns } from './support/seed'
 
-test.skip(process.env.E2E_APP_PROD !== 'true', 'measures the production build: run `npm run e2e:app:prod`')
+test.skip(process.env.E2E_APP_PROD !== 'true', 'measures the production build: run `bun run e2e:app:prod`')
 
 interface Sample {
   route: string

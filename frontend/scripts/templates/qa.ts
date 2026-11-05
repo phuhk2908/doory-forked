@@ -1,7 +1,7 @@
 /**
  * Opens every starter template in the real editor (real fonts, in-memory adapter) and uses it the way a person would.
  *
- *   npm run templates:qa [-- --only <slug>] [--dir <templates dir>] [--shots <dir>] [--port 5411]
+ *   bun run templates:qa [-- --only <slug>] [--dir <templates dir>] [--shots <dir>] [--port 5411]
  *
  * Per template it checks that: the document opens with every object and no console error; every font it names is
  * loaded; each page object lies inside its page; every text box can be edited (double-click, type, undo) and nothing

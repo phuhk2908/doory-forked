@@ -1,5 +1,5 @@
 /**
- * Editor performance profile (`npm run e2e:perf`). Two designs: 30 pages of 200 objects, and one
+ * Editor performance profile (`bun run e2e:perf`). Two designs: 30 pages of 200 objects, and one
  * page of 1500 objects. Every test prints its measurement (`[perf] …`) and asserts a budget about three times what was measured
  * on a busy 4-core machine, so a regression of that size fails and ordinary noise does not. The production build of the harness
  * runs, with the engine reachable through the test hook, so the numbers are those of a deployment.

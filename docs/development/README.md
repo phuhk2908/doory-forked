@@ -3,7 +3,7 @@
 ## Requirements
 
 - Python 3.12
-- Node.js 22. Newer versions can make some frontend tests fail.
+- Node.js 22 and Bun 1.4.2. Newer Node.js versions can make some frontend tests fail.
 - Optional: Docker, for PostgreSQL and Redis (`docker-compose.dev.yml`)
 - Optional: Playwright's Chromium, for server-side export and the end-to-end tests
 
@@ -48,6 +48,7 @@ Then set `DATABASE_URL` (and `REDIS_URL`) in `backend/.env`.
 ## Next
 
 - [architecture.md](architecture.md): how the code is organised
+- [architecture-deep-dive.md](architecture-deep-dive.md): runtime flows, persistence and service boundaries
 - [testing.md](testing.md): unit and end-to-end tests
 - [CONTRIBUTING.md](../../CONTRIBUTING.md): pull requests and documentation rules
 - [AGENTS.md](../../AGENTS.md): instructions for AI coding agents (`CLAUDE.md` loads the same file)

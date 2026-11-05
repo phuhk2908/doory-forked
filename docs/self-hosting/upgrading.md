@@ -22,7 +22,7 @@ sudo -u doory .venv/bin/pip install -r requirements.txt
 manage migrate
 manage collectstatic --noinput
 cd ../frontend
-sudo -u doory npm ci && sudo -u doory npm run build
+sudo -u doory bun install --frozen-lockfile && sudo -u doory bun run build
 sudo systemctl restart doory-api doory-realtime    # and doory-mcp, doory-ai-server if you use them
 ```
 

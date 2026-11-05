@@ -1,7 +1,7 @@
 /**
  * Generates the starter templates: `backend/data/templates/<slug>.json`, `thumbs/<slug>.webp` and `manifest.json`.
  *
- *   npm run templates:build [-- --only <slug>] [--shots <dir>] [--fonts-dir <dir>] [--out <dir>] [--check]
+ *   bun run templates:build [-- --only <slug>] [--shots <dir>] [--fonts-dir <dir>] [--out <dir>] [--check]
  *
  * It starts Vite (the real editor sources), opens `harness.html` in Chromium, composes every design with the engine,
  * writes the documents and renders page 1 of each to a 720 px WebP with the engine's exporter. `--shots` also writes

@@ -2,12 +2,12 @@ import { defineConfig, devices } from '@playwright/test'
 import { appStack } from './e2e/app/support/ports'
 
 const stack = appStack()
-/** `npm run e2e:app:prod` serves the production build (`dist-app`) instead of the dev server: the same specs, minified code. */
+/** `bun run e2e:app:prod` serves the production build (`dist-app`) instead of the dev server: the same specs, minified code. */
 const production = process.env.E2E_APP_PROD === 'true'
 
 /**
  * The whole product against the real backend: Django on a fresh SQLite database with the starter content (see
- * `e2e/app/api-server.mjs`), a local mail sink and the Vite dev server, on free ports. `npm run e2e:app`; see
+ * `e2e/app/api-server.mjs`), a local mail sink and the Vite dev server, on free ports. `bun run e2e:app`; see
  * `e2e/README.md` ("Real stack"). Screenshots go to `SCREENSHOT_DIR` when it is set.
  *
  * The dev server is the default (it also compiles in the `window.__doory_e2e` test hooks); with `E2E_APP_PROD=true` the
@@ -35,7 +35,7 @@ export default defineConfig({
       reuseExistingServer: false,
     },
     {
-      command: production ? `npx vite preview --outDir dist-app --port ${stack.web} --strictPort` : `npx vite --port ${stack.web} --strictPort`,
+      command: production ? `bunx --no-install vite preview --outDir dist-app --port ${stack.web} --strictPort` : `bunx --no-install vite --port ${stack.web} --strictPort`,
       url: `http://localhost:${stack.web}/`,
       timeout: 60_000,
       reuseExistingServer: false,

@@ -1,6 +1,6 @@
 """The real `yjs` implementation as a client (apps/collab/tests/interop/yjs_client.mjs).
 
-Needs Node and `npm ci` in apps/collab/tests/interop; skipped otherwise. The Node process and the server are
+Needs Node and `bun install` in apps/collab/tests/interop; skipped otherwise. The Node process and the server are
 bridged in memory, no sockets.
 """
 
@@ -26,7 +26,7 @@ pytestmark = [
     pytest.mark.django_db,
     pytest.mark.skipif(
         shutil.which("node") is None or not (INTEROP / "node_modules" / "yjs").exists(),
-        reason="run `npm ci` in apps/collab/tests/interop to enable the reference Yjs client tests",
+        reason="run `bun install` in apps/collab/tests/interop to enable the reference Yjs client tests",
     ),
 ]
 

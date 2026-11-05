@@ -48,6 +48,7 @@ const defaultHandlers: RequestHandler[] = [
   http.get('*/api/v1/brand-kits/', () => HttpResponse.json([])),
   http.get('*/api/v1/fonts/', empty),
   http.get('*/api/v1/fonts/mine/', empty),
+  http.get('*/api/v1/size-presets/mine/', () => HttpResponse.json({ pinned: null, recent: [], collapsed: [] })),
   http.get('*/api/v1/auth/tokens/', () => HttpResponse.json([])),
   http.get('*/api/v1/auth/tokens/scopes/', () => HttpResponse.json([])),
 ]

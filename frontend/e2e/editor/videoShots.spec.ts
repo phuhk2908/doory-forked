@@ -2,7 +2,7 @@
  * Visual QA for the video and GIF export: the Download dialog on each video format, while a file is being made, and with
  * the finished file and its preview, in light and dark at 1440, 1024 and 390 px, plus a contact sheet of six frames decoded
  * from the exported video. Writes PNGs to $SCREENSHOT_DIR and is skipped without it (a review aid, not an assertion suite):
- *   SCREENSHOT_DIR=/tmp/shots npx playwright test e2e/editor/videoShots.spec.ts
+ *   SCREENSHOT_DIR=/tmp/shots bunx --no-install playwright test e2e/editor/videoShots.spec.ts
  */
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { expect, test, type Page } from '@playwright/test'

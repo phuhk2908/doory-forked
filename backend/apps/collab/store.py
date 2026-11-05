@@ -23,7 +23,7 @@ from django.utils.crypto import constant_time_compare
 
 from apps.accounts.models import User
 from apps.designs.models import Design
-from apps.designs.services import record_auto_version_if_due
+from apps.designs.services import apply_document, record_auto_version_if_due
 from apps.designs.validators import describe_document
 from apps.sharing.models import ShareLink
 from apps.sharing.services import active_links
@@ -186,9 +186,7 @@ def flush_document(
         if design.revision != state.base_revision:
             return FlushResult(False, design.revision, "external_change")
         info = describe_document(document)
-        design.document = document
-        design.width, design.height = info.width, info.height
-        design.page_count, design.preset = info.page_count, info.preset
+        apply_document(design, document, info=info)
         design.revision += 1
         with saving_from_room():
             design.save(

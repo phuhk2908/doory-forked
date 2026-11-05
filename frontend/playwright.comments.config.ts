@@ -8,7 +8,7 @@ process.env.E2E_COLLAB_PORT = String(WEB)
 /**
  * Comments against the real backend: Django (SQLite, started by the co-editing specs' `api-server.mjs`) and the Vite dev
  * server, with the owner of a design, somebody commenting through a link and a visitor in browser contexts of their own.
- * `npm run e2e:comments`.
+ * `bun run e2e:comments`.
  */
 export default defineConfig({
   testDir: './e2e/comments',
@@ -32,7 +32,7 @@ export default defineConfig({
       env: { E2E_COLLAB_API_PORT: String(API), E2E_COLLAB_PORT: String(WEB) },
     },
     {
-      command: `npx vite --port ${WEB} --strictPort`,
+      command: `bunx --no-install vite --port ${WEB} --strictPort`,
       url: `http://localhost:${WEB}/`,
       timeout: 60_000,
       reuseExistingServer: false,

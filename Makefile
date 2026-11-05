@@ -27,13 +27,13 @@ setup: ## Install backend and frontend dependencies and prepare the local databa
 	$(PY) -m pip install -r backend/requirements-dev.txt
 	test -f backend/.env || cp backend/.env.example backend/.env
 	$(MANAGE) migrate --noinput
-	cd frontend && npm ci
+	cd frontend && bun install --frozen-lockfile
 
 dev-api: ## Run the Django API on http://localhost:8000
 	$(MANAGE) runserver 8000
 
 dev-web: ## Run the Vite dev server on http://localhost:5173 (proxies /api to the API)
-	cd frontend && npm run dev
+	cd frontend && bun run dev
 
 migrate: ## Apply database migrations
 	$(MANAGE) migrate --noinput
@@ -44,11 +44,11 @@ test-api: ## Backend tests (pytest)
 	cd backend && $(abspath $(PY)) -m pytest
 
 test-web: ## Frontend tests (vitest)
-	cd frontend && npm test
+	cd frontend && bun run test
 
 lint: docs-check ## Ruff, TypeScript, ESLint and docs checks (no changes)
 	cd backend && $(abspath $(PY)) -m ruff check . && $(abspath $(PY)) -m ruff format --check .
-	cd frontend && npm run lint && npm run typecheck
+	cd frontend && bun run lint && bun run typecheck
 
 docs-check: ## Check that every setting is documented in docs/self-hosting/configuration.md
 	sh docs/check-settings.sh

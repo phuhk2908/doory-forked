@@ -5,7 +5,7 @@ import { installMockApi, makeUser } from './support/mockApi'
 /**
  * Visual QA: renders the main screens in light and dark at desktop and phone widths and writes PNGs to
  * $SCREENSHOT_DIR. Skipped unless that variable is set (it is a review aid, not an assertion suite).
- *   SCREENSHOT_DIR=/tmp/shots npx playwright test visual
+ *   SCREENSHOT_DIR=/tmp/shots bunx --no-install playwright test visual
  */
 const OUT = process.env.SCREENSHOT_DIR
 

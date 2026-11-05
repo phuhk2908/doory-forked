@@ -22,7 +22,7 @@ describe('session bootstrap and route guard', () => {
 
   it('renders protected pages for signed-in users', async () => {
     renderApp('/dashboard', { user: makeUser() })
-    expect(await screen.findByRole('heading', { name: /Ada/ })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Create a design' })).toBeInTheDocument()
   })
 
   it('redirects signed-in users away from /login to their intended page', async () => {
@@ -48,7 +48,7 @@ describe('session bootstrap and route guard', () => {
     expect(await screen.findByText('We can’t reach Doory')).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/dashboard')
     await userEvent.click(screen.getByRole('button', { name: 'Try again' }))
-    expect(await screen.findByRole('heading', { name: /Ada/ })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Create a design' })).toBeInTheDocument()
   })
 
   it('drops to the login page when the session expires mid-use (401)', async () => {

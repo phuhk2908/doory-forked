@@ -8,7 +8,7 @@ import { dirname } from 'node:path'
 
 const EXCLUDE = (process.env.FUZZ_EXCLUDE ?? '').split(',').filter(Boolean) as OpKind[]
 
-/** How many seeded runs each property gets (raise it for a long soak: `FUZZ_RUNS=2000 npx vitest run fuzz`). */
+/** How many seeded runs each property gets (raise it for a long soak: `FUZZ_RUNS=2000 bunx --no-install vitest run fuzz`). */
 const RUNS = Number(process.env.FUZZ_RUNS ?? 120)
 const FIRST = Number(process.env.FUZZ_FIRST ?? 1)
 
@@ -110,7 +110,7 @@ describe('the harness itself', () => {
   })
 })
 
-/** Fixture for the server's replay test: `FUZZ_FIXTURE=../backend/apps/collab/tests/fixtures/fuzz_replay.json npx vitest run fuzz -t fixture`. */
+/** Fixture for the server's replay test: `FUZZ_FIXTURE=../backend/apps/collab/tests/fixtures/fuzz_replay.json bunx --no-install vitest run fuzz -t fixture`. */
 const FIXTURE = process.env.FUZZ_FIXTURE
 const FIXTURE_SEEDS = [41, 43, 47, 53, 59, 61, 67, 71]
 

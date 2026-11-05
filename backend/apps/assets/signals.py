@@ -15,5 +15,6 @@ def delete_asset_files(sender, instance: Asset, **kwargs) -> None:
             instance.poster.name,
             instance.filmstrip.name,
             instance.audio.name,
+            instance.processing_source.name,
         ],
     )

@@ -1,6 +1,6 @@
 /**
  * Print-quality PDF through the real stack: the editor in the browser, the Django API and its headless Chromium print
- * worker. Run with `npm run e2e:print` (playwright.print.config.ts); the downloaded file is read with pypdf.
+ * worker. Run with `bun run e2e:print` (playwright.print.config.ts); the downloaded file is read with pypdf.
  *
  *   PRINT_SHOTS=<folder>   also saves screenshots of the dialog (light and dark) and a picture of a printed page there
  */
