@@ -23,10 +23,11 @@ function fakeCanvas({ webp = true, bytes = (_type: string, quality = 1) => Math.
 
 const ok = (input: OptimizeImageInput): OptimizedImage => ({ blob: new Blob(['opt'], { type: `image/${input.format === 'jpg' ? 'jpeg' : input.format}` }), format: input.format, width: 10, height: 10, quality: input.quality ?? null, bytesBefore: 900, optimizer: 'builtin', optimized: true, warnings: [] })
 
-function server(answer: (input: OptimizeImageInput) => Promise<OptimizedImage> = async (input) => ok(input)): Pick<EditorAdapter, 'imageOptimize' | 'optimizeImage'> & { optimizeImage: ReturnType<typeof vi.fn> } {
+function server(answer: (input: OptimizeImageInput) => Promise<OptimizedImage> = async (input) => ok(input)): Pick<EditorAdapter, 'image'> & { optimizeImage: ReturnType<typeof vi.fn> } {
+  const optimizeImage = vi.fn(answer)
   return {
-    imageOptimize: { formats: ['png', 'jpg', 'webp', 'avif'], optimizers: [{ id: 'builtin', name: 'Built-in', formats: ['jpg', 'png'], sendsOffsite: false }], default: 'builtin' },
-    optimizeImage: vi.fn(answer),
+    image: { info: { formats: ['png', 'jpg', 'webp', 'avif'], optimizers: [{ id: 'builtin', name: 'Built-in', formats: ['jpg', 'png'], sendsOffsite: false }], default: 'builtin' }, optimize: optimizeImage },
+    optimizeImage,
   }
 }
 

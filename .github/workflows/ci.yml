@@ -8,6 +8,10 @@ on:
   pull_request:
   workflow_dispatch:
     inputs:
+      docker:
+        description: Build and smoke-test the Docker images and compose stack
+        type: boolean
+        default: false
       e2e:
         description: Also run the end-to-end browser tests (about 30 minutes over six jobs)
         type: boolean
@@ -122,7 +126,7 @@ jobs:
 
   docker:
     name: Docker images and compose smoke test
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && inputs.docker
     runs-on: ubuntu-latest
     needs: [backend, frontend]
     steps:
@@ -174,6 +178,10 @@ jobs:
             -H 'Content-Type: application/json' -d '{}' \
             http://localhost:8080/api/v1/designs/00000000-0000-4000-8000-000000000000/export/image/ || true)
           test "$status" = "401"
+      - name: Durable export worker is wired up
+        run: |
+          docker compose exec -T api python manage.py process_export_jobs --limit 0
+          docker compose exec -T export-worker python manage.py process_export_jobs --limit 0
       - name: Show logs on failure
         if: failure()
         run: docker compose logs --no-color --tail 200
@@ -229,7 +237,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: playwright-${{ strategy.job-index }}
+          name: playwright-${{ matrix.name }}
           path: |
             frontend/playwright-report
             frontend/test-results

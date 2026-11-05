@@ -75,20 +75,7 @@ export async function runExport(engine: EditorEngine, input: RunExportInput): Pr
   }
 }
 
-export function downloadFiles(files: readonly ExportFile[]): void {
-  files.forEach((file, i) => {
-    setTimeout(() => {
-      const url = URL.createObjectURL(file.blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = file.filename
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
-      setTimeout(() => URL.revokeObjectURL(url), 10_000)
-    }, i * 250)
-  })
-}
+export { downloadFiles } from './download'
 
 /** Copies the current page to the clipboard as a PNG. */
 export async function copyPageAsPng(engine: EditorEngine): Promise<void> {

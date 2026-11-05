@@ -29,7 +29,7 @@ export function formatAvailable(engine: EditorEngine, id: string): boolean {
 
 /** Whether downloads in `format` are optimized unless the person says no: the instance has a default optimizer for it. */
 export function optimizesByDefault(engine: EditorEngine, format: string): boolean {
-  const info = engine.adapter.imageOptimize
+  const info = engine.adapter.image?.info
   const fmt = format === 'jpeg' ? 'jpg' : format
   return !!info?.default && info.optimizers.some((o) => o.id === info.default && (o.formats as string[]).includes(fmt))
 }
@@ -68,7 +68,7 @@ const flag = (value: unknown): boolean | undefined => (typeof value === 'boolean
  * way to the instance's default, or to none when there is no server.
  */
 export function withOfferedOptimizer(engine: EditorEngine, options: ExportOptions): ExportOptions {
-  const info = engine.adapter.imageOptimize
+  const info = engine.adapter.image?.info
   if (options.optimizer === undefined || info?.optimizers.some((o) => o.id === options.optimizer)) return options
   const next = { ...options }
   const fallback = info?.default ?? info?.optimizers[0]?.id

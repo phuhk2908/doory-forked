@@ -55,6 +55,7 @@ The REST endpoint (a JSON body) and the MCP tool `export_design` take the same o
 | `progressive` | `false` | JPG only: a progressive JPG |
 | `optimize` | `false` | Make the file smaller afterwards: `true` (the default optimizer) or an optimizer's id. It never makes a file bigger; see [image optimization](../integrations/image-optimization.md) |
 | `file_names` | `EXPORT_FILENAME_STYLE` | `simple` or `detailed` (with platform, preset and size) names. The REST endpoint also takes `filename_style` and `filename_timestamp` |
+| `background` | `false` | REST only: queue the export and return `202` with a polling URL instead of holding the request open |
 | `bleed_mm` | `0` | PDF only: bleed around every page, 0 to 10 mm (3 is usual for print) |
 | `crop_marks` | `false` | PDF only: crop marks in a margin around the bleed |
 | `cmyk` | `false` | Not offered: PDFs are RGB, as on screen, and `true` is refused (`cmyk_unavailable`) |
@@ -71,6 +72,18 @@ optimizer that sends the image off the server (TinyPNG, Kraken.io or the custom 
 against the `optimize_offsite` rate (10 a minute per user). `EXPORT_IMAGE_MAX_PAGES` limits the pages one
 export may draw. Over MCP, AVIF images, SVG files, PDFs and ZIPs are always sent as a download link, because
 clients can't show them inline.
+
+### Background REST exports
+
+For a large image, document or video export, add `{"background": true}` to the REST request. The endpoint stores the
+validated options and a document snapshot, then returns `202 Accepted` with `status: "queued"`, a `poll_url` and a
+`Location` header. Poll `GET /api/v1/exports/jobs/{id}/` while it is `queued` or `running`; a successful job includes
+an expiring private `download_url`, and a failed job includes `error_code` and `error`.
+
+The Docker `export-worker` service drains the database queue and shares the `exports` volume with the API. For a
+manual deployment, run `python manage.py process_export_jobs --limit 1` from a scheduler or long-running worker. The
+API also nudges a local worker immediately, but the database row and snapshot are authoritative, so a restart does
+not discard a queued export. Stale worker leases are requeued up to `EXPORT_JOB_MAX_ATTEMPTS`.
 
 ## SVG and PDF
 

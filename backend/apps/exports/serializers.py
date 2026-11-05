@@ -271,6 +271,8 @@ class ResolutionField(serializers.Field):
 class ImageExportSerializer(serializers.Serializer):
     page = PageRefField(required=False, default=None, allow_null=True)
     pages = PagesField(required=False, default=None, allow_null=True)
+    # Opt-in only: the legacy response remains a file unless this is true.
+    background = serializers.BooleanField(required=False, default=False, write_only=True)
     format = serializers.ChoiceField(
         choices=["png", "jpg", "jpeg", "webp", "avif", "auto", *DOCUMENT_FORMATS, *VIDEO_FORMATS],
         default="png",

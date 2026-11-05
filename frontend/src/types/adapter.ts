@@ -275,7 +275,7 @@ export interface RealtimeConnection {
   early: { room: { close(): void } | null; start(): void; release(): void }
 }
 
-export interface EditorAdapter {
+export interface EditorPersistence {
   save(input: SaveInput): Promise<SaveResult>
   /**
    * Guest pressed Save / Share / etc. Resolve `true` once the user is signed in AND the design now lives
@@ -285,11 +285,11 @@ export interface EditorAdapter {
   uploadAsset(file: File | Blob, opts?: { name?: string }): Promise<AssetRef>
   /** Turn a stored `src` (`idb://…`, `/media/…`, `https://…`) into a URL Fabric can load. */
   resolveSrc(src: string): Promise<string>
+}
+
+export interface EditorExportCapabilities {
   /** Guest-only portable backup of the editable project and its browser-owned files. */
   exportProject?: () => Promise<{ blob: Blob; filename: string }>
-  services: EditorServices
-  /** The design's live room; absent or `null` when real-time editing is not available (the editor saves over REST). */
-  realtime?: RealtimeConnection | null
   /** The instance's default export file names (the download dialog starts there until the user picks). Simple without it. */
   exportFilenames?: { style: 'simple' | 'structured'; timestamp: boolean }
   /** Server-side vector PDF (account only). Absent → editor falls back to client-side PDF. */
@@ -313,10 +313,23 @@ export interface EditorAdapter {
     /** Called while the request body goes out (0..1). */
     onUploadProgress?: (fraction: number) => void
   }) => Promise<Blob>
+}
+
+export interface EditorImageCapabilities {
   /** What the server converts and optimizes downloads into (`/config/` `features.image_optimize`). Absent: browser only. */
-  imageOptimize?: ImageOptimizeInfo
-  /** Converts a page the browser drew (PNG) to `format` and optimizes it on the server. Present with `imageOptimize`. */
-  optimizeImage?: (input: OptimizeImageInput) => Promise<OptimizedImage>
+  info: ImageOptimizeInfo
+  /** Converts a page the browser drew (PNG) to `format` and optimizes it on the server. */
+  optimize: (input: OptimizeImageInput) => Promise<OptimizedImage>
+}
+
+export interface EditorAdapter extends EditorPersistence {
+  services: EditorServices
+  /** The design's live room; absent or `null` when real-time editing is not available (the editor saves over REST). */
+  realtime?: RealtimeConnection | null
+  /** Optional export capabilities: project backup, server PDF and server filename defaults. */
+  exports?: EditorExportCapabilities
+  /** Optional server image conversion and optimization capability. */
+  image?: EditorImageCapabilities
 }
 
 export type OptimizeFormat = 'png' | 'jpg' | 'webp' | 'avif'

@@ -125,12 +125,12 @@ describe('runExport', () => {
     engine.dispose()
   })
 
-  it('server PDF is offered only to accounts with adapter.exportPdf and sends embedded-image SVGs', async () => {
+  it('server PDF is offered only to accounts with adapter.exports.exportPdf and sends embedded-image SVGs', async () => {
     const { engine, handle } = await engineWithShape()
     const server = exportFormats.get('pdf-server')
     expect(server?.available?.(engine)).toBe(false)
     const exportPdf = vi.fn(async () => new Blob(['%PDF-1.7'], { type: 'application/pdf' }))
-    handle.adapter.exportPdf = exportPdf
+    handle.adapter.exports = { exportPdf }
     engine.store.setState({ mode: 'account' })
     expect(server?.available?.(engine)).toBe(true)
     const [file] = await runExport(engine, { formatId: 'pdf-server', pages: { kind: 'all' }, options: DEFAULT_EXPORT_OPTIONS })

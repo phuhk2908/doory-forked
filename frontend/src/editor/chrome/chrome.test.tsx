@@ -9,7 +9,8 @@ import '../engine/export/formats'
 import { setupEditor } from '../animation/testing'
 import { createBlankDocument } from '@/lib/document'
 import type { DoryDocument } from '@/types/document'
-import { downloadFiles, runExport } from '../engine/export/exporter'
+import { runExport } from '../engine/export/exporter'
+import { downloadFiles } from '../engine/export/download'
 import { saveLastExport } from '../engine/export/choices'
 import { DEFAULT_EXPORT_OPTIONS } from '../engine/export/registry'
 import type { EditorEngine } from '../engine/editor'
@@ -23,13 +24,13 @@ import { ToolRail } from './ToolRail'
 
 vi.mock('../engine/export/exporter', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../engine/export/exporter')>()),
-  downloadFiles: vi.fn(),
   runExport: vi.fn(async () => [{ blob: new Blob(['x']), filename: 'Test.jpg' }]),
 }))
+vi.mock('../engine/export/download', () => ({ downloadFiles: vi.fn() }))
 
 async function mount(mode?: 'guest' | 'shared-view', doc?: DoryDocument, exportProject?: () => Promise<{ blob: Blob; filename: string }>) {
   const { engine } = await setupEditor({ mode, doc })
-  if (exportProject) engine.adapter.exportProject = exportProject
+  if (exportProject) engine.adapter.exports = { exportProject }
   await act(async () => {
     render(
       <EditorProvider engine={engine} portalRoot={document.body}>
@@ -89,9 +90,9 @@ describe('editor chrome', () => {
     await userEvent.click(shapes)
     expect(shapes).toHaveAttribute('aria-pressed', 'true')
     const panel = screen.getByRole('complementary', { name: t.rail.shapes })
-    await userEvent.click(within(panel).getByTestId('shape-rect'))
+    await userEvent.click(await within(panel).findByTestId('shape-rect'))
     await waitFor(() => expect(objectCount(engine!)).toBe(1))
-    await userEvent.click(within(panel).getByTestId('shape-ellipse'))
+    await userEvent.click(await within(panel).findByTestId('shape-ellipse'))
     await waitFor(() => expect(objectCount(engine!)).toBe(2))
     expect(screen.getByRole('complementary', { name: t.rail.shapes })).toBeInTheDocument()
     await userEvent.click(shapes)
@@ -102,7 +103,7 @@ describe('editor chrome', () => {
     engine = await mount()
     const text = screen.getByRole('button', { name: t.rail.text })
     await userEvent.click(text)
-    within(screen.getByRole('complementary', { name: t.rail.text })).getAllByRole('button')[1].focus()
+    within(screen.getByRole('complementary', { name: t.rail.text })).getByTestId('sidebar-close').focus()
     await userEvent.keyboard('{Escape}')
     expect(screen.queryByRole('complementary')).not.toBeInTheDocument()
     expect(text).toHaveFocus()
@@ -215,7 +216,7 @@ describe('editor chrome', () => {
     vi.mocked(runExport).mockClear()
     saveLastExport({ formatId: 'jpg', options: { ...DEFAULT_EXPORT_OPTIONS, optimize: true, optimizer: 'gone' } })
     engine = await mount()
-    engine.adapter.imageOptimize = { formats: ['png', 'jpg'], optimizers: [{ id: 'builtin', name: 'Built-in', formats: ['jpg', 'png'], sendsOffsite: false }], default: 'builtin' }
+    engine.adapter.image = { info: { formats: ['png', 'jpg'], optimizers: [{ id: 'builtin', name: 'Built-in', formats: ['jpg', 'png'], sendsOffsite: false }], default: 'builtin' }, optimize: vi.fn() }
     await userEvent.click(screen.getByTestId('ed-share'))
     await userEvent.click(within(screen.getByRole('menu')).getByRole('menuitem', { name: new RegExp(t.topbar.lastUsed) }))
     await waitFor(() => expect(runExport).toHaveBeenCalledTimes(1))

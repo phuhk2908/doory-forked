@@ -372,6 +372,11 @@ EXPORT_VIDEO_TIMEOUT_SECONDS = env.int("EXPORT_VIDEO_TIMEOUT_SECONDS", default=3
 EXPORT_VIDEO_MAX_SECONDS = env.int("EXPORT_VIDEO_MAX_SECONDS", default=120)  # the longest video or GIF
 EXPORT_VIDEO_MAX_RESOLUTION = env.int("EXPORT_VIDEO_MAX_RESOLUTION", default=1080)  # shorter side, px
 EXPORT_VIDEO_MAX_BYTES = env.int("EXPORT_VIDEO_MAX_BYTES", default=200 * 1024 * 1024)
+# Background export jobs are persisted in the database. A worker lease is reclaimed after
+# the longest configured render plus this bounded retry count, so an API restart cannot
+# strand a job forever.
+EXPORT_JOB_WORKERS = env.int("EXPORT_JOB_WORKERS", default=1)
+EXPORT_JOB_MAX_ATTEMPTS = env.int("EXPORT_JOB_MAX_ATTEMPTS", default=3)
 
 # Image optimizers (apps.exports.optimizers): make exported and downloaded images smaller after drawing them.
 # IMAGE_OPTIMIZERS lists the ones people may pick, in order (empty: none). `builtin` runs mozjpeg and oxipng

@@ -98,7 +98,7 @@ describe('guest adapter', () => {
     expect(adapter.services.stock).toBeNull()
     expect(adapter.services.versions).toBeNull()
     expect(typeof adapter.services.fonts.list).toBe('function')
-    expect(adapter.exportPdf).toBeUndefined()
+    expect(adapter.exports?.exportPdf).toBeUndefined()
   })
 
   it('lists local uploads through services.assets', async () => {
@@ -207,39 +207,39 @@ describe('account adapter', () => {
 
   it('offers brand, stock and versions services and server PDF only when the feature is on', async () => {
     const off = createAccountAdapter('d1', () => 1, { config: { features: { stock_photos: false, server_pdf: false, google_login: false, email_verification: false } } })
-    expect(off.exportPdf).toBeUndefined()
+    expect(off.exports?.exportPdf).toBeUndefined()
     expect(off.services.brand).not.toBeNull()
     expect(off.services.stock).not.toBeNull()
     expect(off.services.versions).not.toBeNull()
     const on = createAccountAdapter('d1', () => 1, { config: { features: { stock_photos: true, server_pdf: true, google_login: false, email_verification: false } } })
     const calls = captureFetch(() => new Response('%PDF', { headers: { 'content-type': 'application/pdf' } }))
-    const pdf = await on.exportPdf?.({ svgPages: ['<svg/>'], width: 100, height: 100, title: 'x' })
+    const pdf = await on.exports?.exportPdf?.({ svgPages: ['<svg/>'], width: 100, height: 100, title: 'x' })
     expect(pdf?.size).toBe(4)
     expect((calls[0].body as FormData).getAll('pages')).toHaveLength(1)
   })
 
   it('converts and optimizes downloads on the server only when the server says it can', () => {
     const features = { stock_photos: false, server_pdf: false, google_login: false, email_verification: false }
-    expect(createAccountAdapter('d1', () => 1, { config: { features } }).optimizeImage).toBeUndefined()
-    expect(createAccountAdapter('d1', () => 1, { config: { features: { ...features, image_optimize: null } } }).imageOptimize).toBeUndefined()
+    expect(createAccountAdapter('d1', () => 1, { config: { features } }).image).toBeUndefined()
+    expect(createAccountAdapter('d1', () => 1, { config: { features: { ...features, image_optimize: null } } }).image).toBeUndefined()
     const image_optimize = { formats: ['png', 'jpg', 'webp', 'avif', 'tiff'], optimizers: [{ id: 'custom', name: 'Ours', formats: ['png', 'gif'], sends_offsite: true }], default: 'custom' }
     const on = createAccountAdapter('d1', () => 1, { config: { features: { ...features, image_optimize } } })
-    expect(on.imageOptimize).toEqual({ formats: ['png', 'jpg', 'webp', 'avif'], optimizers: [{ id: 'custom', name: 'Ours', formats: ['png'], sendsOffsite: true }], default: 'custom' })
-    expect(typeof on.optimizeImage).toBe('function')
+    expect(on.image?.info).toEqual({ formats: ['png', 'jpg', 'webp', 'avif'], optimizers: [{ id: 'custom', name: 'Ours', formats: ['png'], sendsOffsite: true }], default: 'custom' })
+    expect(typeof on.image?.optimize).toBe('function')
   })
 
   it('hands the font files of the design to the server PDF export', async () => {
     const on = createAccountAdapter('d1', () => 1, { config: { features: { stock_photos: false, server_pdf: true, google_login: false, email_verification: false } } })
     const calls = captureFetch(() => new Response('%PDF', { headers: { 'content-type': 'application/pdf' } }))
     const fonts = [{ family: 'Brand Sans', url: '/media/fonts/user/1/a.ttf', weight: 400, style: 'normal' as const }]
-    await on.exportPdf?.({ svgPages: ['<svg/>'], width: 100, height: 100, fonts })
+    await on.exports?.exportPdf?.({ svgPages: ['<svg/>'], width: 100, height: 100, fonts })
     expect(JSON.parse((calls[0].body as FormData).get('fonts') as string)).toEqual(fonts)
   })
 
   it('hands the print options, the sizes and the language of the design to the server PDF export', async () => {
     const on = createAccountAdapter('d1', () => 1, { config: { features: { stock_photos: false, server_pdf: true, google_login: false, email_verification: false } } })
     const calls = captureFetch(() => new Response('%PDF', { headers: { 'content-type': 'application/pdf' } }))
-    await on.exportPdf?.({ svgPages: ['<svg/>', '<svg/>'], width: 100, height: 100, sizes: [{ width: 100, height: 100 }, { width: 50, height: 80 }], bleedMm: 3, cropMarks: true, lang: 'fr', title: 'Menu' })
+    await on.exports?.exportPdf?.({ svgPages: ['<svg/>', '<svg/>'], width: 100, height: 100, sizes: [{ width: 100, height: 100 }, { width: 50, height: 80 }], bleedMm: 3, cropMarks: true, lang: 'fr', title: 'Menu' })
     const form = calls[0].body as FormData
     expect(form.get('bleed_mm')).toBe('3')
     expect(form.get('crop_marks')).toBe('true')

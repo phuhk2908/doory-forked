@@ -113,7 +113,7 @@ function drawCropMarks(pdf: import('jspdf').jsPDF, g: PrintGeometry, mm: (px: nu
 }
 
 async function serverPdfFile(ctx: ExportContext): Promise<ExportFile[]> {
-  const exportPdf = ctx.engine.adapter.exportPdf
+  const exportPdf = ctx.engine.adapter.exports?.exportPdf
   if (!exportPdf) throw new Error('Print-quality PDF is not available.')
   const total = ctx.pages.length
   const { bleedMm, cropMarks } = ctx.options
@@ -222,7 +222,7 @@ export function registerBuiltinExportFormats(): void {
     order: 40,
     server: true,
     controls: { print: true },
-    available: (engine) => typeof engine.adapter.exportPdf === 'function' && engine.state.mode !== 'guest',
+    available: (engine) => typeof engine.adapter.exports?.exportPdf === 'function' && engine.state.mode !== 'guest',
     run: serverPdfFile,
   })
 }

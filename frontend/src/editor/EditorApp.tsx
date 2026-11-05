@@ -9,16 +9,13 @@ import './animation/commands'
 import './presenter/commands'
 import './panels/commentsCommands'
 import './engine/export/formats'
+import './engine/export/video/formats'
 import { CollabBanner } from './collab/CollabBanner'
 import type { CollabSession } from './collab/session'
 import { exposeForTests } from './collab/testHook'
-import { ConflictBanner } from './ConflictBanner'
-import { MissingFontsNotice } from './fonts/MissingFontsNotice'
-import { ContextMenuHost } from './ContextMenuHost'
 import { DialogHost } from './dialogs/DialogHost'
 import { AudioSyncHost } from './panels/AudioSyncHost'
 import { BrandSync } from './panels/BrandSync'
-import { NotesHost } from './panels/NotesBar'
 import { useEditorState } from './context'
 import { EditorProvider } from './EditorProvider'
 import { EditorEngine } from './engine/editor'
@@ -34,7 +31,15 @@ import { Toaster } from './ui/Toaster'
 import { PageStrip } from './workspace/PageStrip'
 import { LazyTimelineHost } from './workspace/TimelineLoader'
 import { Workspace } from './workspace/Workspace'
+import { loadable } from './ui/loadable'
 import styles from './EditorApp.module.css'
+
+// These hosts are always mounted but only show anything for uncommon editor states. Keeping their implementation
+// out of the eager entry leaves the normal canvas path smaller while preserving their state-driven behavior.
+const ConflictBanner = loadable(() => import('./ConflictBanner').then((m) => m.ConflictBanner), { fallback: null })
+const MissingFontsNotice = loadable(() => import('./fonts/MissingFontsNotice').then((m) => m.MissingFontsNotice), { fallback: null })
+const ContextMenuHost = loadable(() => import('./ContextMenuHost').then((m) => m.ContextMenuHost), { fallback: null })
+const NotesHost = loadable(() => import('./panels/NotesBar').then((m) => m.NotesHost), { fallback: null })
 
 /** How many times the code of the live session is fetched again (after 1, 2, 4, 8 s …) before the person is told to reload. */
 const COLLAB_LOAD_ATTEMPTS = 4

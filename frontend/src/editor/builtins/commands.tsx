@@ -79,11 +79,11 @@ export function registerBuiltinCommands(): void {
     label: t.cmd.fileExportProject,
     group: t.cmdGroup.file,
     icon: <Archive size={18} />,
-    enabled: ({ editor, state }) => state.mode === 'guest' && !!editor.adapter.exportProject,
+    enabled: ({ editor, state }) => state.mode === 'guest' && !!editor.adapter.exports?.exportProject,
     run: async (e) => {
       try {
         await e.persistence.saveNow()
-        const project = await e.adapter.exportProject?.()
+        const project = await e.adapter.exports?.exportProject?.()
         if (!project) return
         downloadBlob(project.blob, project.filename)
         e.toast(t.projectBackup.exported, 'success')

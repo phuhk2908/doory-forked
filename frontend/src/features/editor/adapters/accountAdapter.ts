@@ -1,6 +1,6 @@
 import { assetsApi, designsApi, exportsApi, isApiError } from '@/lib/api'
 import type { AppConfig, ImageOptimizeConfig } from '@/types/api'
-import type { EditorAdapter, ImageOptimizeInfo, OptimizeFormat } from '@/types/adapter'
+import type { EditorAdapter, EditorExportCapabilities, ImageOptimizeInfo, OptimizeFormat } from '@/types/adapter'
 import { RevisionConflictError } from './errors'
 import { createRealtimeConnection, flushLiveRoom } from './realtime'
 import { assetToRef, createAccountServices, createAiService } from './services'
@@ -89,15 +89,17 @@ export function createAccountAdapter(designId: string, getRevision: () => number
     realtime,
   }
   const exports = options.config?.exports
-  if (exports) adapter.exportFilenames = { style: exports.filename_style === 'structured' ? 'structured' : 'simple', timestamp: exports.filename_timestamp === true }
+  if (exports) {
+    adapter.exports = { exportFilenames: { style: exports.filename_style === 'structured' ? 'structured' : 'simple', timestamp: exports.filename_timestamp === true } }
+  }
   if (options.config?.features.server_pdf) {
-    adapter.exportPdf = ({ svgPages, width, height, sizes, bleedMm, cropMarks, title, lang, fonts, signal, onUploadProgress }) =>
+    const exportPdf: NonNullable<EditorExportCapabilities['exportPdf']> = ({ svgPages, width, height, sizes, bleedMm, cropMarks, title, lang, fonts, signal, onUploadProgress }) =>
       exportsApi.pdf({ pages: svgPages.map((svg) => new Blob([svg], { type: 'image/svg+xml' })), width, height, sizes, bleedMm, cropMarks, title, lang, fonts, signal, onUploadProgress })
+    adapter.exports = { ...adapter.exports, exportPdf }
   }
   const optimize = options.config?.features.image_optimize
   if (optimize) {
-    adapter.imageOptimize = imageOptimizeInfo(optimize)
-    adapter.optimizeImage = exportsApi.optimize
+    adapter.image = { info: imageOptimizeInfo(optimize), optimize: exportsApi.optimize }
   }
   return adapter
 }

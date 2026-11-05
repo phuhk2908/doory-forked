@@ -70,6 +70,49 @@ services:
     # Chromium (server-side PDF export) needs more shared memory than Docker's 64 MB default.
     shm_size: "512m"
 
+  # Durable background export worker. The API also nudges an in-process worker for quick local feedback, but this
+  # process is what drains jobs that survive an API restart or a deployment.
+  export-worker:
+    build:
+      context: ./backend
+      args:
+        INSTALL_CHROMIUM: ${INSTALL_CHROMIUM:-true}
+        INSTALL_FFMPEG: ${INSTALL_FFMPEG:-true}
+        INSTALL_IMAGE_OPTIMIZERS: ${INSTALL_IMAGE_OPTIMIZERS:-true}
+    restart: unless-stopped
+    init: true
+    depends_on:
+      api:
+        condition: service_healthy
+    env_file: .env
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      DJANGO_SETTINGS_MODULE: doory.settings.prod
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?Set DJANGO_SECRET_KEY in .env}
+      SITE_URL: ${SITE_URL:?Set SITE_URL in .env}
+      DATABASE_URL: postgres://${POSTGRES_USER:-doory}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-doory}
+      CACHE_URL: dbcache://doory_cache
+      MEDIA_ROOT: /app/media
+      EXPORT_STORAGE_ROOT: /app/exports
+      REDIS_URL: ${REDIS_URL:-}
+      EXPORT_RENDER_PAGE_URL: ${EXPORT_RENDER_PAGE_URL:-http://doory-web:8080/render.html}
+    volumes:
+      - media:/app/media
+      - exports:/app/exports
+    networks:
+      default:
+        aliases: [doory-export-worker]
+    command:
+      - sh
+      - -c
+      - >-
+        while :; do
+          python manage.py process_export_jobs --limit 1;
+          sleep "$${EXPORT_WORKER_INTERVAL_SECONDS:-2}";
+        done
+    shm_size: "512m"
+
   # Live editing: the same image as `api`, served by uvicorn so WebSockets work. Run more than one worker
   # (REALTIME_WORKERS) or replica only together with Redis: `docker compose --profile redis up -d`.
   realtime:

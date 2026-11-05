@@ -15,11 +15,11 @@ import { t } from '../strings'
 import { DownloadDialog } from './DownloadDialog'
 import { ComparePreview } from './download/ComparePreview'
 import { OptimizerCard } from './download/OptimizerCard'
-import type { ImageOptimizeInfo, OptimizeImageInput, OptimizedImage } from '@/types/adapter'
+import type { EditorExportCapabilities, ImageOptimizeInfo, OptimizeImageInput, OptimizedImage } from '@/types/adapter'
 
 vi.mock('../engine/export/exporter', async (importOriginal) => ({ ...(await importOriginal<typeof import('../engine/export/exporter')>()), downloadFiles: vi.fn() }))
 
-type ExportPdf = NonNullable<ReturnType<typeof createMemoryAdapter>['adapter']['exportPdf']>
+type ExportPdf = NonNullable<EditorExportCapabilities['exportPdf']>
 
 function mixed(): DoryDocument {
   const base = createBlankDocument(1080, 1080)
@@ -30,7 +30,7 @@ function mixed(): DoryDocument {
 function setup({ server = true, doc = mixed(), id = 'design-1' }: { server?: boolean; doc?: DoryDocument; id?: string } = {}) {
   const handle = createMemoryAdapter()
   const exportPdf = vi.fn<ExportPdf>(async () => new Blob(['%PDF-1.7'], { type: 'application/pdf' }))
-  if (server) handle.adapter.exportPdf = exportPdf
+  if (server) handle.adapter.exports = { exportPdf }
   const engine = new EditorEngine({ adapter: handle.adapter, document: doc, meta: { id, title: 'Menu', mode: server ? 'account' : 'guest' }, ephemeral: true })
   const view = render(
     <EditorProvider engine={engine} portalRoot={document.body}>
@@ -478,7 +478,7 @@ describe('Download dialog: file names', () => {
 
   it("starts from the instance's default", async () => {
     const handle = createMemoryAdapter()
-    handle.adapter.exportFilenames = { style: 'structured', timestamp: false }
+    handle.adapter.exports = { exportFilenames: { style: 'structured', timestamp: false } }
     engine = new EditorEngine({ adapter: handle.adapter, document: story(), meta: { id: 'd', title: 'Menu', mode: 'account' }, ephemeral: true })
     render(
       <EditorProvider engine={engine} portalRoot={document.body}>
@@ -513,9 +513,8 @@ describe('Download dialog: pictures', () => {
 
   function withServer(doc: DoryDocument, answer: (input: OptimizeImageInput) => Promise<OptimizedImage>) {
     const handle = createMemoryAdapter()
-    handle.adapter.imageOptimize = OPTIMIZE
     const optimizeImage = vi.fn(answer)
-    handle.adapter.optimizeImage = optimizeImage
+    handle.adapter.image = { info: OPTIMIZE, optimize: optimizeImage }
     const created = new EditorEngine({ adapter: handle.adapter, document: doc, meta: { id: 'd', title: 'Menu', mode: 'account' }, ephemeral: true })
     render(
       <EditorProvider engine={created} portalRoot={document.body}>

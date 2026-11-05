@@ -1,6 +1,6 @@
 /**
  * Turns a drawn page into a PNG, JPG, WebP or AVIF file. The browser encodes what it can; the server
- * (`EditorAdapter.optimizeImage`) converts and optimizes when an optimizer is on, for AVIF (no browser encodes it from a
+ * (`EditorAdapter.image.optimize`) converts and optimizes when an optimizer is on, for AVIF (no browser encodes it from a
  * canvas), for WebP where the browser can't make it (Safari quietly answers with a PNG) and for palette PNGs. When the
  * server can't help, the browser's own file is kept and a note says so. The server takes one page per request under a
  * per-minute limit: when it says to slow down (429), the page waits as long as it asks and tries again.
@@ -48,7 +48,7 @@ function pause(seconds: number, signal?: AbortSignal): Promise<void> {
 }
 
 /** The server's file. Too many pages a minute (429): wait as asked and try again, so a ZIP doesn't mix optimized and browser files. */
-async function askServer(optimizeImage: NonNullable<OptimizeAdapter['optimizeImage']>, input: OptimizeImageInput): Promise<OptimizedImage> {
+async function askServer(optimizeImage: NonNullable<OptimizeAdapter['image']>['optimize'], input: OptimizeImageInput): Promise<OptimizedImage> {
   for (let attempt = 0; ; attempt++) {
     try {
       return await optimizeImage(input)
@@ -92,7 +92,7 @@ async function encodeInBrowser(canvas: HTMLCanvasElement, format: RasterFormat, 
 export async function encodeRaster(canvas: HTMLCanvasElement, format: RasterFormat, options: RasterOptions, adapter: OptimizeAdapter, signal?: AbortSignal): Promise<EncodedRaster> {
   const local = await encodeInBrowser(canvas, format, options)
   const fallback = (note?: string): EncodedRaster => ({ blob: local.blob, format: local.format, bytesBefore: local.blob.size, optimized: false, note: note ?? (local.format !== format ? t.dialog.downloadNoServer(format.toUpperCase()) : undefined) })
-  const optimizeImage = adapter.optimizeImage
+  const optimizeImage = adapter.image?.optimize
   if (!optimizeImage || !serverConverts(adapter, format) || !wantsServer(format, options)) return fallback()
   try {
     const png = local.format === 'png' ? local.blob : await canvasToBlob(canvas, 'image/png')

@@ -408,11 +408,16 @@ The core design choice is separation of concerns around one canonical document:
 The main operational constraints follow directly from those choices: Redis is required for horizontally scaled live
 rooms, the render page and backend must be version-aligned, maintenance commands must be scheduled externally, and
 large document/media/export workloads need the configured memory, byte and timeout limits. Video conversions keep
-their source in storage and can be recovered by `process_video_jobs` after an API restart; server-side exports
-remain request-bound and are the next candidate for the same job boundary.
+their source in storage and can be recovered by `process_video_jobs` after an API restart. Opt-in background image,
+document and video exports use the same durable snapshot and lease pattern through `ExportJob` and
+`process_export_jobs`.
 
 ## 16. Follow-up backlog
 
-- [ ] Reduce the editor's eager bundle closure instead of raising the budgets. The current baseline is
-  `1,412,422` source characters versus the `1,200,000` lazy-chunk limit, and the `/local/:id` initial route is
-  `461.3 kB` gzip versus the `450.0 kB` route budget. Track both checks after each editor dependency change.
+- [x] Reduce the editor's eager bundle closure instead of raising the budgets. Toolbar sections, size controls and
+  export pipelines now load on use; the current `/local/:id` initial route is below the 450 kB gzip budget and the
+  lazy-closure test is below 1,200,000 source characters.
+- [x] Move opt-in server-side image, document and video exports behind durable `ExportJob` rows with document
+  snapshots, retry leases, private result delivery and a Docker worker.
+- [x] Split the `EditorAdapter` capability contract so persistence, export and image-optimization seams are explicit.
+- [x] Expand CI/E2E coverage for the worker service and new lazy editor paths; API tests cover background export polling.

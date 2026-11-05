@@ -6,7 +6,7 @@
 import { Download, Presentation, StickyNote } from 'lucide-react'
 import { registerCommand } from '../commands'
 import type { EditorEngine } from '../engine/editor'
-import { downloadFiles } from '../engine/export/exporter'
+import { downloadFiles } from '../engine/export/download'
 import { toggleNotes } from '../panels/notesVisibility'
 import { t } from '../strings'
 import { newSessionId } from './channel'

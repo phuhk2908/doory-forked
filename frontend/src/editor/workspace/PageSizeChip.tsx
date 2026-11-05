@@ -3,7 +3,7 @@ import { useEditor, useEditorState } from '../context'
 import { formatSize, getPageSize } from '../engine/pageSizes'
 import { t } from '../strings'
 import { Popover } from '../ui/Popover'
-import { SizePanel } from './SizePanel'
+import { LazySizePanel } from './LazySizePanel'
 import styles from './PageSlot.module.css'
 
 interface PageSizeChipProps {
@@ -43,6 +43,8 @@ export function PageSizeChip({ pageId, number }: PageSizeChipProps) {
         aria-expanded={open}
         aria-label={t.workspace.sizeChipLabel(number, text)}
         data-testid="ed-page-size"
+        onPointerEnter={() => void LazySizePanel.preload()}
+        onFocus={() => void LazySizePanel.preload()}
         onClick={() => {
           editor.pages.activate(pageId, false)
           setOpen((o) => !o)
@@ -51,7 +53,7 @@ export function PageSizeChip({ pageId, number }: PageSizeChipProps) {
         {text}
       </button>
       <Popover open={open} onClose={() => setOpen(false)} anchorRef={ref} label={t.canvasSize.pageTitle(number)} placement="bottom-start" variant="plain" cover gap={6}>
-        <SizePanel close={() => setOpen(false)} pageId={pageId} defaultScope="page" />
+        <LazySizePanel close={() => setOpen(false)} pageId={pageId} defaultScope="page" />
       </Popover>
     </>
   )

@@ -652,9 +652,9 @@ def _image_options(
     return encoding, optimizer, scale
 
 
-def _image_document(design) -> dict:
+def _image_document(design, document: dict | None = None) -> dict:
     """The design as it is now (see `export_image`), refused when it is too large to draw on the server."""
-    document = current_document(design)
+    document = current_document(design) if document is None else document
     if len(json.dumps(document, separators=(",", ":"))) > settings.EXPORT_IMAGE_MAX_DOCUMENT_BYTES:
         raise PayloadTooLarge("The design is too large to export as an image on the server.")
     return document
@@ -691,6 +691,7 @@ def export_image(
     progressive: bool = False,
     optimize: bool | str = False,
     deadline: float | None = None,
+    document: dict | None = None,
 ) -> ImageResult:
     """Draw one page of `design` (its live editor state when it is open, else the saved document) as PNG, JPG,
     WebP or AVIF, or `auto`: the smallest of those. `page` is an index or a page id (default: the first page);
@@ -721,7 +722,7 @@ def export_image(
     )
     transparent = encoding.transparent
 
-    document = _image_document(design)
+    document = _image_document(design, document)
     page_obj, index = _pick_page(document, page)
     width, height, scale = _page_scale(document, page_obj, scale, size)
     payload = {
@@ -957,6 +958,7 @@ def export_images(
     bleed_mm: float = 0,
     crop_marks: bool = False,
     cmyk: bool = False,
+    document: dict | None = None,
     **options: Any,
 ) -> ImageBundle:
     """Draw `pages` (see `pick_pages`) of `design` with `export_image` and its `options`, one render at a
@@ -975,6 +977,7 @@ def export_images(
     for them."""
     fmt = str(options.get("format", "png")).lower()
     bleed, marks = _print_options(bleed_mm, crop_marks, cmyk)
+    document_option = {"document": document} if document is not None else {}
     video_options = {key: options.pop(key) for key in VIDEO_OPTIONS if key in options}
     if fmt in VIDEO_FORMATS:
         return export_video(
@@ -985,6 +988,7 @@ def export_images(
             filename_style=filename_style,
             unix=unix,
             charge=charge,
+            **document_option,
             **video_options,
         )
     if fmt in DOCUMENT_FORMATS:
@@ -997,10 +1001,11 @@ def export_images(
             filename_style=filename_style,
             unix=unix,
             charge=charge,
+            **document_option,
         )
     # What can be checked without drawing is checked for every page before the pages are charged.
+    document = _image_document(design, document)
     _, optimizer, scale = _image_options(**options)
-    document = _image_document(design)
     indexes = _page_indexes(document, pages)
     for index in indexes:
         _page_scale(document, document["pages"][index], scale, options.get("size"))
@@ -1009,7 +1014,9 @@ def export_images(
         charge(len(indexes) - 1)
     style = filename_style or settings.EXPORT_FILENAME_STYLE
     deadline = _deadline()  # one for all pages: the request must end before the web server gives up on it
-    images = tuple(export_image(design, page=index, deadline=deadline, **options) for index in indexes)
+    images = tuple(
+        export_image(design, page=index, deadline=deadline, **document_option, **options) for index in indexes
+    )
     return _bundle(design, images, style=style, unix=unix)
 
 
@@ -1108,6 +1115,7 @@ def export_document(
     filename_style: str | None = None,
     unix: int | None = None,
     charge: Callable[[int], None] | None = None,
+    document: dict | None = None,
 ) -> ImageBundle:
     """`pages` (see `pick_pages`) of `design` as the editor's Download makes them: `svg` (one file per page,
     with its pictures and fonts inside; several in a ZIP), `pdf` (one PDF, a 300 dpi picture of each page) or
@@ -1126,9 +1134,7 @@ def export_document(
         raise ExportDisabled
     if not settings.EXPORT_RENDER_PAGE_URL:
         raise ExportUnavailable
-    document = current_document(design)
-    if len(json.dumps(document, separators=(",", ":"))) > settings.EXPORT_IMAGE_MAX_DOCUMENT_BYTES:
-        raise PayloadTooLarge("The design is too large to export on the server.")
+    document = _image_document(design, document)
     indexes = _page_indexes(document, pages)
     chosen = [document["pages"][index] for index in indexes]
     sizes = [_page_size(document, page) for page in chosen]
@@ -1361,6 +1367,7 @@ def export_video(
     filename_style: str | None = None,
     unix: int | None = None,
     charge: Callable[[int], None] | None = None,
+    document: dict | None = None,
 ) -> ImageBundle:
     """`pages` of `design` (see `pick_pages`; default all) as the editor's video download makes them: an MP4
     (H.264), a WebM (VP9) or an animated GIF, one page after another with their animations and transitions,
@@ -1391,9 +1398,7 @@ def export_video(
     if isinstance(loop, bool) or not isinstance(loop, int) or not 0 <= loop <= MAX_LOOPS:
         raise InvalidExport("invalid_loop", f"loop must be a whole number from 0 (forever) to {MAX_LOOPS}.")
     seconds = _page_seconds(page_seconds)
-    document = current_document(design)
-    if len(json.dumps(document, separators=(",", ":"))) > settings.EXPORT_IMAGE_MAX_DOCUMENT_BYTES:
-        raise PayloadTooLarge("The design is too large to export on the server.")
+    document = _image_document(design, document)
     indexes = _page_indexes(document, pages, limit=len(document.get("pages") or []))
     chosen = [document["pages"][index] for index in indexes]
     first = _page_size(document, chosen[0])

@@ -18,7 +18,13 @@ async function setup() {
     </EditorProvider>,
   )
   await userEvent.click(screen.getByRole('button', { name: t.canvasSize.button }))
-  return { engine, resize, width: screen.getByTestId('ed-canvas-width'), height: screen.getByTestId('ed-canvas-height'), apply: screen.getByTestId('ed-canvas-apply') }
+  return {
+    engine,
+    resize,
+    width: await screen.findByTestId('ed-canvas-width'),
+    height: await screen.findByTestId('ed-canvas-height'),
+    apply: await screen.findByTestId('ed-canvas-apply'),
+  }
 }
 
 describe('canvas size fields (the document format’s 1-20 000 px)', () => {

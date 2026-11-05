@@ -126,7 +126,7 @@ export function usePreview({ engine, page, size, format, options, formats }: Pre
 
   const { quality, maxBytes, pngColors, optimize, optimizer, stripMetadata, progressive } = options
   const formatKey = formats.join(',')
-  const info = engine.adapter.imageOptimize
+  const info = engine.adapter.image?.info
   const chosen = format && optimize && serverConverts(engine.adapter, format) ? info?.optimizers.find((o) => o.id === (optimizer ?? info.default)) : undefined
   // An optimizer leaves the formats it doesn't make smaller on the server.
   const offsite = format && chosen?.sendsOffsite && (chosen.formats as string[]).includes(format) ? chosen.name : null

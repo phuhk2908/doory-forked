@@ -123,7 +123,7 @@ describe('exports of a design with pages of different sizes', () => {
   it('server PDF: sends one SVG and one size per page, and the first page size for older servers', async () => {
     const { engine, handle } = makeEngine()
     const exportPdf = vi.fn(async () => new Blob(['%PDF-1.7'], { type: 'application/pdf' }))
-    handle.adapter.exportPdf = exportPdf
+    handle.adapter.exports = { exportPdf }
     engine.store.setState({ mode: 'account' })
     await runExport(engine, { formatId: 'pdf-server', pages: { kind: 'all' }, options: DEFAULT_EXPORT_OPTIONS })
     const [input] = exportPdf.mock.calls[0] as unknown as [{ svgPages: string[]; width: number; height: number; sizes: { width: number; height: number }[] }]
@@ -142,7 +142,7 @@ describe('exports of a design with pages of different sizes', () => {
   it('server PDF of a chosen range lists only the sizes of those pages', async () => {
     const { engine, handle } = makeEngine()
     const exportPdf = vi.fn(async () => new Blob(['%PDF-1.7'], { type: 'application/pdf' }))
-    handle.adapter.exportPdf = exportPdf
+    handle.adapter.exports = { exportPdf }
     engine.store.setState({ mode: 'account' })
     await runExport(engine, { formatId: 'pdf-server', pages: { kind: 'pages', pages: [2, 3] }, options: DEFAULT_EXPORT_OPTIONS })
     const [input] = exportPdf.mock.calls[0] as unknown as [{ width: number; sizes: { width: number }[] }]

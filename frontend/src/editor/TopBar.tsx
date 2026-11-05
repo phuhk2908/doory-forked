@@ -12,7 +12,7 @@ import { useEditor, useEditorState } from './context'
 import { commands, isCommandEnabled } from './commands'
 import { DEFAULT_EXPORT_OPTIONS, exportFormats } from './engine/export/registry'
 import { type ExportChoice, describeChoice, designPreset, loadLastExport, saveLastExport, suggestionFor } from './engine/export/choices'
-import { copyPageAsPng, downloadFiles, runExport } from './engine/export/exporter'
+import { downloadFiles } from './engine/export/download'
 import { useNotesOpen } from './panels/notesVisibility'
 import { useTimelineView } from './workspace/timelineVisibility'
 import { type PanelDefinition } from './panels/registry'
@@ -134,6 +134,7 @@ function ShareMenu({ onPresent }: { onPresent: () => void }) {
       setBusy(true)
       const notes: string[] = []
       try {
+        const { runExport } = await import('./engine/export/exporter')
         const files = await runExport(editor, { formatId: choice.formatId, pages: { kind: 'all' }, options: choice.options, onNote: (note) => notes.push(note) })
         downloadFiles(files)
         saveLastExport(choice)
@@ -148,7 +149,7 @@ function ShareMenu({ onPresent }: { onPresent: () => void }) {
   )
 
   const copy = (): void => {
-    copyPageAsPng(editor).then(
+    import('./engine/export/exporter').then(({ copyPageAsPng }) => copyPageAsPng(editor)).then(
       () => editor.toast(t.dialog.downloadCopied, 'success'),
       (err: unknown) => editor.toast(err instanceof Error && err.message ? err.message : t.dialog.downloadFailed, 'error'),
     )

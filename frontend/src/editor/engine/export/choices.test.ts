@@ -15,7 +15,7 @@ afterEach(() => {
 
 function make(width: number, height: number, presetId: string, optimize = false): EditorEngine {
   const { adapter } = createMemoryAdapter()
-  if (optimize) adapter.imageOptimize = { formats: ['png', 'jpg'], optimizers: [{ id: 'builtin', name: 'Built-in', formats: ['jpg', 'png'], sendsOffsite: false }], default: 'builtin' }
+  if (optimize) adapter.image = { info: { formats: ['png', 'jpg'], optimizers: [{ id: 'builtin', name: 'Built-in', formats: ['jpg', 'png'], sendsOffsite: false }], default: 'builtin' }, optimize: async () => { throw new Error('not used') } }
   engine = new EditorEngine({ adapter, document: { ...createBlankDocument(width, height), meta: { presetId } }, meta: { id: 'd', title: 'T', mode: 'account' }, ephemeral: true })
   return engine
 }

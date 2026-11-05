@@ -71,7 +71,7 @@ export function DownloadDialog({ props }: { props?: Record<string, unknown> } = 
   // `openDialog('download', { format: 'mp4' })` starts on that format (the Share menu's "Video").
   const [start] = useState(() => startingPoint(editor, props?.format, purposes))
   const [formatId, setFormatId] = useState(() => (formats.some((f) => f.id === start.formatId) ? start.formatId : (formats[0]?.id ?? 'png')))
-  const [options, setOptions] = useState<ExportOptions>(() => ({ optimizer: editor.adapter.imageOptimize?.default ?? editor.adapter.imageOptimize?.optimizers[0]?.id, ...start.options }))
+  const [options, setOptions] = useState<ExportOptions>(() => ({ optimizer: editor.adapter.image?.info.default ?? editor.adapter.image?.info.optimizers[0]?.id, ...start.options }))
   const [purpose, setPurpose] = useState<string | null>(start.purpose)
   const [print, setPrint] = useState<PrintSettings>(() => loadPrintSettings(editor.designId))
   const [scope, setScope] = useState<Scope>('all')
@@ -83,7 +83,7 @@ export function DownloadDialog({ props }: { props?: Record<string, unknown> } = 
   const [moreOpen, setMoreOpen] = useState(false)
   const [apiOpen, setApiOpen] = useState(false)
   // File names are a choice per browser; the instance's default holds until one is made.
-  const namingDefault = editor.adapter.exportFilenames
+  const namingDefault = editor.adapter.exports?.exportFilenames
   const [nameStyle, setNameStyle] = usePersistedState<FilenameStyle>('doory-export-filenames', namingDefault?.style ?? 'simple', FILENAME_STYLES)
   const [stamp, setStamp] = usePersistedState<(typeof TIMESTAMP)[number]>('doory-export-filename-timestamp', namingDefault?.timestamp ? 'on' : 'off', TIMESTAMP)
   const [exampleUnix] = useState(unixNow)
@@ -136,7 +136,7 @@ export function DownloadDialog({ props }: { props?: Record<string, unknown> } = 
   const rasterFormats = formats.filter((f) => f.controls.optimize).map((f) => f.id as RasterFormat)
   const preview = usePreview({ engine: editor, page: shownPage, size: shownSize, format: raster, options, formats: rasterFormats })
 
-  const info = editor.adapter.imageOptimize
+  const info = editor.adapter.image?.info
   const optimizers = info?.optimizers ?? []
   const quality = Math.round(options.quality * 100)
   const perPage = raster ? preview.sizes[raster] : undefined

@@ -77,7 +77,7 @@ async function pdfText(blob: Blob): Promise<string> {
 const PT_PER_MM = 72 / 25.4
 const mediaBoxes = (text: string): [number, number][] => [...text.matchAll(/\/MediaBox\s*\[\s*0\s+0\s+([\d.]+)\s+([\d.]+)\s*\]/g)].map((m) => [Number(m[1]), Number(m[2])])
 
-type ExportPdf = NonNullable<EditorAdapter['exportPdf']>
+type ExportPdf = NonNullable<NonNullable<EditorAdapter['exports']>['exportPdf']>
 
 afterEach(() => vi.restoreAllMocks())
 
@@ -85,7 +85,7 @@ describe('print-quality PDF request', () => {
   async function run(options = DEFAULT_EXPORT_OPTIONS, pages: { kind: 'all' } | { kind: 'pages'; pages: number[] } = { kind: 'all' }, doc = documentOf([1080, 1080], [794, 1123], [336, 192])) {
     const { engine, handle } = makeEngine(doc)
     const exportPdf = vi.fn<ExportPdf>(async () => new Blob(['%PDF-1.7'], { type: 'application/pdf' }))
-    handle.adapter.exportPdf = exportPdf
+    handle.adapter.exports = { exportPdf }
     engine.store.setState({ mode: 'account' })
     await runExport(engine, { formatId: 'pdf-server', pages, options })
     engine.dispose()
@@ -154,11 +154,11 @@ describe('print-quality PDF request', () => {
 
   it('reports where it is: preparing, sending, printing', async () => {
     const { engine, handle } = makeEngine(documentOf([300, 200], [300, 200]))
-    handle.adapter.exportPdf = vi.fn(async (input) => {
+    handle.adapter.exports = { exportPdf: vi.fn(async (input) => {
       input.onUploadProgress?.(0.5)
       input.onUploadProgress?.(1)
       return new Blob(['%PDF-1.7'])
-    })
+    }) }
     engine.store.setState({ mode: 'account' })
     const seen: [number, string | undefined][] = []
     await runExport(engine, { formatId: 'pdf-server', pages: { kind: 'all' }, options: DEFAULT_EXPORT_OPTIONS, onProgress: (f, stage) => seen.push([f, stage]) })
@@ -172,13 +172,13 @@ describe('print-quality PDF request', () => {
   it('cancelling stops the request: the adapter gets the signal', async () => {
     const { engine, handle } = makeEngine(documentOf([300, 200]))
     const controller = new AbortController()
-    handle.adapter.exportPdf = vi.fn(
+    handle.adapter.exports = { exportPdf: vi.fn(
       (input) =>
         new Promise<Blob>((_resolve, reject) => {
           input.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')))
           controller.abort()
         }),
-    )
+    ) }
     engine.store.setState({ mode: 'account' })
     await expect(runExport(engine, { formatId: 'pdf-server', pages: { kind: 'all' }, options: DEFAULT_EXPORT_OPTIONS, signal: controller.signal })).rejects.toMatchObject({ name: 'AbortError' })
     engine.dispose()
@@ -187,9 +187,9 @@ describe('print-quality PDF request', () => {
   it('an error of the service reaches the caller as it is', async () => {
     const { engine, handle } = makeEngine(documentOf([300, 200]))
     const failure = Object.assign(new Error('busy'), { code: 'export_busy' })
-    handle.adapter.exportPdf = vi.fn(async () => {
+    handle.adapter.exports = { exportPdf: vi.fn(async () => {
       throw failure
-    })
+    }) }
     engine.store.setState({ mode: 'account' })
     await expect(runExport(engine, { formatId: 'pdf-server', pages: { kind: 'all' }, options: DEFAULT_EXPORT_OPTIONS })).rejects.toBe(failure)
     engine.dispose()

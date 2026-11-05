@@ -2,25 +2,31 @@ import json
 
 from django.conf import settings
 from django.core.exceptions import SuspiciousOperation, TooManyFilesSent
+from django.db import transaction
 from django.http import FileResponse, Http404, HttpResponse
 from django.shortcuts import get_object_or_404
+from django.urls import reverse
 from django.utils.http import content_disposition_header
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema
+from rest_framework import status
 from rest_framework.exceptions import ValidationError
 from rest_framework.negotiation import DefaultContentNegotiation
 from rest_framework.parsers import MultiPartParser
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
 from rest_framework.settings import api_settings
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
+from apps.designs.edits import current_document
 from apps.designs.fill import charge
 from apps.designs.models import Design
 
-from . import delivery
+from . import delivery, jobs
 from .exceptions import ExportDisabled, PayloadTooLarge
 from .filenames import FILE_NAMES, pdf_filename, unix_now
+from .models import ExportJob
 from .serializers import (
     MAX_PAGES,
     MAX_TOTAL_BYTES,
@@ -126,6 +132,21 @@ def _charge_offsite(user, files: int) -> None:
         charge(OffsiteOptimizeRateThrottle(), user)
 
 
+def _job_body(request, job: ExportJob) -> dict:
+    poll = reverse("export-job", kwargs={"pk": job.pk})
+    return {
+        "id": str(job.pk),
+        "status": job.status,
+        "filename": job.filename,
+        "mime": job.mime,
+        "placeholders": job.placeholders,
+        "download_url": job.download_url or None,
+        "poll_url": request.build_absolute_uri(poll),
+        "error": job.error or None,
+        "error_code": job.error_code or None,
+    }
+
+
 class ImageExportView(APIView):
     """Render pages of a saved design as PNG, JPG, WebP, AVIF or SVG on the server, as the editor draws them
     (several pages come back as one ZIP), as one PDF of pictures (`pdf`) or vector pages (`pdf-print`), or as
@@ -154,6 +175,7 @@ class ImageExportView(APIView):
         body = ImageExportSerializer(data=request.data)
         body.is_valid(raise_exception=True)
         data = body.validated_data
+        background = data.pop("background", False)
         pages = data["pages"]
         if data["format"] in VIDEO_FORMATS and pages is None and data["page"] is None:
             pages = "all"
@@ -163,34 +185,51 @@ class ImageExportView(APIView):
             or settings.EXPORT_FILENAME_STYLE
         )
         stamp = data.get("filename_timestamp", settings.EXPORT_FILENAME_TIMESTAMP)
+        export_request = {
+            "pages": pages if pages == "all" else [page_index(p) for p in pages or [data["page"]]],
+            "filename_style": style,
+            "unix": unix_now() if stamp else None,
+            "format": data["format"],
+            "quality": data["quality"],
+            "scale": data["scale"],
+            "size": data["size"],
+            "transparent": data["transparent"],
+            "max_bytes": data["max_bytes"],
+            "png_colors": data["png_colors"],
+            "strip_metadata": data["strip_metadata"],
+            "srgb": data["srgb"],
+            "progressive": data["progressive"],
+            "optimize": data["optimize"],
+            "bleed_mm": data["bleed_mm"],
+            "crop_marks": data["crop_marks"],
+            "cmyk": data["cmyk"],
+            "resolution": data["resolution"],
+            "fps": data["fps"],
+            "fit": data["fit"],
+            "sound": data["sound"],
+            "loop": data["loop"],
+            "dither": data["dither"],
+            "page_seconds": data["page_seconds"],
+        }
+        if background:
+            job = ExportJob.objects.create(
+                owner=request.user,
+                design=design,
+                request=export_request,
+                document=current_document(design),
+                title=design.title,
+                preset=design.preset,
+            )
+            transaction.on_commit(lambda job_id=job.pk: jobs.submit(job_id))
+            response = Response(_job_body(request, job), status=status.HTTP_202_ACCEPTED)
+            response["Location"] = request.build_absolute_uri(reverse("export-job", kwargs={"pk": job.pk}))
+            response["Retry-After"] = "2"
+            return response
         result = export_images(
             design,
-            pages=pages if pages == "all" else [page_index(p) for p in pages or [data["page"]]],
-            filename_style=style,
-            unix=unix_now() if stamp else None,
             charge=lambda extra: _charge_pages(request.user, extra),
             charge_offsite=lambda files: _charge_offsite(request.user, files),
-            format=data["format"],
-            quality=data["quality"],
-            scale=data["scale"],
-            size=data["size"],
-            transparent=data["transparent"],
-            max_bytes=data["max_bytes"],
-            png_colors=data["png_colors"],
-            strip_metadata=data["strip_metadata"],
-            srgb=data["srgb"],
-            progressive=data["progressive"],
-            optimize=data["optimize"],
-            bleed_mm=data["bleed_mm"],
-            crop_marks=data["crop_marks"],
-            cmyk=data["cmyk"],
-            resolution=data["resolution"],
-            fps=data["fps"],
-            fit=data["fit"],
-            sound=data["sound"],
-            loop=data["loop"],
-            dither=data["dither"],
-            page_seconds=data["page_seconds"],
+            **export_request,
         )
         if result.file is not None:  # a video: streamed from its file, deleted when the response closes it
             response = FileResponse(result.file, content_type=result.mime)
@@ -200,6 +239,17 @@ class ImageExportView(APIView):
         if result.mime == SVG_MIME:
             response["Content-Security-Policy"] = SVG_SANDBOX_CSP
         return _file_headers(response, result.filename, attachment=True)
+
+
+class ExportJobView(APIView):
+    """Poll an asynchronous export owned by the authenticated user."""
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(responses=OpenApiTypes.OBJECT, tags=["exports"])
+    def get(self, request, pk):
+        job = get_object_or_404(ExportJob.objects.filter(owner=request.user), pk=pk)
+        return Response(_job_body(request, job))
 
 
 OPTIMIZE_OVERHEAD_BYTES = 64 * 1024  # the multipart framing and the option fields

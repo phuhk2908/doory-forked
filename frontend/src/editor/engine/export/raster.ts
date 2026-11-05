@@ -37,11 +37,11 @@ export function setBrowserWebpForTests(value: boolean | null): void {
   webpInBrowser = value
 }
 
-export type OptimizeAdapter = Pick<EditorAdapter, 'imageOptimize' | 'optimizeImage'>
+export type OptimizeAdapter = Pick<EditorAdapter, 'image'>
 
 /** Whether the server can make `format` from a PNG for this editor. */
 export function serverConverts(adapter: OptimizeAdapter, format: RasterFormat): boolean {
-  return typeof adapter.optimizeImage === 'function' && adapter.imageOptimize?.formats.includes(format) === true
+  return adapter.image?.info.formats.includes(format) === true
 }
 
 /** The encoding options of an export that matter for one picture. */

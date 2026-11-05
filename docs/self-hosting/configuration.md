@@ -48,6 +48,7 @@ add a row to the matching section (see [CONTRIBUTING.md](../../CONTRIBUTING.md#d
 | `MCP_WORKERS` | `1` | Workers of the `mcp` service |
 | `MCP_MEM_LIMIT` | `1g` | Memory limit of the `mcp` service. `export_design` runs Chromium inside it |
 | `WEB_CONCURRENCY` | `3` | Workers of the `api` service (gunicorn) |
+| `EXPORT_WORKER_INTERVAL_SECONDS` | `2` | Docker only: seconds between `export-worker` queue passes |
 
 ## Database, cache and logs
 
@@ -115,6 +116,8 @@ See [image-export.md](image-export.md).
 | `EXPORT_VIDEO_MAX_SECONDS` | `120` | Longest video or GIF the server makes |
 | `EXPORT_VIDEO_MAX_RESOLUTION` | `1080` | Largest shorter side of a video frame, in px (the editor offers up to 2160) |
 | `EXPORT_VIDEO_MAX_BYTES` | `209715200` | Largest video file the server keeps (200 MB) |
+| `EXPORT_JOB_WORKERS` | `1` | Worker threads used by the API's best-effort local nudge for background exports |
+| `EXPORT_JOB_MAX_ATTEMPTS` | `3` | Maximum attempts for a durable background export before it is marked failed |
 | `EXPORT_MAX_CONCURRENCY` | `2` | Exports running at the same time in each API process |
 | `EXPORT_TIMEOUT_SECONDS` | `30` | Time limit for one export. SVG and PDF exports of a saved design get it once per page to draw them, and a PDF once more to print |
 | `EXPORT_CHROMIUM_PATH` | | Path to a Chromium binary. Empty: the one Playwright installed |

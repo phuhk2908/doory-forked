@@ -5,7 +5,7 @@ import { isUniform } from '../engine/pageSizes'
 import { t } from '../strings'
 import { Popover } from '../ui/Popover'
 import { Tooltip } from '../ui/Tooltip'
-import { SizePanel } from './SizePanel'
+import { LazySizePanel } from './LazySizePanel'
 import styles from './Floating.module.css'
 
 /**
@@ -20,12 +20,12 @@ export function CanvasSizeButton() {
   return (
     <div className={styles.fabWrap}>
       <Tooltip label={t.canvasSize.button} side="left" disabled={open}>
-        <button ref={ref} type="button" className={styles.fab} aria-label={t.canvasSize.button} aria-haspopup="dialog" aria-expanded={open} data-testid="ed-canvas-size" onClick={() => setOpen((o) => !o)}>
+        <button ref={ref} type="button" className={styles.fab} aria-label={t.canvasSize.button} aria-haspopup="dialog" aria-expanded={open} data-testid="ed-canvas-size" onPointerEnter={() => void LazySizePanel.preload()} onFocus={() => void LazySizePanel.preload()} onClick={() => setOpen((o) => !o)}>
           {I.canvasSize}
         </button>
       </Tooltip>
       <Popover open={open} onClose={() => setOpen(false)} anchorRef={ref} label={t.canvasSize.title} placement="bottom-end" variant="plain" cover gap={8}>
-        <SizePanel close={() => setOpen(false)} pageId={activePageId} defaultScope={uniform ? 'all' : 'page'} showFlip />
+        <LazySizePanel close={() => setOpen(false)} pageId={activePageId} defaultScope={uniform ? 'all' : 'page'} showFlip />
       </Popover>
     </div>
   )

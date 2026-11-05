@@ -87,7 +87,7 @@ export interface ExportFormat {
     print?: boolean
     /** Video options, progress and a preview instead of a plain download. */
     video?: boolean
-    /** A picture the server can optimize or convert (`EditorAdapter.optimizeImage`). */
+    /** A picture the server can optimize or convert (`EditorAdapter.image`). */
     optimize?: boolean
   }
   /** Lower first. */

@@ -25,15 +25,17 @@ function engineWith(adapter: Partial<EditorAdapter> = {}): EditorEngine {
 function server() {
   const optimizeImage = vi.fn(async (input: OptimizeImageInput): Promise<OptimizedImage> => ({ blob: new Blob(['opt'], { type: 'image/jpeg' }), format: input.format, width: 400, height: 300, quality: 82, bytesBefore: 900, optimizer: String(input.optimize), optimized: true, warnings: [] }))
   const adapter: Partial<EditorAdapter> = {
-    imageOptimize: {
-      formats: ['png', 'jpg', 'webp', 'avif'],
-      optimizers: [
-        { id: 'builtin', name: 'Built-in', formats: ['jpg', 'png'], sendsOffsite: false },
-        { id: 'outside', name: 'Outside', formats: ['jpg'], sendsOffsite: true },
-      ],
-      default: 'builtin',
+    image: {
+      info: {
+        formats: ['png', 'jpg', 'webp', 'avif'],
+        optimizers: [
+          { id: 'builtin', name: 'Built-in', formats: ['jpg', 'png'], sendsOffsite: false },
+          { id: 'outside', name: 'Outside', formats: ['jpg'], sendsOffsite: true },
+        ],
+        default: 'builtin',
+      },
+      optimize: optimizeImage,
     },
-    optimizeImage,
   }
   return { engine: engineWith(adapter), optimizeImage }
 }
