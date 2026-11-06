@@ -53,6 +53,15 @@ The guest room MVP is live. The next work is split by room safety first, then ed
 18. [ ] Add moderation and abuse controls: detect or block room spam, let admins inspect/delete rooms, and retain a basic room activity audit.
 19. [ ] Add observability for active rooms/connections, update latency, payload size, reconnect rate, and dropped or invalid updates.
 
+## P2: MCP and automation
+
+20. [ ] Add dedicated MCP scopes and tools/resources for account-owned whiteboards: list, read, create, rename, edit,
+    trash and restore where the REST domain supports the operation.
+21. [ ] Define an account-bound room-management model before exposing guest-room creation, close or link rotation to
+    MCP. Never use edit, view or owner link keys as MCP credentials.
+22. [ ] Route MCP whiteboard edits through the drawing service and realtime broadcast path, with revision/conflict
+    handling and tool tests; do not let MCP write raw snapshots directly to the database.
+
 ## Later, after P2
 
 - Add named collaborators and account ownership transfer if product requirements need them.

@@ -75,6 +75,24 @@ both **Edit designs** and **Add uploads**, and the encoded file must fit `MCP_MA
 backups can be restored in the editor. Designs are also available as MCP resources
 (`doory://designs/{id}`), and the server offers two prompts.
 
+## Whiteboards and MCP
+
+The MCP registry currently exposes the design domain only. The new whiteboard module is available through the
+authenticated REST endpoints and the realtime service, but it does not yet register MCP tools or resources:
+
+- Account-owned whiteboards use `/api/v1/drawings/` and `/ws/drawings/{id}/`.
+- Anonymous guest rooms use `/api/v1/drawing-rooms/` and `/ws/drawing-rooms/{id}/`; edit, view and owner keys are
+  capability credentials kept in the room URL fragment or browser session.
+
+An MCP personal access token is not a guest-room key. MCP clients must not be given an edit, view or owner key and
+cannot currently join, edit, close or rotate an anonymous room. Account-owned whiteboards also remain UI/REST-only
+until dedicated MCP scopes and tools are added.
+
+The planned integration is intentionally separate from the existing design tools: add scoped read/write tools and
+resources for account-owned whiteboards, route edits through the drawing service so revision checks and realtime
+broadcasts remain intact, and define an account-bound room-management model before exposing create/close/rotate
+actions. Guest room bearer keys should never be treated as an MCP authentication mechanism.
+
 Some actions are protected:
 
 - Creating or changing a share link is marked as destructive, so clients ask the user first.

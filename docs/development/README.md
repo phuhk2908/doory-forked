@@ -49,6 +49,8 @@ Then set `DATABASE_URL` (and `REDIS_URL`) in `backend/.env`.
 
 - [architecture.md](architecture.md): how the code is organised
 - [architecture-deep-dive.md](architecture-deep-dive.md): runtime flows, persistence and service boundaries
+- [whiteboard-roadmap.md](whiteboard-roadmap.md): completed guest-room/editor scope and remaining scale work
+- [excalidraw-guest-collaboration.md](excalidraw-guest-collaboration.md): collaboration and URL design research
 - [testing.md](testing.md): unit and end-to-end tests
 - [CONTRIBUTING.md](../../CONTRIBUTING.md): pull requests and documentation rules
 - [AGENTS.md](../../AGENTS.md): instructions for AI coding agents (`CLAUDE.md` loads the same file)

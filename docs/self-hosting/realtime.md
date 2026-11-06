@@ -9,6 +9,20 @@ Docker. It uses the same code as the API, run by uvicorn.
 - With one worker (the default), you don't need anything else.
 - With more than one worker or server, you need Redis so they can share updates.
 
+## Whiteboards
+
+The same realtime service also serves the whiteboard module, using a separate protocol from authenticated design
+co-editing:
+
+- `/ws/drawings/{id}/` is for an account-owned whiteboard and uses the signed-in session.
+- `/ws/drawing-rooms/{id}/` is for an anonymous guest room. The socket authenticates with a key in its first frame;
+  the key is never placed in the WebSocket URL.
+
+Guest room updates are validated JSON snapshots that are coalesced by the browser and merged by element version on
+the server. Cursor and selection presence are volatile. The room's edit/view/owner keys remain separate from the
+MCP token system; see [Whiteboards and MCP](mcp.md#whiteboards-and-mcp). Expired rooms are removed by
+`manage.py collab_maintenance`.
+
 ## Turn it on or off
 
 It's on by default. Set `REALTIME_ENABLED=false` to turn it off; designs then save normally, without live

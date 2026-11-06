@@ -24,6 +24,10 @@ browser ──► web (nginx) ─┬─ /api, /admin ─► api ─────�
 
 The browser only ever talks to one address, so you don't need CORS or extra subdomains.
 
+Whiteboards use the API routes `/api/v1/drawings/` and `/api/v1/drawing-rooms/`, and the realtime routes
+`/ws/drawings/` and `/ws/drawing-rooms/`. Guest room keys stay in the URL fragment or browser session; they are not
+MCP tokens and are not sent in the WebSocket URL.
+
 ## Choose how to install
 
 - **[Docker](docker.md):** the quickest way, with every part in `docker-compose.yml`.
