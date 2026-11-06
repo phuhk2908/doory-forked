@@ -1,21 +1,29 @@
-import { useId, type InputHTMLAttributes, type ReactNode, type Ref } from 'react'
-import { cx } from '@/lib/cx'
-import { Field } from './Field'
-import { describedBy } from './fieldIds'
-import styles from './Input.module.css'
+import {
+  useId,
+  type InputHTMLAttributes,
+  type ReactNode,
+  type Ref,
+} from "react";
+import { cx } from "@/lib/cx";
+import { Field } from "./Field";
+import { describedBy } from "./fieldIds";
+import styles from "./Input.module.css";
 
-export interface InputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> {
-  label?: ReactNode
-  hint?: ReactNode
-  error?: ReactNode
-  hideLabel?: boolean
-  labelAside?: ReactNode
-  leftIcon?: ReactNode
+export interface InputProps extends Omit<
+  InputHTMLAttributes<HTMLInputElement>,
+  "size"
+> {
+  label?: ReactNode;
+  hint?: ReactNode;
+  error?: ReactNode;
+  hideLabel?: boolean;
+  labelAside?: ReactNode;
+  leftIcon?: ReactNode;
   /** Trailing element inside the field (e.g. a show/hide toggle). */
-  rightSlot?: ReactNode
-  inputSize?: 'sm' | 'md' | 'lg'
-  wrapperClassName?: string
-  ref?: Ref<HTMLInputElement>
+  rightSlot?: ReactNode;
+  inputSize?: "sm" | "md" | "lg";
+  wrapperClassName?: string;
+  ref?: Ref<HTMLInputElement>;
 }
 
 export function Input({
@@ -26,7 +34,7 @@ export function Input({
   labelAside,
   leftIcon,
   rightSlot,
-  inputSize = 'md',
+  inputSize = "md",
   wrapperClassName,
   className,
   id,
@@ -34,11 +42,25 @@ export function Input({
   ref,
   ...rest
 }: InputProps) {
-  const autoId = useId()
-  const inputId = id ?? autoId
+  const autoId = useId();
+  const inputId = id ?? autoId;
   return (
-    <Field id={inputId} label={label} hint={hint} error={error} hideLabel={hideLabel} required={required} className={wrapperClassName} labelAside={labelAside}>
-      <div className={styles.control} data-size={inputSize} data-invalid={error ? true : undefined} data-disabled={rest.disabled || undefined}>
+    <Field
+      id={inputId}
+      label={label}
+      hint={hint}
+      error={error}
+      hideLabel={hideLabel}
+      required={required}
+      className={wrapperClassName}
+      labelAside={labelAside}
+    >
+      <div
+        className={styles.control}
+        data-size={inputSize}
+        data-invalid={error ? true : undefined}
+        data-disabled={rest.disabled || undefined}
+      >
         {leftIcon ? <span className={styles.icon}>{leftIcon}</span> : null}
         <input
           ref={ref}
@@ -52,5 +74,5 @@ export function Input({
         {rightSlot ? <span className={styles.slot}>{rightSlot}</span> : null}
       </div>
     </Field>
-  )
+  );
 }

@@ -102,6 +102,7 @@ the small libraries behind the video and GIF export; the type declarations they 
 | [`react`](https://github.com/react/react) | `^19.2.0` | 19.3.0 | MIT | UI library |
 | [`react-dom`](https://github.com/react/react) | `^19.2.0` | 19.3.0 | MIT | UI renderer |
 | [`react-router-dom`](https://github.com/remix-run/react-router) | `^7.13.0` | 7.18.4 | MIT | routing of the app shell |
+| [`roughjs`](https://github.com/pshihn/rough) | `^4.6.6` | 4.6.6 | MIT | hand-drawn rendering of whiteboard shapes |
 | [`webm-muxer`](https://github.com/Vanilagy/webm-muxer) | `^5.1.4` | 5.1.4 | MIT | writes the WebM file of the video export (lazy-loaded, 7 kB gzipped); same deprecation note as `mp4-muxer` |
 | [`y-protocols`](https://github.com/yjs/y-protocols) | `^1.0.7` | 1.0.7 | MIT | Yjs sync and awareness wire protocol |
 | [`yjs`](https://github.com/yjs/yjs) | `^13.6.33` | 13.6.33 | MIT | CRDT document of real-time co-editing |

@@ -2,82 +2,93 @@
  * Video assets as the Videos tool sees them: the server's limits (asked once per service), files the browser may
  * send, the files going up, and following a clip the server is still converting until it is ready.
  */
-import { useEffect, useState } from 'react'
-import type { AssetRef, VideoService } from '@/types/adapter'
-import type { VideoInfo } from '@/types/api'
+import { useEffect, useState } from "react";
+import type { AssetRef, VideoService } from "@/types/adapter";
+import type { VideoInfo } from "@/types/api";
 
 /** How often a clip the server is converting is asked about again. */
-export const POLL_MS = 3000
+export const POLL_MS = 3000;
 
 /** What the file picker offers; the server decides from the bytes, so this only narrows the dialog. */
-export const VIDEO_ACCEPT = 'video/*,.mp4,.m4v,.mov,.webm,.mkv,.avi,.3gp'
+export const VIDEO_ACCEPT = "video/*,.mp4,.m4v,.mov,.webm,.mkv,.avi,.3gp";
 
-const VIDEO_EXTENSIONS = /\.(mp4|m4v|mov|webm|mkv|avi|3gp)$/i
+const VIDEO_EXTENSIONS = /\.(mp4|m4v|mov|webm|mkv|avi|3gp)$/i;
 
 /** True for files that look like videos (by type, or by extension when the browser doesn't say). */
 export function looksLikeVideo(file: File): boolean {
-  return file.type.startsWith('video/') || (!file.type && VIDEO_EXTENSIONS.test(file.name)) || VIDEO_EXTENSIONS.test(file.name)
+  return (
+    file.type.startsWith("video/") ||
+    (!file.type && VIDEO_EXTENSIONS.test(file.name)) ||
+    VIDEO_EXTENSIONS.test(file.name)
+  );
 }
 
 export function videoFilesFrom(data: DataTransfer | null): File[] {
-  return data ? [...data.files].filter(looksLikeVideo) : []
+  return data ? [...data.files].filter(looksLikeVideo) : [];
 }
 
-const infoCache = new WeakMap<VideoService, Promise<VideoInfo | null>>()
+const infoCache = new WeakMap<VideoService, Promise<VideoInfo | null>>();
 
 /** The server's video settings, asked once per service; `null` when it can't be asked (the tool then says so). */
 export function videoInfo(service: VideoService): Promise<VideoInfo | null> {
-  let request = infoCache.get(service)
+  let request = infoCache.get(service);
   if (!request) {
     request = service.info().catch(() => {
-      infoCache.delete(service)
-      return null
-    })
-    infoCache.set(service, request)
+      infoCache.delete(service);
+      return null;
+    });
+    infoCache.set(service, request);
   }
-  return request
+  return request;
 }
 
 /** `undefined` while asking, then the server's video settings (or `null`). */
-export function useVideoInfo(service: VideoService | null | undefined): VideoInfo | null | undefined {
-  const [info, setInfo] = useState<VideoInfo | null | undefined>(undefined)
+export function useVideoInfo(
+  service: VideoService | null | undefined,
+): VideoInfo | null | undefined {
+  const [info, setInfo] = useState<VideoInfo | null | undefined>(undefined);
   useEffect(() => {
-    if (!service) return
-    let live = true
-    void videoInfo(service).then((found) => live && setInfo(found))
+    if (!service) return;
+    let live = true;
+    void videoInfo(service).then((found) => live && setInfo(found));
     return () => {
-      live = false
-    }
-  }, [service])
-  return service ? info : null
+      live = false;
+    };
+  }, [service]);
+  return service ? info : null;
 }
 
 /** Waits until the server has converted `ref` (or failed to); resolves with the asset as it ends up. */
-export async function whenProcessed(service: VideoService, ref: AssetRef, signal?: AbortSignal, intervalMs = POLL_MS): Promise<AssetRef> {
-  let current = ref
-  while (current.video?.status === 'processing') {
+export async function whenProcessed(
+  service: VideoService,
+  ref: AssetRef,
+  signal?: AbortSignal,
+  intervalMs = POLL_MS,
+): Promise<AssetRef> {
+  let current = ref;
+  while (current.video?.status === "processing") {
     // Checked on every round: the signal may have gone while the server was being asked.
-    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
+    if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
     await new Promise<void>((resolve, reject) => {
       const onAbort = (): void => {
-        clearTimeout(timer)
-        reject(new DOMException('Aborted', 'AbortError'))
-      }
+        clearTimeout(timer);
+        reject(new DOMException("Aborted", "AbortError"));
+      };
       const timer = setTimeout(() => {
-        signal?.removeEventListener('abort', onAbort)
-        resolve()
-      }, intervalMs)
-      signal?.addEventListener('abort', onAbort, { once: true })
-    })
-    current = await service.get(ref.id)
+        signal?.removeEventListener("abort", onAbort);
+        resolve();
+      }, intervalMs);
+      signal?.addEventListener("abort", onAbort, { once: true });
+    });
+    current = await service.get(ref.id);
   }
-  return current
+  return current;
 }
 
 export interface VideoSending {
-  key: string
-  name: string
-  fraction: number
+  key: string;
+  name: string;
+  fraction: number;
 }
 
 /**
@@ -85,48 +96,54 @@ export interface VideoSending {
  * uploads do: closing the tool leaves them going, and opening it again shows them with their progress.
  */
 export class VideoUploads {
-  private items: readonly VideoSending[] = []
-  private readonly listeners = new Set<() => void>()
-  private count = 0
+  private items: readonly VideoSending[] = [];
+  private readonly listeners = new Set<() => void>();
+  private count = 0;
 
   constructor(private readonly service: VideoService) {}
 
   subscribe = (listener: () => void): (() => void) => {
-    this.listeners.add(listener)
+    this.listeners.add(listener);
     return () => {
-      this.listeners.delete(listener)
-    }
-  }
+      this.listeners.delete(listener);
+    };
+  };
 
-  getSnapshot = (): readonly VideoSending[] => this.items
+  getSnapshot = (): readonly VideoSending[] => this.items;
 
   private set(items: readonly VideoSending[]): void {
-    this.items = items
-    for (const listener of [...this.listeners]) listener()
+    this.items = items;
+    for (const listener of [...this.listeners]) listener();
   }
 
   /** Sends `file`; resolves with the new asset, or fails as the service does. */
   async send(file: File): Promise<AssetRef> {
-    const key = `${++this.count}:${file.name}`
-    this.set([...this.items, { key, name: file.name, fraction: 0 }])
+    const key = `${++this.count}:${file.name}`;
+    this.set([...this.items, { key, name: file.name, fraction: 0 }]);
     try {
-      return await this.service.upload(file, { onProgress: (fraction) => this.set(this.items.map((x) => (x.key === key ? { ...x, fraction } : x))) })
+      return await this.service.upload(file, {
+        onProgress: (fraction) =>
+          this.set(
+            this.items.map((x) => (x.key === key ? { ...x, fraction } : x)),
+          ),
+      });
     } finally {
-      this.set(this.items.filter((x) => x.key !== key))
+      this.set(this.items.filter((x) => x.key !== key));
     }
   }
 }
 
-const uploadsCache = new WeakMap<VideoService, VideoUploads>()
+const uploadsCache = new WeakMap<VideoService, VideoUploads>();
 
 /** The uploads going to `service` (one list per service, for as long as the service lives). */
 export function videoUploads(service: VideoService): VideoUploads {
-  let uploads = uploadsCache.get(service)
+  let uploads = uploadsCache.get(service);
   if (!uploads) {
-    uploads = new VideoUploads(service)
-    uploadsCache.set(service, uploads)
+    uploads = new VideoUploads(service);
+    uploadsCache.set(service, uploads);
   }
-  return uploads
+  return uploads;
 }
 
-export const megabytes = (bytes: number): number => Math.round(bytes / (1024 * 1024))
+export const megabytes = (bytes: number): number =>
+  Math.round(bytes / (1024 * 1024));

@@ -19,7 +19,7 @@
 }
 
 .tab::after {
-  content: '';
+  content: "";
   position: absolute;
   left: var(--space-3);
   right: var(--space-3);
@@ -35,11 +35,11 @@
   color: var(--color-text);
 }
 
-.tab[aria-selected='true'] {
+.tab[aria-selected="true"] {
   color: var(--color-text);
 }
 
-.tab[aria-selected='true']::after {
+.tab[aria-selected="true"]::after {
   transform: scaleX(1);
 }
 

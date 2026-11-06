@@ -1,0 +1,279 @@
+from __future__ import annotations
+
+import hashlib
+import secrets
+from io import BytesIO
+
+from django.conf import settings
+from django.contrib.auth import get_user_model
+from django.core.files.base import ContentFile
+from django.db import transaction
+from django.http import Http404
+from django.utils import timezone
+
+from apps.assets.exceptions import FileTooLarge, InvalidFile, LimitReached
+from apps.assets.storage import delete_files_on_commit
+from apps.assets.uploads import strip_unsafe_chars
+from apps.core.images import ImageError, make_thumbnail, process_image_upload
+
+from .exceptions import RevisionConflict
+from .models import Drawing, DrawingRoom
+from .validators import validate_drawing_document
+
+DEFAULT_TITLE = "Untitled whiteboard"
+THUMBNAIL_MAX_BYTES = 2 * 1024 * 1024
+THUMBNAIL_MAX_PIXELS = 16_000_000
+THUMBNAIL_SIDE = 480
+
+
+def blank_document() -> dict:
+    return {"schemaVersion": 1, "elements": [], "background": "#ffffff"}
+
+
+def clean_title(title: str) -> str:
+    return " ".join(strip_unsafe_chars(title).split())[:200].strip() or DEFAULT_TITLE
+
+
+def _room_key_hash(key: str) -> str:
+    return hashlib.sha256(key.encode("utf-8")).hexdigest()
+
+
+def _valid_room_key(key: str | None) -> bool:
+    return isinstance(key, str) and 32 <= len(key) <= 128
+
+
+def _room_access(room: DrawingRoom, key: str | None) -> str | None:
+    if not _valid_room_key(key) or room.is_closed or room.is_expired:
+        return None
+    digest = _room_key_hash(key)
+    if secrets.compare_digest(room.room_key_hash, digest):
+        return "edit"
+    if room.view_key_hash and secrets.compare_digest(room.view_key_hash, digest):
+        return "view"
+    return None
+
+
+def _element_version(element: dict) -> tuple[int, int]:
+    version = element.get("version")
+    nonce = element.get("versionNonce")
+    return (
+        version if isinstance(version, int) and not isinstance(version, bool) else 1,
+        nonce if isinstance(nonce, int) and not isinstance(nonce, bool) else 0,
+    )
+
+
+def _normalise_element(element: dict) -> dict:
+    version, nonce = _element_version(element)
+    return {**element, "version": version, "versionNonce": nonce}
+
+
+def create_drawing_room(*, title: str, document: dict) -> tuple[DrawingRoom, str, str, str]:
+    validate_drawing_document(document)
+    edit_key = secrets.token_urlsafe(32)
+    view_key = secrets.token_urlsafe(32)
+    owner_key = secrets.token_urlsafe(32)
+    room = DrawingRoom(
+        title=clean_title(title),
+        document=document,
+        room_key_hash=_room_key_hash(edit_key),
+        view_key_hash=_room_key_hash(view_key),
+        owner_key_hash=_room_key_hash(owner_key),
+    )
+    room.save()
+    return room, edit_key, view_key, owner_key
+
+
+def get_drawing_room(room_id, key: str | None) -> DrawingRoom | None:
+    room = DrawingRoom.objects.filter(pk=room_id).first()
+    return room if room is not None and _room_access(room, key) is not None else None
+
+
+def get_drawing_room_access(room_id, key: str | None) -> tuple[DrawingRoom, str] | None:
+    room = DrawingRoom.objects.filter(pk=room_id).first()
+    if room is None:
+        return None
+    access = _room_access(room, key)
+    return None if access is None else (room, access)
+
+
+def rotate_drawing_room_keys(room_id, owner_key: str) -> tuple[DrawingRoom, str, str] | None:
+    if not _valid_room_key(owner_key):
+        return None
+    with transaction.atomic():
+        room = DrawingRoom.objects.select_for_update().filter(pk=room_id).first()
+        if room is None or room.is_closed or room.is_expired or not room.owner_key_hash:
+            return None
+        if not secrets.compare_digest(room.owner_key_hash, _room_key_hash(owner_key)):
+            return None
+        edit_key = secrets.token_urlsafe(32)
+        view_key = secrets.token_urlsafe(32)
+        room.room_key_hash = _room_key_hash(edit_key)
+        room.view_key_hash = _room_key_hash(view_key)
+        room.save(update_fields=["room_key_hash", "view_key_hash", "updated_at"])
+    return room, edit_key, view_key
+
+
+def close_drawing_room(room_id, owner_key: str) -> DrawingRoom | None:
+    if not _valid_room_key(owner_key):
+        return None
+    with transaction.atomic():
+        room = DrawingRoom.objects.select_for_update().filter(pk=room_id).first()
+        if room is None or not room.owner_key_hash:
+            return None
+        if not secrets.compare_digest(room.owner_key_hash, _room_key_hash(owner_key)):
+            return None
+        if room.closed_at is None:
+            room.closed_at = timezone.now()
+            room.save(update_fields=["closed_at", "updated_at"])
+    return room
+
+
+def rename_drawing_room(room_id, owner_key: str, title: str) -> DrawingRoom | None:
+    if not _valid_room_key(owner_key):
+        return None
+    with transaction.atomic():
+        room = DrawingRoom.objects.select_for_update().filter(pk=room_id).first()
+        if room is None or room.is_closed or room.is_expired or not room.owner_key_hash:
+            return None
+        if not secrets.compare_digest(room.owner_key_hash, _room_key_hash(owner_key)):
+            return None
+        room.title = clean_title(title)
+        room.save(update_fields=["title", "updated_at"])
+    return room
+
+
+def purge_expired_drawing_rooms() -> int:
+    deleted, _ = DrawingRoom.objects.filter(expires_at__lte=timezone.now()).delete()
+    return deleted
+
+
+def merge_drawing_documents(current: dict, incoming: dict) -> dict:
+    """Merge element-level edits so two guests can draw at the same time.
+
+    Elements are immutable snapshots identified by id.  The larger version wins; the nonce
+    breaks ties when two clients edited the same element from the same base state.  Deleted
+    elements remain as tombstones, so a stale client cannot resurrect them.
+    """
+
+    current_elements = {element["id"]: _normalise_element(element) for element in current["elements"]}
+    incoming_elements = {element["id"]: _normalise_element(element) for element in incoming["elements"]}
+    merged_elements = []
+    for element in current["elements"]:
+        element = current_elements[element["id"]]
+        candidate = incoming_elements.get(element["id"])
+        if candidate is None:
+            merged_elements.append(element)
+            continue
+        current_version = _element_version(element)
+        incoming_version = _element_version(candidate)
+        merged_elements.append(candidate if incoming_version >= current_version else element)
+    merged_elements.extend(
+        incoming_elements[element["id"]]
+        for element in incoming["elements"]
+        if element["id"] not in current_elements
+    )
+    merged = {
+        "schemaVersion": incoming["schemaVersion"],
+        "elements": merged_elements,
+        "background": incoming.get("background", current.get("background", "#ffffff")),
+    }
+    current_files = current.get("files") if isinstance(current.get("files"), dict) else {}
+    incoming_files = incoming.get("files") if isinstance(incoming.get("files"), dict) else {}
+    files = {**current_files, **incoming_files}
+    if files:
+        merged["files"] = files
+    return validate_drawing_document(merged)
+
+
+def save_drawing_room_update(room_id, key: str, document: dict) -> DrawingRoom | None:
+    if not _valid_room_key(key):
+        return None
+    with transaction.atomic():
+        room = DrawingRoom.objects.select_for_update().filter(pk=room_id).first()
+        if room is None or _room_access(room, key) != "edit":
+            return None
+        validate_drawing_document(document)
+        merged = merge_drawing_documents(room.document, document)
+        if merged != room.document:
+            room.document = merged
+            room.revision += 1
+            room.save(update_fields=["document", "revision", "updated_at"])
+    return room
+
+
+def _check_drawing_limit(owner) -> None:
+    get_user_model().objects.select_for_update().filter(pk=owner.pk).first()
+    if Drawing.objects.filter(owner=owner, trashed_at__isnull=True).count() >= settings.MAX_DESIGNS_PER_USER:
+        raise LimitReached(f"You can keep at most {settings.MAX_DESIGNS_PER_USER} whiteboards.")
+
+
+def create_drawing(owner, *, title: str, document: dict) -> Drawing:
+    validate_drawing_document(document)
+    with transaction.atomic():
+        _check_drawing_limit(owner)
+        drawing = Drawing(
+            owner=owner,
+            title=clean_title(title),
+            document=document,
+        )
+        drawing.save()
+    return drawing
+
+
+def _lock(drawing_id, owner) -> Drawing:
+    try:
+        drawing = Drawing.objects.select_for_update().get(pk=drawing_id, owner=owner)
+    except Drawing.DoesNotExist as exc:
+        raise Http404 from exc
+    if drawing.trashed_at is not None:
+        raise Http404
+    return drawing
+
+
+def update_drawing(drawing_id, owner, data: dict) -> Drawing:
+    with transaction.atomic():
+        drawing = _lock(drawing_id, owner)
+        touched: set[str] = set()
+        if "title" in data:
+            drawing.title = clean_title(data["title"])
+            touched.update(("title", "updated_at"))
+        if "document" in data:
+            if drawing.revision != data["base_revision"]:
+                raise RevisionConflict(drawing.revision, drawing.updated_at)
+            validate_drawing_document(data["document"])
+            drawing.document = data["document"]
+            drawing.revision += 1
+            touched.update(("document", "revision", "updated_at"))
+        if touched:
+            drawing.save(update_fields=sorted(touched))
+    return drawing
+
+
+def trash_drawing(drawing_id, owner) -> None:
+    Drawing.objects.filter(pk=drawing_id, owner=owner, trashed_at__isnull=True).update(
+        trashed_at=timezone.now()
+    )
+
+
+def set_thumbnail(drawing: Drawing, uploaded) -> Drawing:
+    if drawing.trashed_at is not None:
+        raise Http404
+    if uploaded.size is not None and uploaded.size > THUMBNAIL_MAX_BYTES:
+        raise FileTooLarge("The thumbnail is larger than 2 MB.")
+    data = uploaded.read(THUMBNAIL_MAX_BYTES + 1)
+    if len(data) > THUMBNAIL_MAX_BYTES:
+        raise FileTooLarge("The thumbnail is larger than 2 MB.")
+    try:
+        processed = process_image_upload(
+            BytesIO(data), max_bytes=THUMBNAIL_MAX_BYTES, max_pixels=THUMBNAIL_MAX_PIXELS
+        )
+        webp = make_thumbnail(processed.data, THUMBNAIL_SIDE)
+    except ImageError as exc:
+        raise InvalidFile(str(exc)) from exc
+    with transaction.atomic():
+        previous = drawing.thumbnail.name
+        drawing.thumbnail.save(f"{drawing.id}.webp", ContentFile(webp), save=False)
+        drawing.save(update_fields=["thumbnail"])
+        if previous:
+            delete_files_on_commit(drawing.thumbnail.storage, [previous])
+    return drawing

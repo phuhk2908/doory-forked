@@ -5,114 +5,135 @@
  * (`renderPageToCanvas`, `renderPageToSvg`) always render from document JSON, never from the live
  * canvases, so editing aids can never leak into an export.
  */
-import type { DocPage, DoryDocument } from '@/types/document'
-import type { EditorEngine } from '../editor'
-import { Registry } from '../registry'
-import { getSizePresets } from '@/lib/sizePresets'
-import { type FileNaming, SIMPLE_NAMING, documentFilename } from './filenames'
-import type { VideoOptions } from './video/options'
+import type { DocPage, DoryDocument } from "@/types/document";
+import type { EditorEngine } from "../editor";
+import { Registry } from "../registry";
+import { getSizePresets } from "@/lib/sizePresets";
+import { type FileNaming, SIMPLE_NAMING, documentFilename } from "./filenames";
+import type { VideoOptions } from "./video/options";
 
 /** The quality stops of the Download dialog, by the name REST and MCP exports take too. */
-export const QUALITY_PRESETS = { small: 65, balanced: 82, best: 95, original: 100 } as const
-export type QualityPreset = keyof typeof QUALITY_PRESETS
+export const QUALITY_PRESETS = {
+  small: 65,
+  balanced: 82,
+  best: 95,
+  original: 100,
+} as const;
+export type QualityPreset = keyof typeof QUALITY_PRESETS;
 
 export interface ExportOptions {
   /** Output pixels per design pixel (PNG / JPG / WebP / AVIF). */
-  scale: number
+  scale: number;
   /** As typed: `2x`, `1080w` or `1350h` (see `size.ts`). Replaces `scale` when it reads as a size. */
-  size?: string
+  size?: string;
   /** 0.1..1 (JPG, WebP, AVIF). */
-  quality: number
+  quality: number;
   /** The quality stop `quality` came from, when it came from one. */
-  qualityPreset?: QualityPreset
+  qualityPreset?: QualityPreset;
   /** Lossy formats: the largest file wanted per page; the quality goes down until it fits. */
-  maxBytes?: number
+  maxBytes?: number;
   /** PNG: 256 makes a palette PNG (on the server), when that is smaller. */
-  pngColors?: 'full' | 256
+  pngColors?: "full" | 256;
   /** Recompress on the server after rendering (`optimizer`, or the instance's default). */
-  optimize?: boolean
-  optimizer?: string
+  optimize?: boolean;
+  optimizer?: string;
   /** Leave metadata out of the file (default on). */
-  stripMetadata?: boolean
+  stripMetadata?: boolean;
   /** JPG that loads blurry first, then sharp. */
-  progressive?: boolean
-  transparent: boolean
+  progressive?: boolean;
+  transparent: boolean;
   /** Print bleed in mm (PDF): the pages grow by this much on every side. 0 = none. */
-  bleedMm: number
+  bleedMm: number;
   /** Print crop marks around the trim (PDF); the pages grow by a margin that carries them. */
-  cropMarks: boolean
+  cropMarks: boolean;
   /** Video and GIF: size, frame rate, quality, sound. A video format without it uses its defaults. */
-  video?: VideoOptions
+  video?: VideoOptions;
 }
 
 export interface ExportFile {
-  blob: Blob
-  filename: string
+  blob: Blob;
+  filename: string;
 }
 
 export interface ExportContext {
-  engine: EditorEngine
-  document: DoryDocument
+  engine: EditorEngine;
+  document: DoryDocument;
   /** Pages to export, in document order, with their 0-based index in the document. */
-  pages: { page: DocPage; index: number }[]
-  options: ExportOptions
-  title: string
+  pages: { page: DocPage; index: number }[];
+  options: ExportOptions;
+  title: string;
   /** How the files are named (simple or structured, and the run's timestamp). Simple when absent. */
-  naming?: FileNaming
+  naming?: FileNaming;
   /** Report progress in 0..1, and what is going on while the progress bar is not moving. */
-  onProgress(fraction: number, stage?: ExportStage): void
+  onProgress(fraction: number, stage?: ExportStage): void;
   /** Something the person should know about the files (a server step that failed and was skipped). */
-  onNote?(message: string): void
-  signal: AbortSignal
+  onNote?(message: string): void;
+  signal: AbortSignal;
 }
 
 /** What an export is busy with: shown under the progress bar. */
-export type ExportStage = 'rendering' | 'uploading' | 'printing'
+export type ExportStage = "rendering" | "uploading" | "printing";
 
 export interface ExportFormat {
-  id: string
-  label: string
+  id: string;
+  label: string;
   /** Short helper text under the format name. */
-  description?: string
-  extension: string
-  mime: string
+  description?: string;
+  extension: string;
+  mime: string;
   /** Made by the print server rather than in the browser; the dialog says which. */
-  server?: boolean
+  server?: boolean;
   /** Which option controls apply. */
   controls: {
-    scale?: boolean
-    quality?: boolean
-    transparent?: boolean
+    scale?: boolean;
+    quality?: boolean;
+    transparent?: boolean;
     /** Bleed and crop marks. */
-    print?: boolean
+    print?: boolean;
     /** Video options, progress and a preview instead of a plain download. */
-    video?: boolean
+    video?: boolean;
     /** A picture the server can optimize or convert (`EditorAdapter.image`). */
-    optimize?: boolean
-  }
+    optimize?: boolean;
+  };
   /** Lower first. */
-  order?: number
+  order?: number;
   /** Hidden when this returns false (e.g. server PDF without an adapter method). */
-  available?(engine: EditorEngine): boolean
-  run(ctx: ExportContext): Promise<ExportFile[]>
+  available?(engine: EditorEngine): boolean;
+  run(ctx: ExportContext): Promise<ExportFile[]>;
 }
 
-export const exportFormats = new Registry<ExportFormat>((a, b) => (a.order ?? 100) - (b.order ?? 100))
+export const exportFormats = new Registry<ExportFormat>(
+  (a, b) => (a.order ?? 100) - (b.order ?? 100),
+);
 
 export function registerExportFormat(format: ExportFormat): () => void {
-  return exportFormats.register(format)
+  return exportFormats.register(format);
 }
 
-export const DEFAULT_EXPORT_OPTIONS: ExportOptions = { scale: 1, quality: 0.92, transparent: false, bleedMm: 0, cropMarks: false }
+export const DEFAULT_EXPORT_OPTIONS: ExportOptions = {
+  scale: 1,
+  quality: 0.92,
+  transparent: false,
+  bleedMm: 0,
+  cropMarks: false,
+};
 
 /**
  * `Title-01.png`, `Title-02.png` … file names for multi-page raster/SVG exports (`Title.png` for a single file). The
  * number has at least two digits, and as many as the design's page count needs so the files sort in page order.
  */
-export function pageFilename(title: string, extension: string, pageNumber: number, total: number, designPages = total): string {
-  const base = sanitizeFilename(title) || 'design'
-  const digits = Math.max(2, String(designPages).length)
-  return total > 1 ? `${base}-${String(pageNumber).padStart(digits, '0')}.${extension}` : `${base}.${extension}`
+export function pageFilename(
+  title: string,
+  extension: string,
+  pageNumber: number,
+  total: number,
+  designPages = total,
+): string {
+  const base = sanitizeFilename(title) || "design";
+  const digits = Math.max(2, String(designPages).length);
+  return total > 1
+    ? `${base}-${String(pageNumber).padStart(digits, "0")}.${extension}`
+    : `${base}.${extension}`;
 }
 
 /**
@@ -121,42 +142,54 @@ export function pageFilename(title: string, extension: string, pageNumber: numbe
  * size the name shows (the first page's for such a file).
  */
 export function exportFilename(
-  ctx: Pick<ExportContext, 'document' | 'title' | 'naming'>,
+  ctx: Pick<ExportContext, "document" | "title" | "naming">,
   simple: string,
   extension: string,
   size: { width: number; height: number } | null,
   page: number | null,
   suffix?: string,
 ): string {
-  const naming = ctx.naming ?? SIMPLE_NAMING
-  if (naming.style !== 'structured') return simple
-  return documentFilename(ctx.document, ctx.title, extension, size, page, naming, (id) => getSizePresets().byId.get(id), suffix)
+  const naming = ctx.naming ?? SIMPLE_NAMING;
+  if (naming.style !== "structured") return simple;
+  return documentFilename(
+    ctx.document,
+    ctx.title,
+    extension,
+    size,
+    page,
+    naming,
+    (id) => getSizePresets().byId.get(id),
+    suffix,
+  );
 }
 
 export function sanitizeFilename(name: string): string {
   return name
-    .normalize('NFKD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/[^\w\s.-]+/g, '')
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^\w\s.-]+/g, "")
     .trim()
-    .replace(/\s+/g, '-')
-    .replace(/\.{2,}/g, '.')
-    .replace(/^\.+/, '')
-    .slice(0, 80)
+    .replace(/\s+/g, "-")
+    .replace(/\.{2,}/g, ".")
+    .replace(/^\.+/, "")
+    .slice(0, 80);
 }
 
 /** Parses "1-3, 5" into sorted unique 1-based page numbers within `1..total`; null when invalid. */
 export function parsePageRange(text: string, total: number): number[] | null {
-  const out = new Set<number>()
-  const parts = text.split(',').map((p) => p.trim()).filter(Boolean)
-  if (parts.length === 0) return null
+  const out = new Set<number>();
+  const parts = text
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (parts.length === 0) return null;
   for (const part of parts) {
-    const m = /^(\d+)(?:\s*-\s*(\d+))?$/.exec(part)
-    if (!m) return null
-    const a = Number(m[1])
-    const b = m[2] ? Number(m[2]) : a
-    if (a < 1 || b < a || b > total) return null
-    for (let i = a; i <= b; i++) out.add(i)
+    const m = /^(\d+)(?:\s*-\s*(\d+))?$/.exec(part);
+    if (!m) return null;
+    const a = Number(m[1]);
+    const b = m[2] ? Number(m[2]) : a;
+    if (a < 1 || b < a || b > total) return null;
+    for (let i = a; i <= b; i++) out.add(i);
   }
-  return [...out].sort((x, y) => x - y)
+  return [...out].sort((x, y) => x - y);
 }

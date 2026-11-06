@@ -34,7 +34,7 @@
   color: var(--color-brand-strong);
 }
 
-.stateIcon[data-tone='success'] {
+.stateIcon[data-tone="success"] {
   background: var(--color-success-soft);
   color: var(--color-success);
 }

@@ -77,6 +77,7 @@ add a row to the matching section (see [CONTRIBUTING.md](../../CONTRIBUTING.md#d
 | `AWS_SECRET_ACCESS_KEY` | | Secret key |
 | `USER_STORAGE_QUOTA_BYTES` | `2147483648` (2 GB) | Upload space per user |
 | `MAX_DESIGNS_PER_USER` | `5000` | Designs per user |
+| `MAX_DRAWING_DOCUMENT_BYTES` | `12582912` (12 MB) | Largest whiteboard document accepted by the whiteboard API |
 | `MAX_API_TOKENS_PER_USER` | `20` | MCP tokens per user |
 
 ## First-run content
@@ -299,6 +300,7 @@ See [realtime.md](realtime.md). The defaults suit most sites.
 | `REALTIME_COMPACT_AFTER_UPDATES` | `200` | Compact a design's update log after this many updates |
 | `REALTIME_SLOW_APPLY_SECONDS` | `2.0` | Log a warning when applying an update takes longer than this |
 | `REALTIME_BLOCK_SECONDS` | `600` | How long a client that breaks the limits stays blocked |
+| `DRAWING_ROOM_TTL_DAYS` | `30` | How long an anonymous whiteboard room remains available; expired rooms are deleted by `collab_maintenance` |
 
 ## MCP server
 

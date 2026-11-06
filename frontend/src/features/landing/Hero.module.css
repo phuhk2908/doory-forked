@@ -197,7 +197,7 @@
 }
 
 .perks li::before {
-  content: '✿ ';
+  content: "✿ ";
   color: var(--pastel-blush);
 }
 

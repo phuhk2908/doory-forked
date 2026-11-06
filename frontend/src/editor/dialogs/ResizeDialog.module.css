@@ -55,7 +55,9 @@
 .previewPage {
   overflow: hidden;
   background: var(--color-surface);
-  box-shadow: var(--shadow-sm), 0 0 0 1px var(--color-border);
+  box-shadow:
+    var(--shadow-sm),
+    0 0 0 1px var(--color-border);
 }
 .previewPage img {
   display: block;

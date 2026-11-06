@@ -2,75 +2,80 @@
  * Design document format, schema v1.
  * Storage is always in CSS pixels @96dpi; `unit` only affects how sizes are displayed.
  */
-export const SCHEMA_VERSION = 1 as const
-export const MAX_PAGES = 100
-export const MAX_DIMENSION_PX = 20_000
+export const SCHEMA_VERSION = 1 as const;
+export const MAX_PAGES = 100;
+export const MAX_DIMENSION_PX = 20_000;
 
-export type DocUnit = 'px' | 'mm' | 'in'
+export type DocUnit = "px" | "mm" | "in";
 
 export interface GradientStop {
-  offset: number
-  color: string
+  offset: number;
+  color: string;
 }
 
 export type PageBackground =
-  | { type: 'solid'; color: string }
-  | { type: 'gradient'; kind: 'linear' | 'radial'; angle?: number; stops: GradientStop[] }
+  | { type: "solid"; color: string }
   | {
-      type: 'image'
-      src: string
-      fit: 'cover' | 'contain' | 'tile'
-      opacity?: number
-      offsetX?: number
-      offsetY?: number
-      scale?: number
+      type: "gradient";
+      kind: "linear" | "radial";
+      angle?: number;
+      stops: GradientStop[];
     }
+  | {
+      type: "image";
+      src: string;
+      fit: "cover" | "contain" | "tile";
+      opacity?: number;
+      offsetX?: number;
+      offsetY?: number;
+      scale?: number;
+    };
 
 /** Output of Fabric `toObject(EXTRA_PROPS)` plus Doory props. Unknown keys round-trip untouched. */
 export interface DocObject {
-  id: string
-  type: string
-  name?: string
-  locked?: boolean
-  visible?: boolean
-  [prop: string]: unknown
+  id: string;
+  type: string;
+  name?: string;
+  locked?: boolean;
+  visible?: boolean;
+  [prop: string]: unknown;
 }
 
 /** A ruler guide the user dragged out of a ruler. `pos` is in page px along the perpendicular axis. */
 export interface PageGuide {
-  orientation: 'horizontal' | 'vertical'
-  pos: number
+  orientation: "horizontal" | "vertical";
+  pos: number;
 }
 
 export interface DocPage {
-  id: string
-  name?: string
-  width?: number
-  height?: number
-  background: PageBackground
-  objects: DocObject[]
-  notes?: string
-  durationSec?: number
-  guides?: PageGuide[]
+  id: string;
+  name?: string;
+  width?: number;
+  height?: number;
+  background: PageBackground;
+  objects: DocObject[];
+  notes?: string;
+  durationSec?: number;
+  guides?: PageGuide[];
   /** How the page comes in when a presentation or a video reaches it (see `editor/animation`). */
-  transition?: PageTransition
+  transition?: PageTransition;
 }
 
 export interface DocMeta {
-  presetId?: string
-  bleedPx?: number
-  brandKitId?: string
+  presetId?: string;
+  bleedPx?: number;
+  brandKitId?: string;
 }
 
 export interface DoryDocument {
-  schemaVersion: typeof SCHEMA_VERSION
-  width: number
-  height: number
-  unit: DocUnit
-  pages: DocPage[]
+  schemaVersion: typeof SCHEMA_VERSION;
+  width: number;
+  height: number;
+  unit: DocUnit;
+  pages: DocPage[];
   /** Music, voiceovers and sound effects of the design (see `editor/audio`). Absent: no sound. */
-  audioTracks?: AudioTrack[]
-  meta?: DocMeta
+  audioTracks?: AudioTrack[];
+  meta?: DocMeta;
 }
 
 /* ------------------------------------------------------------------------------------------------
@@ -79,56 +84,56 @@ export interface DoryDocument {
  * ---------------------------------------------------------------------------------------------- */
 
 export interface ShadowSpec {
-  color: string
-  blur: number
-  offsetX: number
-  offsetY: number
+  color: string;
+  blur: number;
+  offsetX: number;
+  offsetY: number;
 }
 
 /** Object effects. Text supports every key; shapes and images support `shadow`. */
 export interface ObjectEffects {
-  shadow?: ShadowSpec
-  outline?: { color: string; width: number }
-  glow?: { color: string; blur: number }
+  shadow?: ShadowSpec;
+  outline?: { color: string; width: number };
+  glow?: { color: string; blur: number };
   /** Highlight behind the glyphs. */
-  background?: { color: string }
+  background?: { color: string };
 }
 
 export type MaskShapeId =
-  | 'circle'
-  | 'rounded'
-  | 'triangle'
-  | 'diamond'
-  | 'hexagon'
-  | 'star'
-  | 'heart'
-  | 'blob'
-  | 'arch'
-  | 'cross'
+  | "circle"
+  | "rounded"
+  | "triangle"
+  | "diamond"
+  | "hexagon"
+  | "star"
+  | "heart"
+  | "blob"
+  | "arch"
+  | "cross";
 
 /** Crop/mask frame of an image (or placeholder). A `{ path }` uses a 100x100 viewBox. */
-export type MaskShape = MaskShapeId | { path: string }
+export type MaskShape = MaskShapeId | { path: string };
 
 export type ImageFilterType =
-  | 'brightness'
-  | 'contrast'
-  | 'saturation'
-  | 'hue'
-  | 'blur'
-  | 'vignette'
-  | 'grayscale'
-  | 'sepia'
+  | "brightness"
+  | "contrast"
+  | "saturation"
+  | "hue"
+  | "blur"
+  | "vignette"
+  | "grayscale"
+  | "sepia";
 
 export interface ImageFilterSpec {
-  type: ImageFilterType
+  type: ImageFilterType;
   /** Normalised amount; the meaning is per filter (see engine/objects/filters.ts). */
-  value: number
+  value: number;
 }
 
-export type ArrowHead = 'none' | 'triangle' | 'open' | 'circle' | 'diamond'
+export type ArrowHead = "none" | "triangle" | "open" | "circle" | "diamond";
 
-export type ListStyle = 'none' | 'bullet' | 'number'
-export type TextCase = 'none' | 'upper' | 'lower' | 'title' | 'sentence'
+export type ListStyle = "none" | "bullet" | "number";
+export type TextCase = "none" | "upper" | "lower" | "title" | "sentence";
 
 /**
  * The frame a placeholder photo fills (`slot` on an image): the frame stays where it is while the picture moves
@@ -136,27 +141,27 @@ export type TextCase = 'none' | 'upper' | 'lower' | 'title' | 'sentence'
  * `radius` the corner radius of a `rounded` mask. `src` remembers the sample picture the placeholder had.
  */
 export interface SlotSpec {
-  cx: number
-  cy: number
-  width: number
-  height: number
-  angle: number
-  mask?: MaskShape
-  radius?: number
-  src?: string
+  cx: number;
+  cy: number;
+  width: number;
+  height: number;
+  angle: number;
+  mask?: MaskShape;
+  radius?: number;
+  src?: string;
 }
 
 /** What a template field holds: replaceable text, a picture, or a colour (the object's fill). */
-export type FieldType = 'text' | 'image' | 'color'
+export type FieldType = "text" | "image" | "color";
 
 /**
  * A template field tag (`field` on an object): a stable name for data to fill. `key` matches `FIELD_KEY`
  * (engine/fields.ts) and is unique per design, except that the same key on several pages means the same value.
  */
 export interface DocField {
-  key: string
-  type: FieldType
-  label?: string
+  key: string;
+  type: FieldType;
+  label?: string;
 }
 
 /**
@@ -165,8 +170,8 @@ export interface DocField {
  * The derived size is stored in `fitFontSize`.
  */
 export interface DocTextFit {
-  mode: 'shrink'
-  minFontSize?: number
+  mode: "shrink";
+  minFontSize?: number;
 }
 
 /* ------------------------------------------------------------------------------------------------
@@ -174,44 +179,45 @@ export interface DocTextFit {
  * exactly what it always did. Preset ids are open strings; an id the editor does not know plays as "none".
  * ---------------------------------------------------------------------------------------------- */
 
-export type AnimEasing = 'linear' | 'ease-in' | 'ease-out' | 'ease-in-out' | 'spring' | 'bounce'
+export type AnimEasing =
+  "linear" | "ease-in" | "ease-out" | "ease-in-out" | "spring" | "bounce";
 
 /** `left`/`right`/`up`/`down`: the side the object comes in from (or leaves towards); `in`/`out`: zoom in or out. */
-export type AnimDirection = 'left' | 'right' | 'up' | 'down' | 'in' | 'out'
+export type AnimDirection = "left" | "right" | "up" | "down" | "in" | "out";
 
 /** What a text animation steps through: the whole object, its lines, its words or its letters. */
-export type AnimTextUnit = 'object' | 'line' | 'word' | 'letter'
+export type AnimTextUnit = "object" | "line" | "word" | "letter";
 
 export interface Anim {
-  preset: string
+  preset: string;
   /** 100..10000 ms. */
-  durationMs: number
+  durationMs: number;
   /** 0..60000 ms from the start of the page (the moment the page has come in). */
-  delayMs: number
-  easing: AnimEasing
-  direction?: AnimDirection
+  delayMs: number;
+  easing: AnimEasing;
+  direction?: AnimDirection;
   /** Text objects only. */
-  by?: AnimTextUnit
+  by?: AnimTextUnit;
   /** Emphasis only: repeat for as long as the page is up. */
-  loop?: boolean
+  loop?: boolean;
   /** 0..1, how strong the motion is (0.5 = the preset's own size). */
-  intensity?: number
+  intensity?: number;
 }
 
 /** The `animation` property of an object: when it comes in, what it does while it is up, how it leaves. */
 export interface ObjectAnimation {
-  enter?: Anim
-  exit?: Anim
-  emphasis?: Anim
+  enter?: Anim;
+  exit?: Anim;
+  emphasis?: Anim;
 }
 
 /** The `transition` property of a page: how the page comes in. */
 export interface PageTransition {
-  preset: string
+  preset: string;
   /** 200..3000 ms. */
-  durationMs: number
-  direction?: AnimDirection
-  easing: AnimEasing
+  durationMs: number;
+  direction?: AnimDirection;
+  easing: AnimEasing;
 }
 
 /* ------------------------------------------------------------------------------------------------
@@ -219,47 +225,47 @@ export interface PageTransition {
  * what it always did. `editor/audio/model.ts` holds the limits and the tolerant reader.
  * ---------------------------------------------------------------------------------------------- */
 
-export type AudioTrackKind = 'music' | 'voiceover' | 'sfx' | 'upload'
+export type AudioTrackKind = "music" | "voiceover" | "sfx" | "upload";
 
 /** What a track is counted from: the start of the design, or the start of one page. */
-export type AudioScope = { type: 'design' } | { type: 'page'; pageId: string }
+export type AudioScope = { type: "design" } | { type: "page"; pageId: string };
 
 export interface TrackCredit {
-  source: string
-  id: string
-  title: string
-  author: string
-  url: string
-  license: string
-  required: boolean
+  source: string;
+  id: string;
+  title: string;
+  author: string;
+  url: string;
+  license: string;
+  required: boolean;
 }
 
 export interface AudioTrack {
-  id: string
-  kind: AudioTrackKind
-  name: string
+  id: string;
+  kind: AudioTrackKind;
+  name: string;
   /** `https://…`, a `/media/…` path, or `idb://<uuid>` for a guest's file (the rules of images). */
-  src: string
+  src: string;
   /** The server asset, when the file is an upload or a recording. */
-  assetId?: string
+  assetId?: string;
   /** The catalogue id, when the track came from the audio library. */
-  libraryId?: string
+  libraryId?: string;
   /** Where a sound from an online library (Freesound) came from; `required` when it must be credited (CC BY). */
-  credit?: TrackCredit
-  scope: AudioScope
+  credit?: TrackCredit;
+  scope: AudioScope;
   /** >= 0: where the track starts, counted from the start of its scope. */
-  startMs: number
+  startMs: number;
   /** Length of the whole source file, a hint so the track can be drawn before it is decoded. */
-  durationMs?: number
+  durationMs?: number;
   /** Where in the source the sound starts and ends. */
-  trimStartMs: number
-  trimEndMs: number
+  trimStartMs: number;
+  trimEndMs: number;
   /** 0..1, linear gain. */
-  volume: number
-  fadeInMs: number
-  fadeOutMs: number
-  loop: boolean
-  muted: boolean
+  volume: number;
+  fadeInMs: number;
+  fadeOutMs: number;
+  loop: boolean;
+  muted: boolean;
   /** Lower this track while a voiceover plays. Absent: yes for music, no for the others. */
-  duckUnderVoiceover?: boolean
+  duckUnderVoiceover?: boolean;
 }

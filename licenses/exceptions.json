@@ -91,6 +91,7 @@
     "npm:react": "UI library",
     "npm:react-dom": "UI renderer",
     "npm:react-router-dom": "routing of the app shell",
+    "npm:roughjs": "hand-drawn rendering of whiteboard shapes",
     "npm:webm-muxer": "writes the WebM file of the video export (lazy-loaded, 7 kB gzipped); same deprecation note as `mp4-muxer`",
     "npm:y-protocols": "Yjs sync and awareness wire protocol",
     "npm:yjs": "CRDT document of real-time co-editing",

@@ -11,43 +11,54 @@
  */
 export function yieldToBrowser(): Promise<void> {
   return new Promise<void>((resolve) => {
-    const channel = new MessageChannel()
+    const channel = new MessageChannel();
     channel.port1.onmessage = () => {
-      channel.port1.close()
-      resolve()
-    }
-    channel.port2.postMessage(null)
-  })
+      channel.port1.close();
+      resolve();
+    };
+    channel.port2.postMessage(null);
+  });
 }
 
 export class Slicer {
-  private started = performance.now()
+  private started = performance.now();
 
   /** @param budgetMs how long work may run before the thread is given back. */
   constructor(private readonly budgetMs = 10) {}
 
   /** Call between units of work: yields when the slice is used up. Returns true when it yielded. */
   async tick(): Promise<boolean> {
-    if (performance.now() - this.started < this.budgetMs) return false
-    await yieldToBrowser()
-    this.started = performance.now()
-    return true
+    if (performance.now() - this.started < this.budgetMs) return false;
+    await yieldToBrowser();
+    this.started = performance.now();
+    return true;
   }
 }
 
 /** Resolves once the encoder's queue has shrunk to `max` (or the encoder is closed); bounded so a missed event cannot hang. */
-export async function waitForQueue(encoder: { readonly encodeQueueSize: number; readonly state: string; addEventListener(type: 'dequeue', listener: () => void, options?: { once: boolean }): void }, max: number): Promise<void> {
-  while (encoder.encodeQueueSize > max && encoder.state === 'configured') {
+export async function waitForQueue(
+  encoder: {
+    readonly encodeQueueSize: number;
+    readonly state: string;
+    addEventListener(
+      type: "dequeue",
+      listener: () => void,
+      options?: { once: boolean },
+    ): void;
+  },
+  max: number,
+): Promise<void> {
+  while (encoder.encodeQueueSize > max && encoder.state === "configured") {
     await new Promise<void>((resolve) => {
-      const timer = setTimeout(resolve, 50)
+      const timer = setTimeout(resolve, 50);
       encoder.addEventListener(
-        'dequeue',
+        "dequeue",
         () => {
-          clearTimeout(timer)
-          resolve()
+          clearTimeout(timer);
+          resolve();
         },
         { once: true },
-      )
-    })
+      );
+    });
   }
 }

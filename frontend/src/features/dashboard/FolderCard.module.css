@@ -44,7 +44,7 @@
 }
 
 .name::after {
-  content: '';
+  content: "";
   position: absolute;
   inset: 0;
   border-radius: var(--radius-lg);

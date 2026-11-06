@@ -1,8 +1,10 @@
-import { expect, type Page } from '@playwright/test'
+import { expect, type Page } from "@playwright/test";
 
 /** The first page of the editor is drawn and ready for input. */
 export async function editorReady(page: Page): Promise<void> {
-  await expect(page.locator('[data-artboard] .doory-canvas').first()).toBeVisible({ timeout: 30_000 })
+  await expect(
+    page.locator("[data-artboard] .doory-canvas").first(),
+  ).toBeVisible({ timeout: 30_000 });
 }
 
 /**
@@ -10,8 +12,10 @@ export async function editorReady(page: Page): Promise<void> {
  * the keys are shortcuts of the editor (a busy machine is slow enough for that to happen).
  */
 export async function addHeading(page: Page, text: string): Promise<void> {
-  await page.getByTestId('ed-add-entry-text').click()
-  await page.getByTestId('text-preset-heading').click()
-  await page.waitForFunction(() => document.activeElement instanceof HTMLTextAreaElement)
-  await page.keyboard.type(text)
+  await page.getByTestId("ed-add-entry-text").click();
+  await page.getByTestId("text-preset-heading").click();
+  await page.waitForFunction(
+    () => document.activeElement instanceof HTMLTextAreaElement,
+  );
+  await page.keyboard.type(text);
 }

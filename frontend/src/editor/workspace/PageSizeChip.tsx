@@ -1,15 +1,15 @@
-import { useRef, useState } from 'react'
-import { useEditor, useEditorState } from '../context'
-import { formatSize, getPageSize } from '../engine/pageSizes'
-import { t } from '../strings'
-import { Popover } from '../ui/Popover'
-import { LazySizePanel } from './LazySizePanel'
-import styles from './PageSlot.module.css'
+import { useRef, useState } from "react";
+import { useEditor, useEditorState } from "../context";
+import { formatSize, getPageSize } from "../engine/pageSizes";
+import { t } from "../strings";
+import { Popover } from "../ui/Popover";
+import { LazySizePanel } from "./LazySizePanel";
+import styles from "./PageSlot.module.css";
 
 interface PageSizeChipProps {
-  pageId: string
+  pageId: string;
   /** 1-based number of the page, for the accessible name. */
-  number: number
+  number: number;
 }
 
 /**
@@ -17,21 +17,21 @@ interface PageSizeChipProps {
  * menu of that page (presets, custom size, "apply to all pages"); in a view-only link it is plain text.
  */
 export function PageSizeChip({ pageId, number }: PageSizeChipProps) {
-  const editor = useEditor()
-  const readOnly = useEditorState((s) => s.readOnly)
-  const width = useEditorState((s) => getPageSize(s.doc, pageId).width)
-  const height = useEditorState((s) => getPageSize(s.doc, pageId).height)
-  const unit = useEditorState((s) => s.doc.unit)
-  const ref = useRef<HTMLButtonElement>(null)
-  const [open, setOpen] = useState(false)
-  const text = formatSize({ width, height }, unit)
+  const editor = useEditor();
+  const readOnly = useEditorState((s) => s.readOnly);
+  const width = useEditorState((s) => getPageSize(s.doc, pageId).width);
+  const height = useEditorState((s) => getPageSize(s.doc, pageId).height);
+  const unit = useEditorState((s) => s.doc.unit);
+  const ref = useRef<HTMLButtonElement>(null);
+  const [open, setOpen] = useState(false);
+  const text = formatSize({ width, height }, unit);
 
   if (readOnly) {
     return (
       <span className={styles.size} data-testid="ed-page-size">
         {text}
       </span>
-    )
+    );
   }
   return (
     <>
@@ -46,15 +46,28 @@ export function PageSizeChip({ pageId, number }: PageSizeChipProps) {
         onPointerEnter={() => void LazySizePanel.preload()}
         onFocus={() => void LazySizePanel.preload()}
         onClick={() => {
-          editor.pages.activate(pageId, false)
-          setOpen((o) => !o)
+          editor.pages.activate(pageId, false);
+          setOpen((o) => !o);
         }}
       >
         {text}
       </button>
-      <Popover open={open} onClose={() => setOpen(false)} anchorRef={ref} label={t.canvasSize.pageTitle(number)} placement="bottom-start" variant="plain" cover gap={6}>
-        <LazySizePanel close={() => setOpen(false)} pageId={pageId} defaultScope="page" />
+      <Popover
+        open={open}
+        onClose={() => setOpen(false)}
+        anchorRef={ref}
+        label={t.canvasSize.pageTitle(number)}
+        placement="bottom-start"
+        variant="plain"
+        cover
+        gap={6}
+      >
+        <LazySizePanel
+          close={() => setOpen(false)}
+          pageId={pageId}
+          defaultScope="page"
+        />
       </Popover>
     </>
-  )
+  );
 }

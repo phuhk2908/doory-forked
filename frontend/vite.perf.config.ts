@@ -1,6 +1,6 @@
-import { fileURLToPath } from 'node:url'
-import { defineConfig } from 'vite'
-import base from './vite.config'
+import { fileURLToPath } from "node:url";
+import { defineConfig } from "vite";
+import base from "./vite.config";
 
 /**
  * A production build of the editor harness (`/editor-harness.html`, in-memory adapter) for `bun run e2e:perf`: minified React
@@ -11,8 +11,15 @@ export default defineConfig({
   ...base,
   build: {
     ...base.build,
-    outDir: 'dist-perf',
+    outDir: "dist-perf",
     manifest: false,
-    rollupOptions: { ...base.build?.rollupOptions, input: { harness: fileURLToPath(new URL('./editor-harness.html', import.meta.url)) } },
+    rollupOptions: {
+      ...base.build?.rollupOptions,
+      input: {
+        harness: fileURLToPath(
+          new URL("./editor-harness.html", import.meta.url),
+        ),
+      },
+    },
   },
-})
+});

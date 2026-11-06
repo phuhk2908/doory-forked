@@ -12,13 +12,13 @@
     box-shadow var(--duration-fast) var(--ease-out);
 }
 
-.control[data-size='sm'] {
+.control[data-size="sm"] {
   height: 2rem;
   border-radius: var(--radius-sm);
   font-size: var(--text-sm);
 }
 
-.control[data-size='lg'] {
+.control[data-size="lg"] {
   height: 3rem;
   border-radius: var(--radius-lg);
   font-size: var(--text-lg);

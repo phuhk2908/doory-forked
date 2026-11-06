@@ -3,7 +3,7 @@
 # ---- build the SPA ----
 # On the machine's own platform: the files it makes are the same for every platform, and building an arm64 image
 # under emulation is slow enough to stall (the bundler hung for two hours there).
-FROM --platform=$BUILDPLATFORM oven/bun:1.4.2-alpine AS build
+FROM --platform=$BUILDPLATFORM oven/bun:1.4.4-alpine AS build
 WORKDIR /app
 COPY package.json bun.lock ./
 # --ignore-scripts: the install scripts only matter for the test tooling (`canvas` compiles a native module that has

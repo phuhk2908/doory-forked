@@ -72,7 +72,10 @@
   background: var(--color-bg-subtle);
   color: var(--color-text);
   cursor: pointer;
-  transition: border-color var(--duration-fast) var(--ease-out), background var(--duration-fast) var(--ease-out), transform var(--duration-fast) var(--ease-out);
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    background var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
 }
 .tile:hover {
   border-color: var(--color-brand);
@@ -149,7 +152,9 @@
   color: var(--color-text);
   text-align: left;
   cursor: pointer;
-  transition: border-color var(--duration-fast) var(--ease-out), background var(--duration-fast) var(--ease-out);
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    background var(--duration-fast) var(--ease-out);
 }
 .big:hover {
   border-color: var(--color-brand);

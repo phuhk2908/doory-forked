@@ -32,6 +32,7 @@ INSTALLED_APPS = [
     "apps.core",
     "apps.accounts",
     "apps.designs",
+    "apps.drawings",
     "apps.assets",
     "apps.gallery",
     "apps.elements",
@@ -123,6 +124,7 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 20 * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024  # per asset
 MAX_DESIGN_DOCUMENT_BYTES = 12 * 1024 * 1024
+MAX_DRAWING_DOCUMENT_BYTES = env.int("MAX_DRAWING_DOCUMENT_BYTES", default=12 * 1024 * 1024)
 USER_STORAGE_QUOTA_BYTES = env.int("USER_STORAGE_QUOTA_BYTES", default=2 * 1024**3)
 MAX_DESIGNS_PER_USER = env.int("MAX_DESIGNS_PER_USER", default=5000)
 MAX_API_TOKENS_PER_USER = env.int("MAX_API_TOKENS_PER_USER", default=20)
@@ -480,6 +482,7 @@ REALTIME_CONNECTS_PER_MINUTE = env.int("REALTIME_CONNECTS_PER_MINUTE", default=6
 # as an attack: the room's live state is dropped and rebuilt from the store and the sender is blocked a while.
 REALTIME_SLOW_APPLY_SECONDS = env.float("REALTIME_SLOW_APPLY_SECONDS", default=2.0)
 REALTIME_BLOCK_SECONDS = env.int("REALTIME_BLOCK_SECONDS", default=600)
+DRAWING_ROOM_TTL_DAYS = env.int("DRAWING_ROOM_TTL_DAYS", default=30)
 
 # ---- MCP server for AI agents (apps.mcp; served by `uvicorn doory.mcp_asgi:application`) ----
 MCP_ENABLED = env.bool("MCP_ENABLED", default=False)  # opt-in; Docker also needs `COMPOSE_PROFILES=mcp`

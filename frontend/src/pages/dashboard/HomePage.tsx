@@ -1,18 +1,22 @@
-import { ArrowRight, LayoutGrid } from 'lucide-react'
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
-import { LazyCreateDesignDialog } from '@/features/create/LazyCreateDesignDialog'
-import { DesignTile } from '@/features/dashboard/DesignTile'
-import bunny from '@/assets/bunny-sticker.webp'
-import { createUrl, presetParts } from '@/features/presets'
-import { useSizePresets } from '@/lib/sizePresets'
-import { noteUsedSize, useSizeChoices, yourSizes } from '@/lib/sizePresets/choices'
-import { TemplateCard } from '@/features/templates/TemplateCard'
-import { useDesignsList, useTemplatesList } from '@/lib/api/hooks'
-import { usePageTitle } from '@/lib/usePageTitle'
-import { Button, EmptyState, Skeleton } from '@/ui'
-import styles from './pageStyles.module.css'
-import homeStyles from './HomePage.module.css'
+import { ArrowRight, LayoutGrid } from "lucide-react";
+import { useState } from "react";
+import { Link } from "react-router-dom";
+import { LazyCreateDesignDialog } from "@/features/create/LazyCreateDesignDialog";
+import { DesignTile } from "@/features/dashboard/DesignTile";
+import bunny from "@/assets/bunny-sticker.webp";
+import { createUrl, presetParts } from "@/features/presets";
+import { useSizePresets } from "@/lib/sizePresets";
+import {
+  noteUsedSize,
+  useSizeChoices,
+  yourSizes,
+} from "@/lib/sizePresets/choices";
+import { TemplateCard } from "@/features/templates/TemplateCard";
+import { useDesignsList, useTemplatesList } from "@/lib/api/hooks";
+import { usePageTitle } from "@/lib/usePageTitle";
+import { Button, EmptyState, Skeleton } from "@/ui";
+import styles from "./pageStyles.module.css";
+import homeStyles from "./HomePage.module.css";
 
 function TileSkeletons({ count }: { count: number }) {
   return (
@@ -24,20 +28,24 @@ function TileSkeletons({ count }: { count: number }) {
         </li>
       ))}
     </ul>
-  )
+  );
 }
 
 export default function HomePage() {
-  const catalogue = useSizePresets()
-  const choices = useSizeChoices()
-  const [allSizes, setAllSizes] = useState(false)
-  usePageTitle('Home')
-  const recent = useDesignsList({ ordering: '-updated_at', page_size: 8 })
-  const starred = useDesignsList({ starred: true, ordering: '-updated_at', page_size: 4 })
-  const templates = useTemplatesList({ page_size: 8 })
-  const recentItems = recent.data?.pages[0]?.results ?? []
-  const starredItems = starred.data?.pages[0]?.results ?? []
-  const templateItems = templates.data?.pages[0]?.results ?? []
+  const catalogue = useSizePresets();
+  const choices = useSizeChoices();
+  const [allSizes, setAllSizes] = useState(false);
+  usePageTitle("Home");
+  const recent = useDesignsList({ ordering: "-updated_at", page_size: 8 });
+  const starred = useDesignsList({
+    starred: true,
+    ordering: "-updated_at",
+    page_size: 4,
+  });
+  const templates = useTemplatesList({ page_size: 8 });
+  const recentItems = recent.data?.pages[0]?.results ?? [];
+  const starredItems = starred.data?.pages[0]?.results ?? [];
+  const templateItems = templates.data?.pages[0]?.results ?? [];
 
   return (
     <div className={styles.page}>
@@ -53,32 +61,58 @@ export default function HomePage() {
         </div>
         <ul className={homeStyles.chips}>
           {yourSizes(catalogue, choices).map((preset) => {
-            const { name, detail } = presetParts(preset)
-            const wide = preset.width >= preset.height
+            const { name, detail } = presetParts(preset);
+            const wide = preset.width >= preset.height;
             return (
               <li key={preset.id}>
-                <Link to={createUrl({ presetId: preset.id })} className={homeStyles.chip} onClick={() => noteUsedSize(preset.id)}>
+                <Link
+                  to={createUrl({ presetId: preset.id })}
+                  className={homeStyles.chip}
+                  onClick={() => noteUsedSize(preset.id)}
+                >
                   <span className={homeStyles.shapeBox} aria-hidden="true">
-                    <span className={homeStyles.shape} style={{ aspectRatio: `${preset.width} / ${preset.height}`, ...(wide ? { width: '100%' } : { height: '100%' }) }} />
+                    <span
+                      className={homeStyles.shape}
+                      style={{
+                        aspectRatio: `${preset.width} / ${preset.height}`,
+                        ...(wide ? { width: "100%" } : { height: "100%" }),
+                      }}
+                    />
                   </span>
                   <span className={homeStyles.chipName}>{name}</span>
                   <span className={homeStyles.chipSize}>{detail}</span>
                 </Link>
               </li>
-            )
+            );
           })}
           <li>
-            <button type="button" className={`${homeStyles.chip} ${homeStyles.allSizes}`} onClick={() => setAllSizes(true)}>
+            <button
+              type="button"
+              className={`${homeStyles.chip} ${homeStyles.allSizes}`}
+              onClick={() => setAllSizes(true)}
+            >
               <span className={homeStyles.shapeBox} aria-hidden="true">
                 <LayoutGrid size={24} />
               </span>
               <span className={homeStyles.chipName}>All sizes</span>
-              <span className={homeStyles.chipSize}>{catalogue.presets.length} sizes</span>
+              <span className={homeStyles.chipSize}>
+                {catalogue.presets.length} sizes
+              </span>
             </button>
           </li>
         </ul>
-        <LazyCreateDesignDialog open={allSizes} onClose={() => setAllSizes(false)} />
-        <img className={homeStyles.bunny} src={bunny} alt="" width={523} height={713} draggable={false} />
+        <LazyCreateDesignDialog
+          open={allSizes}
+          onClose={() => setAllSizes(false)}
+        />
+        <img
+          className={homeStyles.bunny}
+          src={bunny}
+          alt=""
+          width={523}
+          height={713}
+          draggable={false}
+        />
       </section>
 
       <section aria-labelledby="recent" className={styles.section}>
@@ -91,7 +125,14 @@ export default function HomePage() {
         {recent.isPending ? (
           <TileSkeletons count={4} />
         ) : recent.isError ? (
-          <EmptyState compact title="Your designs didn’t load" role="alert" action={<Button onClick={() => void recent.refetch()}>Try again</Button>} />
+          <EmptyState
+            compact
+            title="Your designs didn’t load"
+            role="alert"
+            action={
+              <Button onClick={() => void recent.refetch()}>Try again</Button>
+            }
+          />
         ) : recentItems.length === 0 ? (
           <p className={homeStyles.none}>Designs you make show up here.</p>
         ) : (
@@ -140,5 +181,5 @@ export default function HomePage() {
         </section>
       ) : null}
     </div>
-  )
+  );
 }

@@ -105,7 +105,7 @@
   text-decoration: none;
 }
 
-.link[aria-current='page'] {
+.link[aria-current="page"] {
   background: var(--color-brand-soft);
   color: var(--color-brand-strong);
 }
@@ -174,14 +174,16 @@
   color: var(--color-text);
 }
 
-.tab[aria-current='page'] {
+.tab[aria-current="page"] {
   background: var(--color-brand-soft);
   color: var(--color-brand-strong);
 }
 
 /* High contrast: muted text is nearly ink there, so the current page also gets the selected outline. */
-:global(:root[data-contrast='more']) .link[aria-current='page']:not(:focus-visible),
-:global(:root[data-contrast='more']) .tab[aria-current='page']:not(:focus-visible) {
+:global(:root[data-contrast="more"])
+  .link[aria-current="page"]:not(:focus-visible),
+:global(:root[data-contrast="more"])
+  .tab[aria-current="page"]:not(:focus-visible) {
   outline: 2px solid var(--color-text);
   outline-offset: -2px;
 }

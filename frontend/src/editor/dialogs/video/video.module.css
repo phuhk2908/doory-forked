@@ -243,6 +243,6 @@
 }
 
 /* High contrast: the pale track gets an outline, so the full length of the bar shows. */
-:global(:root[data-contrast='more']) .bar {
+:global(:root[data-contrast="more"]) .bar {
   box-shadow: inset 0 0 0 1px var(--color-border);
 }

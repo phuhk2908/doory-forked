@@ -23,7 +23,12 @@
   font-weight: 700;
   line-height: 1.1;
   /* a highlighter swipe behind the words */
-  background: linear-gradient(transparent 55%, var(--pastel-butter) 55%, var(--pastel-butter) 92%, transparent 92%);
+  background: linear-gradient(
+    transparent 55%,
+    var(--pastel-butter) 55%,
+    var(--pastel-butter) 92%,
+    transparent 92%
+  );
   transform: rotate(-2deg);
 }
 

@@ -13,27 +13,27 @@
   color: var(--color-text-muted);
 }
 
-.badge[data-tone='brand'] {
+.badge[data-tone="brand"] {
   background: var(--color-brand-soft);
   color: var(--color-brand-strong);
 }
 
-.badge[data-tone='success'] {
+.badge[data-tone="success"] {
   background: var(--color-success-soft);
   color: var(--color-success);
 }
 
-.badge[data-tone='warning'] {
+.badge[data-tone="warning"] {
   background: var(--color-warning-soft);
   color: var(--color-warning);
 }
 
-.badge[data-tone='danger'] {
+.badge[data-tone="danger"] {
   background: var(--color-danger-soft);
   color: var(--color-danger);
 }
 
-.badge[data-tone='info'] {
+.badge[data-tone="info"] {
   background: var(--violet-100);
   color: var(--violet-800);
 }

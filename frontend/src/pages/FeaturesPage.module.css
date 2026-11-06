@@ -91,7 +91,7 @@
 
 /* a dashed squiggle joining the three numbers */
 .steps::before {
-  content: '';
+  content: "";
   position: absolute;
   top: 2rem;
   right: 16%;

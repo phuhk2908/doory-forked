@@ -1,11 +1,11 @@
-import { Compass } from 'lucide-react'
-import { EmptyState, LinkButton } from '@/ui'
-import { usePageMeta } from '@/lib/usePageMeta'
+import { Compass } from "lucide-react";
+import { EmptyState, LinkButton } from "@/ui";
+import { usePageMeta } from "@/lib/usePageMeta";
 
 export default function NotFoundPage() {
-  usePageMeta({ title: 'Page not found', noindex: true })
+  usePageMeta({ title: "Page not found", noindex: true });
   return (
-    <div style={{ display: 'grid', minHeight: '70dvh', placeItems: 'center' }}>
+    <div style={{ display: "grid", minHeight: "70dvh", placeItems: "center" }}>
       <EmptyState
         icon={<Compass size={28} />}
         title="We can’t find that page"
@@ -20,5 +20,5 @@ export default function NotFoundPage() {
         }
       />
     </div>
-  )
+  );
 }

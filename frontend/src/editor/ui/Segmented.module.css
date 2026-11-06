@@ -19,7 +19,9 @@
   color: var(--color-text-muted);
   font: 600 var(--text-xs) / 1 var(--font-sans);
   cursor: pointer;
-  transition: background var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
 }
 
 .option:hover {
@@ -32,7 +34,7 @@
   box-shadow: var(--shadow-sm);
 }
 /* High contrast: muted text is nearly ink there, so the selected option also gets the selected outline. */
-:global(:root[data-contrast='more']) .on {
+:global(:root[data-contrast="more"]) .on {
   outline: 2px solid var(--color-text);
   outline-offset: -2px;
 }

@@ -1,0 +1,194 @@
+.options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.option {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-4);
+  color: var(--color-text);
+  text-align: left;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  font: inherit;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+}
+
+.quickStart {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.quickPresets {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.quickPreset,
+.quickAction {
+  display: grid;
+  align-items: center;
+  width: 100%;
+  color: var(--color-text);
+  text-align: left;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font: inherit;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+}
+
+.quickPreset {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: var(--space-2);
+  min-height: 4.25rem;
+  padding: var(--space-2);
+}
+
+.quickPreset:hover,
+.quickAction:hover {
+  background: var(--color-bg-subtle);
+  border-color: var(--color-border-strong);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-1px);
+}
+
+.quickPreset:focus-visible,
+.quickAction:focus-visible {
+  border-color: var(--color-cta);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-cta) 22%, transparent);
+  outline: none;
+}
+
+.quickShape {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+}
+
+.quickCopy,
+.quickAction span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.quickCopy strong,
+.quickAction strong {
+  overflow: hidden;
+  font-size: var(--text-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quickCopy span,
+.quickAction small {
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quickArrow {
+  color: var(--color-text-muted);
+}
+
+.quickActions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+
+.quickAction {
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-2);
+  padding: var(--space-3);
+}
+
+.quickAction > svg {
+  color: var(--color-cta);
+}
+
+.option:hover {
+  background: var(--color-bg-subtle);
+  border-color: var(--color-border-strong);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-1px);
+}
+
+.option:focus-visible {
+  border-color: var(--color-cta);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-cta) 22%, transparent);
+  outline: none;
+}
+
+.icon {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  color: var(--color-cta);
+  background: color-mix(in srgb, var(--color-cta) 12%, transparent);
+  border-radius: var(--radius-md);
+}
+
+.copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.copy strong {
+  font-size: var(--text-base);
+}
+
+.copy span {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  line-height: 1.4;
+}
+
+.arrow {
+  color: var(--color-text-muted);
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+.option:hover .arrow {
+  transform: translateX(3px);
+}
+
+@media (max-width: 480px) {
+  .options,
+  .quickActions {
+    grid-template-columns: 1fr;
+  }
+
+  .quickPresets {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .option {
+    padding: var(--space-3);
+  }
+}

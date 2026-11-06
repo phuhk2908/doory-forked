@@ -31,7 +31,10 @@
   place-items: center;
   padding: var(--space-8);
   background-color: var(--paper);
-  background-image: radial-gradient(rgb(43 28 23 / 0.1) 1.2px, transparent 1.3px);
+  background-image: radial-gradient(
+    rgb(43 28 23 / 0.1) 1.2px,
+    transparent 1.3px
+  );
   background-size: 22px 22px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-xl);

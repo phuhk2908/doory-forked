@@ -14,7 +14,7 @@
   -webkit-user-select: none;
 }
 /* High contrast: the violet ring is too dark on the black stage, so the controls ring in the stage's text colour. */
-:global(:root[data-contrast='more']) .overlay {
+:global(:root[data-contrast="more"]) .overlay {
   --focus-ring: 0 0 0 3px var(--color-on-stage);
 }
 
@@ -46,10 +46,11 @@
   display: block;
   width: 100%;
   height: 100%;
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-on-stage) 10%, transparent);
+  box-shadow: 0 0 0 1px
+    color-mix(in srgb, var(--color-on-stage) 10%, transparent);
   transition: opacity var(--duration-fast) var(--ease-out);
 }
-.frame[data-ready='false'] {
+.frame[data-ready="false"] {
   opacity: 0;
 }
 
@@ -146,7 +147,8 @@
   min-height: 96px;
   padding: var(--space-4) var(--space-6) 96px;
   overflow-y: auto;
-  border-top: 1px solid color-mix(in srgb, var(--color-on-stage) 16%, transparent);
+  border-top: 1px solid
+    color-mix(in srgb, var(--color-on-stage) 16%, transparent);
   background: color-mix(in srgb, var(--color-on-stage) 8%, var(--color-stage));
   user-select: text;
   -webkit-user-select: text;
@@ -194,7 +196,7 @@
   transition: height var(--duration-fast) var(--ease-out);
 }
 .segment::before {
-  content: '';
+  content: "";
   background: color-mix(in srgb, var(--color-on-stage) 22%, transparent);
 }
 .fill {
@@ -205,10 +207,10 @@
     transform 250ms linear,
     height var(--duration-fast) var(--ease-out);
 }
-.segment[data-state='done'] .fill {
+.segment[data-state="done"] .fill {
   transform: scaleX(1);
 }
-.segment[data-state='current']::before {
+.segment[data-state="current"]::before {
   background: color-mix(in srgb, var(--color-on-stage) 40%, transparent);
 }
 .segment:hover::before,
@@ -239,7 +241,8 @@
   padding: 6px 10px;
   border-radius: 28px;
   background: color-mix(in srgb, var(--color-stage) 62%, transparent);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-on-stage) 14%, transparent);
+  box-shadow: 0 0 0 1px
+    color-mix(in srgb, var(--color-on-stage) 14%, transparent);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   transition: opacity var(--duration-base) var(--ease-out);
@@ -273,22 +276,30 @@
   opacity: 0.35;
   cursor: default;
 }
-.ctl[aria-pressed='true'] {
+.ctl[aria-pressed="true"] {
   background: var(--color-brand);
   color: var(--color-on-brand);
 }
 /* High contrast: the selected outline is ink, which does not show on the dark pill. */
-:global(:root[data-contrast='more']) .overlay .ctl[aria-pressed='true']:not(:focus-visible) {
+:global(:root[data-contrast="more"])
+  .overlay
+  .ctl[aria-pressed="true"]:not(:focus-visible) {
   outline-color: var(--color-on-stage);
 }
-:global(:root[data-contrast='more']) .overlay .ctl[aria-pressed='true']:focus-visible {
-  box-shadow: var(--focus-ring), inset 0 0 0 2px var(--color-on-stage);
+:global(:root[data-contrast="more"])
+  .overlay
+  .ctl[aria-pressed="true"]:focus-visible {
+  box-shadow:
+    var(--focus-ring),
+    inset 0 0 0 2px var(--color-on-stage);
 }
 /* High contrast: the current step is marked in the stage's text colour, and keyboard focus gets a ring. */
-:global(:root[data-contrast='more']) .overlay .segment[aria-current]:not(:focus-visible) {
+:global(:root[data-contrast="more"])
+  .overlay
+  .segment[aria-current]:not(:focus-visible) {
   outline-color: var(--color-on-stage);
 }
-:global(:root[data-contrast='more']) .overlay .segment:focus-visible {
+:global(:root[data-contrast="more"]) .overlay .segment:focus-visible {
   box-shadow: var(--focus-ring);
 }
 
@@ -316,7 +327,8 @@
 .group + .group {
   margin-left: 4px;
   padding-left: 6px;
-  border-left: 1px solid color-mix(in srgb, var(--color-on-stage) 22%, transparent);
+  border-left: 1px solid
+    color-mix(in srgb, var(--color-on-stage) 22%, transparent);
 }
 
 /* ---- messages, help, laser ---- */
@@ -333,7 +345,8 @@
   padding: 12px 16px;
   border-radius: var(--radius-lg);
   background: color-mix(in srgb, var(--color-on-stage) 16%, var(--color-stage));
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-on-stage) 18%, transparent);
+  box-shadow: 0 0 0 1px
+    color-mix(in srgb, var(--color-on-stage) 18%, transparent);
   font: 400 var(--text-sm) / 1.45 var(--font-sans);
   transform: translateX(-50%);
   user-select: text;
@@ -394,8 +407,14 @@
   height: 22px;
   margin: -11px 0 0 -11px;
   border-radius: 50%;
-  background: radial-gradient(circle, var(--color-brand) 0 34%, color-mix(in srgb, var(--color-brand) 45%, transparent) 36% 62%, transparent 70%);
-  box-shadow: 0 0 16px 6px color-mix(in srgb, var(--color-brand) 55%, transparent);
+  background: radial-gradient(
+    circle,
+    var(--color-brand) 0 34%,
+    color-mix(in srgb, var(--color-brand) 45%, transparent) 36% 62%,
+    transparent 70%
+  );
+  box-shadow: 0 0 16px 6px
+    color-mix(in srgb, var(--color-brand) 55%, transparent);
   opacity: 0;
   pointer-events: none;
 }
@@ -477,6 +496,6 @@
   height: 100%;
   pointer-events: none;
 }
-.transition[data-live='false'] {
+.transition[data-live="false"] {
   display: none;
 }

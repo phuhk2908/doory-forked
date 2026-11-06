@@ -41,7 +41,11 @@
 .range::-webkit-slider-runnable-track {
   height: 4px;
   border-radius: 99px;
-  background: linear-gradient(to right, var(--color-brand) var(--pct), var(--color-border-strong) var(--pct));
+  background: linear-gradient(
+    to right,
+    var(--color-brand) var(--pct),
+    var(--color-border-strong) var(--pct)
+  );
 }
 
 .range::-moz-range-track {

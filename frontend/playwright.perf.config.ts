@@ -1,6 +1,6 @@
-import { defineConfig, devices } from '@playwright/test'
+import { defineConfig, devices } from "@playwright/test";
 
-const PORT = Number(process.env.E2E_PERF_PORT ?? 5391)
+const PORT = Number(process.env.E2E_PERF_PORT ?? 5391);
 
 /**
  * Editor performance profile and budgets (`bun run e2e:perf`): the production build of the harness
@@ -8,16 +8,19 @@ const PORT = Number(process.env.E2E_PERF_PORT ?? 5391)
  * the machine: the budgets are generous (about three times what a quiet machine measures) and catch regressions, not noise.
  */
 export default defineConfig({
-  testDir: './e2e/perf',
+  testDir: "./e2e/perf",
   timeout: 180_000,
   expect: { timeout: 15_000 },
   fullyParallel: false,
   workers: 1,
-  reporter: [['list']],
+  reporter: [["list"]],
   use: {
     baseURL: `http://localhost:${PORT}`,
-    trace: 'retain-on-failure',
-    launchOptions: { executablePath: process.env.PW_CHROMIUM ?? '/opt/pw-browsers/chromium', args: ['--enable-precise-memory-info', '--js-flags=--expose-gc'] },
+    trace: "retain-on-failure",
+    launchOptions: {
+      executablePath: process.env.PW_CHROMIUM ?? "/opt/pw-browsers/chromium",
+      args: ["--enable-precise-memory-info", "--js-flags=--expose-gc"],
+    },
   },
   webServer: {
     command: `bunx --no-install vite preview --outDir dist-perf --port ${PORT} --strictPort`,
@@ -25,5 +28,13 @@ export default defineConfig({
     reuseExistingServer: false,
     timeout: 60_000,
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } } }],
-})
+  projects: [
+    {
+      name: "chromium",
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 1440, height: 900 },
+      },
+    },
+  ],
+});

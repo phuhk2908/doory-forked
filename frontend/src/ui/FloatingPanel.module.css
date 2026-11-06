@@ -10,7 +10,7 @@
   transform-origin: top left;
 }
 
-.panel[data-placement^='top'] {
+.panel[data-placement^="top"] {
   transform-origin: bottom left;
 }
 

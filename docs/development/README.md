@@ -3,7 +3,7 @@
 ## Requirements
 
 - Python 3.12
-- Node.js 22 and Bun 1.4.2. Newer Node.js versions can make some frontend tests fail.
+- Node.js 22 and Bun 1.4.4. Newer Node.js versions can make some frontend tests fail.
 - Optional: Docker, for PostgreSQL and Redis (`docker-compose.dev.yml`)
 - Optional: Playwright's Chromium, for server-side export and the end-to-end tests
 

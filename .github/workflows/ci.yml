@@ -74,7 +74,7 @@ jobs:
           node-version: 22
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.4.2
+          bun-version: 1.4.4
       - name: Install the reference Yjs client used by the co-editing tests
         run: bun install --frozen-lockfile --cwd apps/collab/tests/interop
       - name: Lint
@@ -115,7 +115,7 @@ jobs:
           node-version: 22
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.4.2
+          bun-version: 1.4.4
       - run: bun install --frozen-lockfile
       - run: bun run lint
       - run: bun run typecheck
@@ -222,7 +222,7 @@ jobs:
           node-version: 22
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.4.2
+          bun-version: 1.4.4
       - name: Install the API, the web app and Chromium
         run: |
           pip install -r backend/requirements-dev.txt

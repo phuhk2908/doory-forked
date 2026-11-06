@@ -3,30 +3,33 @@
  * has a video provider. Guests are asked to sign up (clips are converted on the server, into an account's uploads);
  * a server without ffmpeg says it takes no videos.
  */
-import { useSyncExternalStore, useState } from 'react'
-import { useEditor } from '../context'
-import { useVideoInfo } from '../clips/assets'
-import type { PanelProps } from './registry'
-import { t } from '../strings'
-import { Button } from '../ui/Button'
-import { Skeleton } from '../ui/Skeleton'
-import ed from '../chrome/ed.module.css'
-import drawer from '../drawers/Drawers.module.css'
-import { VideoStockTab } from './VideoStockTab'
-import { VideoUploadsTab } from './VideoUploadsTab'
-import styles from './Videos.module.css'
+import { useSyncExternalStore, useState } from "react";
+import { useEditor } from "../context";
+import { useVideoInfo } from "../clips/assets";
+import type { PanelProps } from "./registry";
+import { t } from "../strings";
+import { Button } from "../ui/Button";
+import { Skeleton } from "../ui/Skeleton";
+import ed from "../chrome/ed.module.css";
+import drawer from "../drawers/Drawers.module.css";
+import { VideoStockTab } from "./VideoStockTab";
+import { VideoUploadsTab } from "./VideoUploadsTab";
+import styles from "./Videos.module.css";
 
 function VideoGate() {
-  const editor = useEditor()
-  const [busy, setBusy] = useState(false)
+  const editor = useEditor();
+  const [busy, setBusy] = useState(false);
   const signUp = async (): Promise<void> => {
-    setBusy(true)
+    setBusy(true);
     try {
-      await editor.adapter.requireAccount('video', async () => ({ document: editor.getDocument(), title: editor.state.title }))
+      await editor.adapter.requireAccount("video", async () => ({
+        document: editor.getDocument(),
+        title: editor.state.title,
+      }));
     } finally {
-      setBusy(false)
+      setBusy(false);
     }
-  }
+  };
   return (
     <div className={styles.gate} data-testid="videos-gate">
       <strong>{t.clips.off.title}</strong>
@@ -35,61 +38,94 @@ function VideoGate() {
         {t.clips.off.action}
       </Button>
     </div>
-  )
+  );
 }
 
 /** While "Replace video" waits for a pick: what the next pick does, and the way out. */
 function ReplacingNote() {
-  const editor = useEditor()
-  const replacing = useSyncExternalStore(editor.videos.subscribeReplacing, () => editor.videos.replacing)
-  if (!replacing) return null
+  const editor = useEditor();
+  const replacing = useSyncExternalStore(
+    editor.videos.subscribeReplacing,
+    () => editor.videos.replacing,
+  );
+  if (!replacing) return null;
   return (
-    <p className={styles.replacing} role="status" data-testid="videos-replacing">
+    <p
+      className={styles.replacing}
+      role="status"
+      data-testid="videos-replacing"
+    >
       <span>{t.clips.replacing.title}</span>
-      <button type="button" className={`${ed.btn} ${ed.ghost}`} onClick={() => editor.videos.cancelReplace()}>
+      <button
+        type="button"
+        className={`${ed.btn} ${ed.ghost}`}
+        onClick={() => editor.videos.cancelReplace()}
+      >
         {t.clips.replacing.cancel}
       </button>
     </p>
-  )
+  );
 }
 
 /** The tab last used, kept while the editor stays open. */
-const memory: { tab: 'uploads' | 'stock' } = { tab: 'uploads' }
+const memory: { tab: "uploads" | "stock" } = { tab: "uploads" };
 
 export function VideosPanel(props: PanelProps) {
-  const editor = useEditor()
-  const service = editor.adapter.services.video
-  const info = useVideoInfo(service)
-  const [tab, setTabState] = useState(memory.tab)
-  const setTab = (next: 'uploads' | 'stock'): void => {
-    memory.tab = next
-    setTabState(next)
-  }
-  if (!service) return <VideoGate />
-  if (info === undefined) return <Skeleton height={120} radius={8} />
+  const editor = useEditor();
+  const service = editor.adapter.services.video;
+  const info = useVideoInfo(service);
+  const [tab, setTabState] = useState(memory.tab);
+  const setTab = (next: "uploads" | "stock"): void => {
+    memory.tab = next;
+    setTabState(next);
+  };
+  if (!service) return <VideoGate />;
+  if (info === undefined) return <Skeleton height={120} radius={8} />;
   if (info === null || !info.enabled) {
     return (
       <p className={drawer.note} data-testid="videos-off">
         {t.clips.off.server}
       </p>
-    )
+    );
   }
-  const hasStock = info.providers.length > 0
-  const shown = hasStock ? tab : 'uploads'
+  const hasStock = info.providers.length > 0;
+  const shown = hasStock ? tab : "uploads";
   return (
     <div data-testid="videos-panel">
       <ReplacingNote />
       {hasStock ? (
-        <div className={drawer.tabs} role="tablist" aria-label={t.clips.tabs.label}>
-          <button type="button" role="tab" className={drawer.tab} aria-selected={shown === 'uploads'} data-testid="video-tab-uploads" onClick={() => setTab('uploads')}>
+        <div
+          className={drawer.tabs}
+          role="tablist"
+          aria-label={t.clips.tabs.label}
+        >
+          <button
+            type="button"
+            role="tab"
+            className={drawer.tab}
+            aria-selected={shown === "uploads"}
+            data-testid="video-tab-uploads"
+            onClick={() => setTab("uploads")}
+          >
             {t.clips.tabs.uploads}
           </button>
-          <button type="button" role="tab" className={drawer.tab} aria-selected={shown === 'stock'} data-testid="video-tab-stock" onClick={() => setTab('stock')}>
+          <button
+            type="button"
+            role="tab"
+            className={drawer.tab}
+            aria-selected={shown === "stock"}
+            data-testid="video-tab-stock"
+            onClick={() => setTab("stock")}
+          >
             {t.clips.tabs.stock}
           </button>
         </div>
       ) : null}
-      {shown === 'uploads' ? <VideoUploadsTab {...props} service={service} info={info} /> : <VideoStockTab {...props} service={service} info={info} />}
+      {shown === "uploads" ? (
+        <VideoUploadsTab {...props} service={service} info={info} />
+      ) : (
+        <VideoStockTab {...props} service={service} info={info} />
+      )}
     </div>
-  )
+  );
 }

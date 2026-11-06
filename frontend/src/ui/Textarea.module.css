@@ -23,7 +23,7 @@
   box-shadow: var(--focus-ring);
 }
 
-.textarea[aria-invalid='true'] {
+.textarea[aria-invalid="true"] {
   border-color: var(--color-danger);
 }
 

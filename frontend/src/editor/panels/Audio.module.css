@@ -90,7 +90,7 @@
 .tabButton:hover {
   color: var(--color-text);
 }
-.tabButton[aria-selected='true'] {
+.tabButton[aria-selected="true"] {
   background: var(--color-surface);
   color: var(--color-brand);
   box-shadow: var(--shadow-sm);
@@ -163,7 +163,7 @@
   border-color: var(--color-brand);
   color: var(--color-brand);
 }
-.chip[aria-pressed='true'] {
+.chip[aria-pressed="true"] {
   border-color: var(--color-brand);
   background: var(--color-brand-soft);
   color: var(--color-brand);
@@ -259,7 +259,6 @@
   flex: none;
 }
 
-
 .waveform {
   display: block;
   width: 100%;
@@ -335,8 +334,8 @@
   background: var(--color-bg-muted);
   color: var(--color-text-muted);
 }
-.kindIcon[data-kind='music'],
-.kindIcon[data-kind='voiceover'] {
+.kindIcon[data-kind="music"],
+.kindIcon[data-kind="voiceover"] {
   background: var(--color-brand-soft);
   color: var(--color-brand);
 }
@@ -506,10 +505,10 @@
   border: 2px solid var(--color-brand);
   border-radius: var(--radius-sm);
   background: var(--color-surface);
-  content: '';
+  content: "";
   transform: translate(-50%, -50%);
 }
-.trimHandle[aria-readonly='true'] {
+.trimHandle[aria-readonly="true"] {
   cursor: default;
 }
 .trimReadout {

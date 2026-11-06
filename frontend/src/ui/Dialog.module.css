@@ -30,15 +30,15 @@
   outline: none;
 }
 
-.panel[data-size='sm'] {
+.panel[data-size="sm"] {
   max-width: 24rem;
 }
 
-.panel[data-size='lg'] {
+.panel[data-size="lg"] {
   max-width: 40rem;
 }
 
-.panel[data-size='xl'] {
+.panel[data-size="xl"] {
   max-width: 64rem;
 }
 

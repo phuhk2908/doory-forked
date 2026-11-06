@@ -18,7 +18,7 @@
     box-shadow var(--duration-fast) var(--ease-out);
 }
 
-.wrap[data-size='sm'] .select {
+.wrap[data-size="sm"] .select {
   height: 2rem;
   font-size: var(--text-sm);
   border-radius: var(--radius-sm);
@@ -34,7 +34,7 @@
   box-shadow: var(--focus-ring);
 }
 
-.select[aria-invalid='true'] {
+.select[aria-invalid="true"] {
   border-color: var(--color-danger);
 }
 

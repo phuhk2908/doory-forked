@@ -35,7 +35,14 @@
 }
 
 .none .chip {
-  background: linear-gradient(to top right, transparent calc(50% - 1px), var(--color-danger) calc(50% - 1px) calc(50% + 1px), transparent calc(50% + 1px)), var(--color-surface);
+  background:
+    linear-gradient(
+      to top right,
+      transparent calc(50% - 1px),
+      var(--color-danger) calc(50% - 1px) calc(50% + 1px),
+      transparent calc(50% + 1px)
+    ),
+    var(--color-surface);
 }
 
 .chip.chip {

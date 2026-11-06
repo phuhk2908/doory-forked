@@ -55,7 +55,7 @@
   transition: background var(--ed-dur);
 }
 .menuBtn:hover,
-.menuBtn[aria-expanded='true'] {
+.menuBtn[aria-expanded="true"] {
   background: var(--ed-surface-3);
 }
 .menuBtn:focus-visible {

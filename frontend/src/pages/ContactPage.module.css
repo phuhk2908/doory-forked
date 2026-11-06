@@ -41,7 +41,7 @@
 
 /* washi tape */
 .way::before {
-  content: '';
+  content: "";
   position: absolute;
   top: -0.7rem;
   left: 50%;
@@ -49,23 +49,27 @@
   height: 1.4rem;
   margin-left: -2.375rem;
   background:
-    repeating-linear-gradient(45deg, rgb(255 255 255 / 0.5) 0 6px, transparent 6px 12px),
+    repeating-linear-gradient(
+      45deg,
+      rgb(255 255 255 / 0.5) 0 6px,
+      transparent 6px 12px
+    ),
     var(--tape);
   opacity: 0.9;
   transform: rotate(-3deg);
 }
 
-.way[data-tone='pink'] {
+.way[data-tone="pink"] {
   --tone: var(--pastel-pink);
   --tape: var(--pastel-mint);
 }
 
-.way[data-tone='butter'] {
+.way[data-tone="butter"] {
   --tone: var(--pastel-butter);
   --tape: var(--pastel-pink);
 }
 
-.way[data-tone='mint'] {
+.way[data-tone="mint"] {
   --tone: var(--pastel-mint);
   --tape: var(--pastel-butter);
 }

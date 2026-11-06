@@ -26,7 +26,7 @@ button.chip:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
 }
-button.chip[aria-expanded='true'] {
+button.chip[aria-expanded="true"] {
   background: var(--color-brand);
   color: var(--color-on-brand);
 }
@@ -42,7 +42,7 @@ button.chip[aria-expanded='true'] {
   background: var(--color-bg-muted);
   color: var(--color-text);
 }
-.chip[data-unset][aria-expanded='true'] {
+.chip[data-unset][aria-expanded="true"] {
   background: var(--color-brand);
   color: var(--color-on-brand);
 }

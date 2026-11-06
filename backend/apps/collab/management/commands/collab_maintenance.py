@@ -6,6 +6,7 @@ from django.conf import settings
 from django.core.management.base import BaseCommand
 
 from apps.collab import crdt, engine, store
+from apps.drawings.services import purge_expired_drawing_rooms
 
 
 class Command(BaseCommand):
@@ -35,9 +36,10 @@ class Command(BaseCommand):
             merge = crdt.executor(crdt.READ).submit(engine.merge_state, source.snapshot, source.updates)
             merged = merge.result()
             compacted += store.apply_compaction(design_id, source, merged)
+        expired_rooms = purge_expired_drawing_rooms()
         self.stdout.write(
             f"saved {saved}, skipped {skipped}, failed {failed}; compacted {compacted}; "
-            f"removed {removed} stale connection rows"
+            f"removed {removed} stale connection rows; deleted {expired_rooms} expired drawing rooms"
         )
 
     def save(self, design_id) -> str:

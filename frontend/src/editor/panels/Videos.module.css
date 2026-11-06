@@ -38,7 +38,7 @@
 .clip:disabled {
   cursor: progress;
 }
-.clip[data-status='failed'] {
+.clip[data-status="failed"] {
   cursor: default;
 }
 

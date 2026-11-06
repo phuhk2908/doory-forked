@@ -3,5 +3,5 @@
  * so an address that holds one can't end the value early (and add a second picture or another declaration).
  */
 export function cssUrl(url: string): string {
-  return `url("${url.replace(/["\\\n\r\f]/g, (c) => `\\${c.charCodeAt(0).toString(16)} `)}")`
+  return `url("${url.replace(/["\\\n\r\f]/g, (c) => `\\${c.charCodeAt(0).toString(16)} `)}")`;
 }

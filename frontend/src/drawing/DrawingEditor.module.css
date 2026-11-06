@@ -1,0 +1,471 @@
+.editor {
+  position: relative;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  color: var(--color-text);
+  background: var(--color-bg-subtle);
+}
+
+.toolbar {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  pointer-events: none;
+  z-index: 6;
+}
+
+.titleArea,
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  z-index: 2;
+}
+
+.titleArea {
+  min-width: 0;
+  padding: 6px 8px;
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  pointer-events: auto;
+}
+
+.title {
+  min-width: 0;
+  max-width: 220px;
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toolGroup {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  max-width: calc(100% - 32px);
+  gap: 5px;
+  padding: 6px;
+  overflow: visible;
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  scrollbar-width: none;
+  transform: translateX(-50%);
+  z-index: 3;
+}
+
+.toolGroup::-webkit-scrollbar {
+  display: none;
+}
+
+.actions {
+  margin-left: auto;
+}
+
+.toolButton,
+.actionButton,
+.exportLink,
+.moreButton,
+.shapeButton,
+.shapeDropdownButton,
+.zoomButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 38px;
+  height: 38px;
+  padding: 0 9px;
+  color: var(--color-text-muted);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font: inherit;
+}
+
+.toolButton,
+.shapeButton {
+  position: relative;
+}
+
+.toolShortcut {
+  position: absolute;
+  right: 2px;
+  bottom: 1px;
+  padding: 0 3px;
+  color: var(--color-text-subtle);
+  background: var(--color-brand-soft);
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 13px;
+  pointer-events: none;
+  text-align: center;
+}
+
+.toolButton:hover,
+.actionButton:hover,
+.exportLink:hover,
+.moreButton:hover,
+.shapeButton:hover,
+.shapeDropdownButton:hover,
+.zoomButton:hover {
+  color: var(--color-brand-strong);
+  background: var(--color-brand-soft);
+}
+
+.toolButton[aria-pressed="true"],
+.shapeButton[aria-pressed="true"] {
+  color: var(--color-on-brand);
+  background: var(--color-brand-fill);
+}
+
+.toolButton[aria-pressed="true"] .toolShortcut,
+.shapeButton[aria-pressed="true"] .toolShortcut {
+  color: var(--color-on-brand);
+  background: color-mix(in srgb, var(--color-on-brand) 18%, transparent);
+}
+
+.toolButton:disabled,
+.actionButton:disabled,
+.exportLink:disabled,
+.moreButton:disabled,
+.shapeButton:disabled,
+.shapeDropdownButton:disabled,
+.zoomButton:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+.shapeWrap,
+.shapeControl,
+.menuWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.shapeControl {
+  gap: 1px;
+  border-radius: var(--radius-sm);
+}
+
+.shapeButton {
+  border-radius: var(--radius-sm) 3px 3px var(--radius-sm);
+}
+
+.shapeDropdownButton {
+  min-width: 19px;
+  width: 19px;
+  padding: 0;
+  border-radius: 3px var(--radius-sm) var(--radius-sm) 3px;
+}
+
+.moreButton {
+  min-width: 30px;
+  width: 30px;
+  padding: 0;
+}
+
+.moreMenu,
+.shapeMenu {
+  position: absolute;
+  top: calc(100% + 8px);
+  min-width: 190px;
+  padding: 5px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  z-index: 10;
+}
+
+.moreMenu,
+.shapeMenu {
+  left: 0;
+}
+
+.menuItem {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 32px;
+  gap: 9px;
+  padding: 6px 8px;
+  color: var(--color-text-muted);
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.menuItem:hover,
+.menuItem:focus-visible {
+  color: var(--color-brand-strong);
+  background: var(--color-brand-soft);
+}
+
+.menuItem:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.menuItem span {
+  flex: 1;
+}
+
+.menuItem kbd {
+  color: var(--color-text-subtle);
+  font-size: 10px;
+}
+
+.menuDivider {
+  height: 1px;
+  margin: 5px 2px;
+  background: var(--color-border);
+}
+
+[data-tooltip] {
+  position: relative;
+}
+
+[data-tooltip]::after {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  z-index: 30;
+  padding: 5px 7px;
+  color: var(--color-on-brand);
+  background: var(--color-brand-fill);
+  border-radius: var(--radius-sm);
+  content: attr(data-tooltip);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -3px);
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
+  white-space: nowrap;
+}
+
+[data-tooltip]:hover::after,
+[data-tooltip]:focus-visible::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.canvasWrap {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  touch-action: none;
+}
+
+.canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  outline: none;
+  cursor: crosshair;
+}
+
+.canvas[data-pan-mode="true"] {
+  cursor: grab;
+}
+
+.canvas[data-pan-active="true"] {
+  cursor: grabbing;
+}
+
+.canvas[data-eraser-mode="true"] {
+  cursor: crosshair;
+}
+
+.canvas:focus {
+  box-shadow: inset 0 0 0 2px var(--selection-color);
+}
+
+.lasso {
+  position: absolute;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--selection-color) 8%, transparent);
+  border: 1px solid var(--selection-color);
+}
+
+.textEditor {
+  position: absolute;
+  z-index: 3;
+  resize: both;
+  padding: 3px;
+  color: var(--color-text);
+  background: color-mix(in srgb, var(--color-surface) 85%, transparent);
+  border: 1px solid var(--selection-color);
+  border-radius: var(--radius-sm);
+  outline: none;
+}
+
+.remoteSelection,
+.remoteCursor {
+  position: absolute;
+  pointer-events: none;
+}
+
+.remoteSelection {
+  border: 1px dashed;
+}
+
+.remoteCursor {
+  width: 12px;
+  height: 16px;
+  border-width: 0 0 2px 2px;
+  border-style: solid;
+  transform: rotate(-35deg);
+  z-index: 2;
+}
+
+.remoteCursor span {
+  position: absolute;
+  top: 12px;
+  left: 6px;
+  padding: 2px 5px;
+  color: currentColor;
+  background: var(--color-surface);
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  font-size: 10px;
+  line-height: 1;
+  white-space: nowrap;
+  transform: rotate(35deg);
+}
+
+.floatingZoom {
+  position: absolute;
+  right: 16px;
+  bottom: 46px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  background: color-mix(in srgb, var(--color-surface) 96%, transparent);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-md);
+}
+
+.floatingZoom [data-tooltip]::after {
+  top: auto;
+  bottom: calc(100% + 8px);
+  transform: translate(-50%, 3px);
+}
+
+.floatingZoom [data-tooltip]:hover::after,
+.floatingZoom [data-tooltip]:focus-visible::after {
+  transform: translate(-50%, 0);
+}
+
+.zoomButton {
+  min-width: 34px;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: var(--radius-full);
+}
+
+.zoomDivider {
+  width: 1px;
+  height: 22px;
+  margin: 0 3px;
+  background: var(--color-border);
+}
+
+.zoomValue {
+  min-width: 48px;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  padding: 4px 14px;
+  color: var(--color-text-muted);
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  font-size: 12px;
+}
+
+.status > span:first-child {
+  margin-right: auto;
+}
+
+.exportLink {
+  min-width: auto;
+  height: 26px;
+  padding: 0 4px;
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--selection-color);
+  outline-offset: 2px;
+}
+
+@media (max-width: 850px) {
+  .title {
+    display: none;
+  }
+
+  .toolbar {
+    top: 8px;
+    left: 8px;
+  }
+
+  .toolGroup {
+    top: 8px;
+    max-width: calc(100% - 16px);
+  }
+
+  .toolButton,
+  .actionButton {
+    min-width: 36px;
+    height: 36px;
+    padding-inline: 5px;
+  }
+
+  .status {
+    gap: 8px;
+    padding-inline: 8px;
+  }
+
+  .floatingZoom {
+    right: 8px;
+  }
+}

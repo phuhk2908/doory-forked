@@ -19,8 +19,11 @@
 
 .thumb {
   border-radius: var(--radius-md);
-  background:
-    repeating-conic-gradient(var(--color-bg-muted) 0% 25%, var(--color-bg-subtle) 0% 50%) 50% / 16px 16px;
+  background: repeating-conic-gradient(
+      var(--color-bg-muted) 0% 25%,
+      var(--color-bg-subtle) 0% 50%
+    )
+    50% / 16px 16px;
 }
 
 .info {

@@ -249,6 +249,23 @@ thumbnail updates use their own paths. This avoids a REST write replacing a shar
 
 Sources: [ASGI routing](../../backend/doory/asgi.py), [consumer](../../backend/apps/collab/consumers.py), [room actor](../../backend/apps/collab/room.py), [CRDT engine](../../backend/apps/collab/engine.py), [collab store](../../backend/apps/collab/store.py), [collab models](../../backend/apps/collab/models.py), [frontend session](../../frontend/src/editor/collab/session.ts), [frontend binding](../../frontend/src/editor/collab/binding.ts), [realtime operations guide](../self-hosting/realtime.md).
 
+### Guest whiteboard rooms
+
+The whiteboard room seam uses `/drawings/room#room=<uuid>,<key>` for edit links and
+`/drawings/room#room=<uuid>,<key>,view` for view links. The UUID selects a `DrawingRoom`; the key remains in the
+browser fragment, is hashed in the database, and is presented in the initial room request and WebSocket auth frame.
+Possession of the edit or view link grants its specific permission. A separate owner capability controls close and
+key rotation. The existing owner-only `/ws/drawings/<uuid>/` consumer is unchanged.
+
+Guest room updates are bounded JSON snapshots rather than Yjs deltas. The browser sends only its latest pending
+snapshot every 120ms, the server validates it and merges elements by `version`/`versionNonce` under a row lock, then
+broadcasts the accepted snapshot to the other members. A `saved` acknowledgement lets the source client clear its
+pending state. This keeps pointer interaction off the REST save path. Cursor and selection presence are volatile,
+bounded, and sent separately at 33ms. Room close and expiry reject new access; heartbeats also detect a close when
+API and realtime processes do not share an in-memory channel layer.
+
+Sources: [guest room model](../../backend/apps/drawings/models.py), [guest room service](../../backend/apps/drawings/services.py), [guest room WebSocket](../../backend/apps/drawings/realtime.py), [room page](../../frontend/src/pages/DrawingRoomPage.tsx), [Excalidraw room research](./excalidraw-guest-collaboration.md).
+
 ## 9. REST and MCP edit semantics
 
 MCP is not a separate design engine. It is a stateless HTTP front end over the same domain operations.
