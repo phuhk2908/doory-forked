@@ -260,6 +260,7 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         "anon": "240/min",
         "user": "1200/min",
+        "guest_room_create": env("DRAWING_ROOM_CREATE_RATE", default="10/min"),
         "auth": "20/min",  # login / register / password reset
         "oidc": "30/min",  # single sign-on: a sign-in takes one start and one callback
         "upload": "60/min",
@@ -483,6 +484,14 @@ REALTIME_CONNECTS_PER_MINUTE = env.int("REALTIME_CONNECTS_PER_MINUTE", default=6
 REALTIME_SLOW_APPLY_SECONDS = env.float("REALTIME_SLOW_APPLY_SECONDS", default=2.0)
 REALTIME_BLOCK_SECONDS = env.int("REALTIME_BLOCK_SECONDS", default=600)
 DRAWING_ROOM_TTL_DAYS = env.int("DRAWING_ROOM_TTL_DAYS", default=30)
+DRAWING_ROOM_MAX_COLLABORATORS = env.int("DRAWING_ROOM_MAX_COLLABORATORS", default=25)
+DRAWING_ROOM_JOIN_RATE_PER_MINUTE = env.int("DRAWING_ROOM_JOIN_RATE_PER_MINUTE", default=30)
+DRAWING_ROOM_RATE_MESSAGES_PER_SECOND = env.int("DRAWING_ROOM_RATE_MESSAGES_PER_SECOND", default=30)
+DRAWING_ROOM_RATE_BURST = env.int("DRAWING_ROOM_RATE_BURST", default=90)
+DRAWING_ROOM_RATE_BYTES_PER_SECOND = env.int("DRAWING_ROOM_RATE_BYTES_PER_SECOND", default=512 * 1024)
+DRAWING_ROOM_RATE_BYTES_BURST = env.int("DRAWING_ROOM_RATE_BYTES_BURST", default=2 * 1024 * 1024)
+DRAWING_ROOM_FANOUT_PER_SECOND = env.int("DRAWING_ROOM_FANOUT_PER_SECOND", default=200)
+DRAWING_ROOM_MEMBER_TTL_SECONDS = env.int("DRAWING_ROOM_MEMBER_TTL_SECONDS", default=3600)
 
 # ---- MCP server for AI agents (apps.mcp; served by `uvicorn doory.mcp_asgi:application`) ----
 MCP_ENABLED = env.bool("MCP_ENABLED", default=False)  # opt-in; Docker also needs `COMPOSE_PROFILES=mcp`

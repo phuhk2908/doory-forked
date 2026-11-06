@@ -23,6 +23,22 @@ the server. Cursor and selection presence are volatile. The room's edit/view/own
 MCP token system; see [Whiteboards and MCP](mcp.md#whiteboards-and-mcp). Expired rooms are removed by
 `manage.py collab_maintenance`.
 
+Guest rooms have separate abuse controls: room creation is throttled per client IP, join authentication is limited per
+room and client IP, each connection has its own inbound message/byte budget, and room fan-out is capped by total
+deliveries per second. A shared-cache collaborator lease enforces `DRAWING_ROOM_MAX_COLLABORATORS` across realtime
+workers. Use a shared cache in production; a crashed worker can hold a collaborator lease until
+`DRAWING_ROOM_MEMBER_TTL_SECONDS` expires.
+
+Staff can inspect recent guest-room activity with `GET /api/v1/collab/stats/`. The `guest_rooms` object reports
+active rooms and connections, connections, reconnects and their rate, inbound/outbound message bytes, fan-out deliveries,
+updates, update latency percentiles, and dropped or invalid message counters. Each realtime worker publishes its
+snapshot through the shared `CollabInstance` heartbeat; stale worker snapshots disappear with the normal heartbeat
+window.
+
+Room lifecycle and update activity is retained in the `DrawingRoomEvent` audit table without storing room keys,
+documents, or raw client IP addresses. Staff can inspect the events in Django admin and close selected rooms with the
+room action; automatic spam detection and retention policies still need a separate operations pass.
+
 ## Turn it on or off
 
 It's on by default. Set `REALTIME_ENABLED=false` to turn it off; designs then save normally, without live

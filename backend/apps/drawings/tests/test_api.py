@@ -12,6 +12,11 @@ def drawing_document():
     return {"schemaVersion": 1, "elements": [], "background": "#ffffff"}
 
 
+def csrf_headers(client):
+    client.get("/api/v1/auth/csrf/")
+    return {"HTTP_X_CSRFTOKEN": client.cookies["csrftoken"].value}
+
+
 def test_owner_can_create_update_with_revision_and_list(db):
     user = User.objects.create_user("ada@example.com", "password-123456")
     client = APIClient()
@@ -93,6 +98,7 @@ def test_guest_room_uses_the_fragment_key_as_access_control(db):
         "/api/v1/drawing-rooms/",
         {"title": "Planning room", "document": drawing_document()},
         format="json",
+        **csrf_headers(client),
     )
     assert created.status_code == 201
     room_id = created.data["id"]
@@ -175,7 +181,12 @@ def test_guest_room_expiry_blocks_access_and_is_cleaned_up(db):
 
 def test_guest_room_owner_can_rotate_and_close_links(db):
     client = APIClient()
-    created = client.post("/api/v1/drawing-rooms/", {"document": drawing_document()}, format="json")
+    created = client.post(
+        "/api/v1/drawing-rooms/",
+        {"document": drawing_document()},
+        format="json",
+        **csrf_headers(client),
+    )
     room_id = created.data["id"]
     old_edit = created.data["key"]
     owner_key = created.data["owner_key"]
@@ -185,6 +196,7 @@ def test_guest_room_owner_can_rotate_and_close_links(db):
         {"action": "rename", "title": "  New room name  "},
         format="json",
         HTTP_X_DRAWING_ROOM_OWNER_KEY=owner_key,
+        **csrf_headers(client),
     )
     assert renamed.status_code == 200
     assert renamed.data["title"] == "New room name"
@@ -194,6 +206,7 @@ def test_guest_room_owner_can_rotate_and_close_links(db):
         {"action": "rotate"},
         format="json",
         HTTP_X_DRAWING_ROOM_OWNER_KEY=owner_key,
+        **csrf_headers(client),
     )
     assert rotated.status_code == 200
     assert rotated.data["key"] != old_edit
@@ -212,6 +225,7 @@ def test_guest_room_owner_can_rotate_and_close_links(db):
         {"action": "close"},
         format="json",
         HTTP_X_DRAWING_ROOM_OWNER_KEY=owner_key,
+        **csrf_headers(client),
     )
     assert closed.status_code == 200
     assert closed.data["closed_at"] is not None

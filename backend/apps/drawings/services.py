@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import secrets
+from collections.abc import Mapping
 from io import BytesIO
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.files.base import ContentFile
-from django.db import transaction
+from django.db import DatabaseError, transaction
 from django.http import Http404
 from django.utils import timezone
 
@@ -17,13 +19,14 @@ from apps.assets.uploads import strip_unsafe_chars
 from apps.core.images import ImageError, make_thumbnail, process_image_upload
 
 from .exceptions import RevisionConflict
-from .models import Drawing, DrawingRoom
+from .models import Drawing, DrawingRoom, DrawingRoomEvent
 from .validators import validate_drawing_document
 
 DEFAULT_TITLE = "Untitled whiteboard"
 THUMBNAIL_MAX_BYTES = 2 * 1024 * 1024
 THUMBNAIL_MAX_PIXELS = 16_000_000
 THUMBNAIL_SIDE = 480
+log = logging.getLogger("doory.drawings")
 
 
 def blank_document() -> dict:
@@ -40,6 +43,27 @@ def _room_key_hash(key: str) -> str:
 
 def _valid_room_key(key: str | None) -> bool:
     return isinstance(key, str) and 32 <= len(key) <= 128
+
+
+def record_drawing_room_event(
+    room_id,
+    kind: str,
+    *,
+    client_ip: str | None = None,
+    metadata: Mapping[str, object] | None = None,
+) -> None:
+    """Keep a small room audit trail without retaining keys, documents or raw client addresses."""
+    try:
+        with transaction.atomic():
+            DrawingRoomEvent.objects.create(
+                room_id=room_id,
+                room_identifier=room_id,
+                kind=kind[:40],
+                client_ip_hash=(hashlib.sha256(client_ip.encode("utf-8")).hexdigest() if client_ip else ""),
+                metadata=dict(metadata or {}),
+            )
+    except (DatabaseError, TypeError, ValueError):
+        log.warning("could not record drawing room event room=%s kind=%s", room_id, kind, exc_info=True)
 
 
 def _room_access(room: DrawingRoom, key: str | None) -> str | None:
@@ -80,6 +104,7 @@ def create_drawing_room(*, title: str, document: dict) -> tuple[DrawingRoom, str
         owner_key_hash=_room_key_hash(owner_key),
     )
     room.save()
+    record_drawing_room_event(room.id, "created")
     return room, edit_key, view_key, owner_key
 
 
@@ -110,6 +135,7 @@ def rotate_drawing_room_keys(room_id, owner_key: str) -> tuple[DrawingRoom, str,
         room.room_key_hash = _room_key_hash(edit_key)
         room.view_key_hash = _room_key_hash(view_key)
         room.save(update_fields=["room_key_hash", "view_key_hash", "updated_at"])
+        record_drawing_room_event(room.id, "keys_rotated")
     return room, edit_key, view_key
 
 
@@ -125,6 +151,7 @@ def close_drawing_room(room_id, owner_key: str) -> DrawingRoom | None:
         if room.closed_at is None:
             room.closed_at = timezone.now()
             room.save(update_fields=["closed_at", "updated_at"])
+            record_drawing_room_event(room.id, "closed")
     return room
 
 
@@ -139,12 +166,30 @@ def rename_drawing_room(room_id, owner_key: str, title: str) -> DrawingRoom | No
             return None
         room.title = clean_title(title)
         room.save(update_fields=["title", "updated_at"])
+        record_drawing_room_event(room.id, "renamed")
     return room
 
 
+def moderate_close_drawing_room(room_id, *, actor_id: object | None = None) -> bool:
+    with transaction.atomic():
+        room = DrawingRoom.objects.select_for_update().filter(pk=room_id).first()
+        if room is None or room.closed_at is not None:
+            return False
+        room.closed_at = timezone.now()
+        room.save(update_fields=["closed_at", "updated_at"])
+        record_drawing_room_event(
+            room.id,
+            "moderated_close",
+            metadata={"actor_id": str(actor_id)} if actor_id is not None else None,
+        )
+    return True
+
+
 def purge_expired_drawing_rooms() -> int:
-    deleted, _ = DrawingRoom.objects.filter(expires_at__lte=timezone.now()).delete()
-    return deleted
+    expired = DrawingRoom.objects.filter(expires_at__lte=timezone.now())
+    count = expired.count()
+    expired.delete()
+    return count
 
 
 def merge_drawing_documents(current: dict, incoming: dict) -> dict:
@@ -198,6 +243,7 @@ def save_drawing_room_update(room_id, key: str, document: dict) -> DrawingRoom |
             room.document = merged
             room.revision += 1
             room.save(update_fields=["document", "revision", "updated_at"])
+            record_drawing_room_event(room.id, "updated", metadata={"revision": room.revision})
     return room
 
 

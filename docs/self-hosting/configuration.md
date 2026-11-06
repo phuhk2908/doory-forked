@@ -61,7 +61,7 @@ add a row to the matching section (see [CONTRIBUTING.md](../../CONTRIBUTING.md#d
 | `CACHE_URL` | `locmemcache://` | Shared cache. Production needs a cache that all workers share; Docker and the manual guide use `dbcache://doory_cache` |
 | `REDIS_URL` | | Redis, e.g. `redis://redis:6379/0`. Needed only to run [realtime](realtime.md) on more than one worker |
 | `LOG_LEVEL` | `INFO` | Log level of every service |
-| `DJANGO_SETTINGS_MODULE` | `doory.settings.dev` | `doory.settings.prod` in production. Docker and the systemd units set it for you |
+| `DJANGO_SETTINGS_MODULE` | `doory.settings.dev` | Django settings module. Local Make targets select `dev` or `test`; Docker and the systemd units use `doory.settings.prod` |
 | `DJANGO_DEBUG` | `false` | Development only: show Django's debug pages |
 
 ## Media storage and per-user limits
@@ -301,6 +301,15 @@ See [realtime.md](realtime.md). The defaults suit most sites.
 | `REALTIME_SLOW_APPLY_SECONDS` | `2.0` | Log a warning when applying an update takes longer than this |
 | `REALTIME_BLOCK_SECONDS` | `600` | How long a client that breaks the limits stays blocked |
 | `DRAWING_ROOM_TTL_DAYS` | `30` | How long an anonymous whiteboard room remains available; expired rooms are deleted by `collab_maintenance` |
+| `DRAWING_ROOM_CREATE_RATE` | `10/min` | Anonymous room creations per client IP |
+| `DRAWING_ROOM_MAX_COLLABORATORS` | `25` | Active collaborators allowed in one anonymous room |
+| `DRAWING_ROOM_JOIN_RATE_PER_MINUTE` | `30` | Room authentication/join attempts per room and client IP per minute |
+| `DRAWING_ROOM_RATE_MESSAGES_PER_SECOND` | `30` | Steady inbound messages per guest-room connection |
+| `DRAWING_ROOM_RATE_BURST` | `90` | Inbound guest-room message burst per connection |
+| `DRAWING_ROOM_RATE_BYTES_PER_SECOND` | `524288` | Steady inbound bytes per guest-room connection |
+| `DRAWING_ROOM_RATE_BYTES_BURST` | `2097152` | Inbound guest-room byte burst per connection |
+| `DRAWING_ROOM_FANOUT_PER_SECOND` | `200` | Outbound guest-room deliveries per room per second |
+| `DRAWING_ROOM_MEMBER_TTL_SECONDS` | `3600` | Shared-cache lease for active guest-room collaborator slots |
 
 ## MCP server
 

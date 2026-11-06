@@ -4,6 +4,7 @@ import asyncio
 import json
 import math
 import secrets
+import time
 from collections import defaultdict
 from typing import Any
 
@@ -12,11 +13,26 @@ from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from django.conf import settings
 
 from apps.collab.availability import realtime_enabled
-from apps.collab.limits import TokenBucket, allow_connection_attempt
+from apps.collab.limits import (
+    TokenBucket,
+    acquire_guest_room_slot,
+    allow_connection_attempt,
+    allow_guest_room_fanout,
+    allow_guest_room_join,
+    guest_room_client_ip,
+    refresh_guest_room_slot,
+    release_guest_room_slot,
+)
 
 from .exceptions import RevisionConflict
+from .metrics import guest_room_metrics
 from .models import Drawing
-from .services import get_drawing_room_access, save_drawing_room_update, update_drawing
+from .services import (
+    get_drawing_room_access,
+    record_drawing_room_event,
+    save_drawing_room_update,
+    update_drawing,
+)
 from .validators import InvalidDrawing, validate_drawing_document
 
 _members: dict[str, set[str]] = defaultdict(set)
@@ -255,7 +271,10 @@ class DrawingRoomConsumer(AsyncJsonWebsocketConsumer):
         self.key: str | None = None
         self.peer_id = secrets.token_urlsafe(6)
         self.room_mode: str | None = None
-        self.bucket = TokenBucket.from_settings()
+        self.client_id: str | None = None
+        self.bucket = TokenBucket.guest_room_from_settings()
+        self.client_ip = guest_room_client_ip(self.scope)
+        self.member_slot = False
         if not realtime_enabled():
             await self.close(code=4403)
             return
@@ -274,6 +293,10 @@ class DrawingRoomConsumer(AsyncJsonWebsocketConsumer):
         if getattr(self, "state", None) != "active":
             return
         await self.channel_layer.group_discard(self.group, self.channel_name)
+        if self.member_slot:
+            await database_sync_to_async(release_guest_room_slot)(self.room_id)
+            self.member_slot = False
+        guest_room_metrics.close_connection(self.room_id)
         members = _room_members.get(self.group)
         if members is None:
             return
@@ -285,37 +308,43 @@ class DrawingRoomConsumer(AsyncJsonWebsocketConsumer):
             _room_members.pop(self.group, None)
             _room_presence.pop(self.group, None)
             return
-        await self.channel_layer.group_send(
-            self.group,
+        await self._fanout(
             {
                 "type": "drawing.room_presence",
                 "source": self.channel_name,
                 "state": {"kind": "leave", "peer_id": self.peer_id, "count": len(members)},
             },
+            len(members),
         )
 
     async def receive(
         self, text_data: str | None = None, bytes_data: bytes | None = None, **kwargs: Any
     ) -> None:
         size = len(bytes_data) if bytes_data is not None else len((text_data or "").encode("utf-8"))
+        guest_room_metrics.record_message(size)
         if not self.bucket.allow(size):
+            guest_room_metrics.record_dropped("rate_limited")
             await self.close(code=4429)
             return
         if bytes_data is not None or text_data is None:
+            guest_room_metrics.record_invalid("frame")
             await self.close(code=4400)
             return
         if size > settings.REALTIME_MAX_FRAME_BYTES:
+            guest_room_metrics.record_dropped("oversized")
             await self.close(code=4409)
             return
         try:
             message = json.loads(text_data)
         except (TypeError, ValueError, RecursionError):
+            guest_room_metrics.record_invalid("json")
             await self.close(code=4400)
             return
         if not isinstance(message, dict):
+            guest_room_metrics.record_invalid("message")
             await self.close(code=4400)
             return
-        await self.receive_json(message)
+        await self.receive_json(message, frame_size=size)
 
     async def receive_json(self, content: dict[str, Any], **kwargs: Any) -> None:
         if self.state == "authenticating":
@@ -323,6 +352,7 @@ class DrawingRoomConsumer(AsyncJsonWebsocketConsumer):
             return
         if self.state != "active":
             return
+        await database_sync_to_async(refresh_guest_room_slot)(self.room_id)
         kind = content.get("type")
         if kind == "ping":
             if await self._load() is None:
@@ -341,35 +371,50 @@ class DrawingRoomConsumer(AsyncJsonWebsocketConsumer):
                     "count": len(_room_members.get(self.group, set())),
                 }
                 _room_presence[self.group][self.peer_id] = state
-                await self.channel_layer.group_send(
-                    self.group,
-                    {
-                        "type": "drawing.room_presence",
-                        "source": self.channel_name,
-                        "state": state,
-                    },
+                await self._fanout(
+                    {"type": "drawing.room_presence", "source": self.channel_name, "state": state},
+                    len(_room_members.get(self.group, set())) - 1,
                 )
             return
         if kind not in {"update", "publish"}:
+            guest_room_metrics.record_invalid("type")
             await self.send_json({"type": "error", "code": "unknown_message"})
             return
         if self.room_mode != "edit":
+            guest_room_metrics.record_dropped("read_only_update")
             await self.send_json({"type": "error", "code": "read_only", "message": "This room is view-only."})
             return
+        recipients = max(0, len(_room_members.get(self.group, set())) - 1)
+        if not await self._allow_fanout(recipients):
+            guest_room_metrics.record_dropped("update")
+            await self._reject(
+                "fanout_rate_limited",
+                "This room is receiving updates too quickly. Try again later.",
+            )
+            return
+        started = time.perf_counter()
+        frame_size = kwargs.get("frame_size")
+        if not isinstance(frame_size, int) or isinstance(frame_size, bool):
+            frame_size = len(self.encode_json(content).encode("utf-8"))
         document = content.get("document")
         client_id = content.get("client_id")
         if client_id is not None and (not isinstance(client_id, int) or client_id < 1):
+            guest_room_metrics.record_invalid("client_id")
             await self.send_json({"type": "error", "code": "invalid_client_id"})
             return
         try:
             validate_drawing_document(document, max_bytes=settings.MAX_DRAWING_DOCUMENT_BYTES)
             room = await self._save(document)
         except InvalidDrawing as exc:
+            guest_room_metrics.record_invalid("update")
             await self.send_json({"type": "error", "code": "invalid_document", "message": str(exc)})
             return
         if room is None:
+            guest_room_metrics.record_dropped("closed_room")
             await self._close_room("closed_or_expired")
             return
+        guest_room_metrics.record_update((time.perf_counter() - started) * 1000, frame_size)
+        guest_room_metrics.record_fanout(recipients)
         await self.send_json(
             {
                 "type": "saved",
@@ -392,17 +437,27 @@ class DrawingRoomConsumer(AsyncJsonWebsocketConsumer):
         if content.get("type") != "auth" or not isinstance(content.get("key"), str):
             await self.close(code=4401)
             return
+        if not await database_sync_to_async(allow_guest_room_join)(self.room_id, self.client_ip):
+            guest_room_metrics.record_dropped("join_rate_limited")
+            await self._reject("join_rate_limited", "Too many attempts to join this room. Try again later.")
+            return
+        client_id = content.get("client_id")
+        if client_id is not None and (not isinstance(client_id, str) or len(client_id) > 64):
+            guest_room_metrics.record_invalid("client_id")
+            client_id = None
+        self.client_id = client_id
         self.key = content["key"]
         snapshot = await self._load()
         if snapshot is None:
             await self.close(code=4404)
             return
         members = _room_members[self.group]
-        if len(members) >= settings.REALTIME_MAX_CONNECTIONS_PER_DESIGN:
-            await self.close(code=4429)
+        if not await database_sync_to_async(acquire_guest_room_slot)(self.room_id):
+            await self._reject("room_full", "This room has reached its collaborator limit.")
             return
         await self.channel_layer.group_add(self.group, self.channel_name)
         members.add(self.channel_name)
+        self.member_slot = True
         self.room_mode = snapshot["mode"]
         _room_presence[self.group][self.peer_id] = {
             "peer_id": self.peer_id,
@@ -411,6 +466,13 @@ class DrawingRoomConsumer(AsyncJsonWebsocketConsumer):
             "selection": [],
         }
         self.state = "active"
+        await database_sync_to_async(record_drawing_room_event)(
+            self.room_id,
+            "joined",
+            client_ip=self.client_ip,
+        )
+        guest_room_metrics.open_connection(self.room_id, self.client_id)
+        guest_room_metrics.ensure_heartbeat()
         timer = getattr(self, "_auth_timer", None)
         if timer is not None:
             timer.cancel()
@@ -429,8 +491,7 @@ class DrawingRoomConsumer(AsyncJsonWebsocketConsumer):
                 ],
             }
         )
-        await self.channel_layer.group_send(
-            self.group,
+        await self._fanout(
             {
                 "type": "drawing.room_presence",
                 "source": self.channel_name,
@@ -443,7 +504,28 @@ class DrawingRoomConsumer(AsyncJsonWebsocketConsumer):
                     "count": len(members),
                 },
             },
+            len(members) - 1,
         )
+
+    async def _allow_fanout(self, recipients: int) -> bool:
+        return await database_sync_to_async(allow_guest_room_fanout)(self.room_id, recipients)
+
+    async def _fanout(self, event: dict[str, Any], recipients: int) -> bool:
+        if not await self._allow_fanout(recipients):
+            guest_room_metrics.record_dropped("fanout_rate_limited")
+            return False
+        guest_room_metrics.record_fanout(recipients)
+        await self.channel_layer.group_send(self.group, event)
+        return True
+
+    async def send_json(self, content: Any, close: bool = False) -> None:
+        text = self.encode_json(content)
+        guest_room_metrics.record_outbound(len(text.encode("utf-8")))
+        await super().send(text_data=text, close=close)
+
+    async def _reject(self, code: str, message: str) -> None:
+        await self.send_json({"type": "error", "code": code, "message": message})
+        await self.close(code=4429)
 
     async def drawing_room_document(self, event: dict[str, Any]) -> None:
         if event["source"] == self.channel_name:

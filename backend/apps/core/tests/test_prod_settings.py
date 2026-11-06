@@ -1,4 +1,4 @@
-"""Production settings are security-critical: check them in a clean interpreter, away from test overrides."""
+"""Production settings are security-critical: check them in a subprocess with an explicit baseline environment."""
 
 from __future__ import annotations
 
@@ -35,6 +35,10 @@ def load_settings(**env: str) -> dict:
         "DJANGO_SETTINGS_MODULE": "doory.settings.prod",
         "DJANGO_SECRET_KEY": "x" * 60,
         "SITE_URL": "https://doory.example.org",
+        # base.py reads backend/.env for local convenience. Pin optional origin lists so a developer's local
+        # values cannot change what this production-settings probe is asserting.
+        "CSRF_TRUSTED_ORIGINS": "https://doory.example.org",
+        "CORS_ALLOWED_ORIGINS": "",
         **env,
     }
     result = subprocess.run(

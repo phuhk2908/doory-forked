@@ -6,6 +6,8 @@ PYTHON ?= python3
 VENV   ?= backend/.venv
 PY     ?= $(VENV)/bin/python
 MANAGE  = cd backend && $(abspath $(PY)) manage.py
+NODE_VERSION_FILE ?= .nvmrc
+BUN_VERSION ?= 1.4.4
 
 # Font families `make content` installs: the N most popular of the curated list (253 in all).
 FONT_FAMILIES ?= 100
@@ -16,37 +18,59 @@ ADMIN_PASSWORD ?=
 export ADMIN_EMAIL ADMIN_PASSWORD
 
 .DEFAULT_GOAL := help
-.PHONY: help setup dev-api dev-web test test-api test-web lint docs-check fmt seed content migrate docker-up docker-down
+.PHONY: help setup check check-node check-bun check-tooling check-backend check-migrations dev-api dev-web test test-api test-web lint docs-check fmt seed content migrate docker-up docker-down
 
 help: ## List the available targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-12s %s\n", $$1, $$2}'
 
-setup: ## Install backend and frontend dependencies and prepare the local database
+setup: check-tooling ## Install backend and frontend dependencies and prepare the local database
 	test -x $(PY) || $(PYTHON) -m venv $(VENV)
 	$(PY) -m pip install --upgrade pip
 	$(PY) -m pip install -r backend/requirements-dev.txt
 	test -f backend/.env || cp backend/.env.example backend/.env
+	$(MANAGE) check
 	$(MANAGE) migrate --noinput
 	cd frontend && bun install --frozen-lockfile
 
-dev-api: ## Run the Django API on http://localhost:8000
+check: check-tooling check-backend check-migrations ## Verify Node, Bun, Django settings and migration state
+
+check-node: ## Verify that the active Node.js major matches .nvmrc
+	@test -s "$(NODE_VERSION_FILE)" || { echo "Missing $(NODE_VERSION_FILE)." >&2; exit 1; }
+	@command -v node >/dev/null 2>&1 || { echo "Node.js is required. Run 'nvm install && nvm use'." >&2; exit 1; }
+	@node -e 'const fs = require("node:fs"); const expected = fs.readFileSync(process.argv[1], "utf8").trim().replace(/^v/, "").split(".")[0]; const actual = process.versions.node.split(".")[0]; if (actual !== expected) { console.error("Node.js " + process.versions.node + " is active; this project requires Node.js " + expected + ". Run: nvm install && nvm use"); process.exit(1); }' "$(NODE_VERSION_FILE)"
+
+check-bun: ## Verify the Bun version used by the lockfile and CI
+	@command -v bun >/dev/null 2>&1 || { echo "Bun is required (version $(BUN_VERSION))." >&2; exit 1; }
+	@actual="$$(bun --version)"; test "$$actual" = "$(BUN_VERSION)" || { echo "Bun $$actual is active; this project requires $(BUN_VERSION)." >&2; exit 1; }
+
+check-tooling: check-node check-bun ## Verify the JavaScript toolchain
+
+check-backend: ## Run Django's local-settings system checks
+	@test -x "$(PY)" || { echo "Missing $(PY); run 'make setup' first." >&2; exit 1; }
+	$(MANAGE) check
+
+check-migrations: ## Verify that migrations match the Django models
+	@test -x "$(PY)" || { echo "Missing $(PY); run 'make setup' first." >&2; exit 1; }
+	cd backend && $(abspath $(PY)) manage.py makemigrations --check --dry-run
+
+dev-api: check-backend ## Run the Django API on http://localhost:8000
 	$(MANAGE) runserver 8000
 
-dev-web: ## Run the Vite dev server on http://localhost:5173 (proxies /api to the API)
+dev-web: check-tooling ## Run the Vite dev server on http://localhost:5173 (proxies /api to the API)
 	cd frontend && bun run dev
 
-migrate: ## Apply database migrations
+migrate: check-backend ## Apply database migrations
 	$(MANAGE) migrate --noinput
 
-test: test-api test-web ## Run the backend and frontend test suites
+test: check-tooling check-migrations test-api test-web ## Run the backend and frontend test suites
 
-test-api: ## Backend tests (pytest)
+test-api: check-migrations ## Backend tests (pytest)
 	cd backend && $(abspath $(PY)) -m pytest
 
-test-web: ## Frontend tests (vitest)
+test-web: check-tooling ## Frontend tests (vitest)
 	cd frontend && bun run test
 
-lint: docs-check ## Ruff, TypeScript, ESLint and docs checks (no changes)
+lint: docs-check check-tooling check-backend check-migrations ## Ruff, TypeScript, ESLint and docs checks (no changes)
 	cd backend && $(abspath $(PY)) -m ruff check . && $(abspath $(PY)) -m ruff format --check .
 	cd frontend && bun run lint && bun run typecheck
 
@@ -81,3 +105,8 @@ docker-up: ## Build and start the full stack (requires a .env file, see .env.exa
 
 docker-down: ## Stop the Docker stack (data volumes are kept)
 	docker compose down
+
+# Keep every local Django management command on the same settings module. Pytest has its own explicit test setting
+# below, while Docker and the ASGI/WSGI entrypoints set production settings in their own environments.
+setup migrate dev-api content seed check-backend: export DJANGO_SETTINGS_MODULE = doory.settings.dev
+test-api check-migrations: export DJANGO_SETTINGS_MODULE = doory.settings.test

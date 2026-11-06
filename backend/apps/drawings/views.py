@@ -10,6 +10,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.assets.uploads import reject_oversize_request
+from apps.core.csrf import CsrfProtectedMixin
 
 from . import services
 from .exceptions import RevisionConflict
@@ -26,6 +27,7 @@ from .serializers import (
     DrawingUpdateSerializer,
 )
 from .services import THUMBNAIL_MAX_BYTES
+from .throttling import GuestRoomCreateThrottle
 
 UUID_REGEX = "[0-9a-fA-F-]{36}"
 log = logging.getLogger("doory.drawings")
@@ -127,11 +129,12 @@ class DrawingViewSet(viewsets.GenericViewSet):
         return Response({"thumbnail_url": drawing.thumbnail.url})
 
 
-class DrawingRoomCreateView(APIView):
+class DrawingRoomCreateView(CsrfProtectedMixin, APIView):
     """Public room bootstrap protected by a high-entropy key from the URL fragment."""
 
     authentication_classes: list = []
     permission_classes = [permissions.AllowAny]
+    throttle_classes = [GuestRoomCreateThrottle]
 
     def post(self, request):
         body = DrawingRoomCreateSerializer(data=request.data)
@@ -159,7 +162,7 @@ class DrawingRoomView(APIView):
         return Response(data)
 
 
-class DrawingRoomManageView(APIView):
+class DrawingRoomManageView(CsrfProtectedMixin, APIView):
     """Owner capability actions. The owner key is never included in a share URL."""
 
     authentication_classes: list = []

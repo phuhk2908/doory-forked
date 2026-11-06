@@ -14,7 +14,14 @@ test('"Create a design" opens a guest design without any account', async ({
     "Make something lovely today.",
   );
   await page
-    .getByRole("link", { name: "Create a design", exact: true })
+    .getByRole("button", { name: "Create a design", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: /^Start a design/ })
+    .click();
+  await page
+    .getByRole("dialog", { name: "Start a design" })
+    .getByRole("button", { name: /Instagram Post/ })
     .click();
   await expect(page).toHaveURL(/\/local\/[0-9a-f-]{36}$/);
   await expect(page.locator("[data-editor-root]")).toBeVisible();

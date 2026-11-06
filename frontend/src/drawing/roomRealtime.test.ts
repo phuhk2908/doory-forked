@@ -63,10 +63,11 @@ describe("drawing room realtime", () => {
     realtime.publish(document);
     socket.receive({ type: "ready", document, revision: 1, peers: 1 });
 
-    expect(JSON.parse(socket.sent[0])).toEqual({
+    expect(JSON.parse(socket.sent[0])).toMatchObject({
       type: "auth",
       key: "k".repeat(43),
     });
+    expect(JSON.parse(socket.sent[0]).client_id).toEqual(expect.any(String));
     expect(JSON.parse(socket.sent[1])).toMatchObject({
       type: "update",
       document,
@@ -137,10 +138,11 @@ describe("drawing room realtime", () => {
     ]);
     expect(closed).toEqual(["revoked"]);
     expect(titles).toEqual(["Renamed board"]);
-    expect(JSON.parse(socket.sent[0])).toEqual({
+    expect(JSON.parse(socket.sent[0])).toMatchObject({
       type: "auth",
       key: "k".repeat(43),
     });
+    expect(JSON.parse(socket.sent[0]).client_id).toEqual(expect.any(String));
     expect(socket.sent).toHaveLength(1);
   });
 });

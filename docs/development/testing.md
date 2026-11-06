@@ -3,16 +3,22 @@
 ## Unit tests
 
 ```bash
+nvm use         # uses .nvmrc (Node.js 22)
+make check      # toolchain, Django settings and migration preflight
 make test        # both suites
 make test-api    # backend: pytest (backend/)
 make test-web    # frontend: vitest (frontend/)
 make lint        # ruff, TypeScript, ESLint, docs-check
 ```
 
-- **Backend:** tests live next to the code in `backend/apps/<app>/tests/`. SQLite is the default; set
+- **Backend:** tests live next to the code in `backend/apps/<app>/tests/`. Make targets use
+  `doory.settings.dev` for local management commands and `doory.settings.test` for pytest. SQLite is the default; set
   `TEST_DATABASE_URL` to run them against PostgreSQL. The co-editing interop tests need
   `bun install --cwd backend/apps/collab/tests/interop` once.
 - **Frontend:** `*.test.ts(x)` files next to the code. Run them with Node.js 22.
+
+`make check` may print `exports.W002` on a host without `cjpeg` and `oxipng`; it is a warning about the optional
+built-in image optimizer, not a test failure. The Docker image includes both when `INSTALL_IMAGE_OPTIMIZERS=true`.
 
 ### Real-Chromium export tests (backend)
 

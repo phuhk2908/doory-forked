@@ -3,14 +3,17 @@
 ## Requirements
 
 - Python 3.12
-- Node.js 22 and Bun 1.4.4. Newer Node.js versions can make some frontend tests fail.
+- nvm, Node.js 22 and Bun 1.4.4. Newer Node.js versions can make some frontend tests fail.
 - Optional: Docker, for PostgreSQL and Redis (`docker-compose.dev.yml`)
 - Optional: Playwright's Chromium, for server-side export and the end-to-end tests
 
 ## Set up and run
 
 ```bash
+nvm install    # reads the repository's .nvmrc
+nvm use
 make setup     # virtualenv in backend/.venv, dependencies, backend/.env, local SQLite database
+make check     # verifies Node/Bun, Django settings and migrations
 make dev-api   # API on http://localhost:8000 (also serves WebSockets)
 make dev-web   # app on http://localhost:5173, in a second terminal; proxies /api and /ws to the API
 ```
@@ -20,11 +23,17 @@ To reuse an existing virtualenv: `make <target> PY=/path/to/venv/bin/python`.
 The local settings are in `backend/.env`, created from [`backend/.env.example`](../../backend/.env.example).
 Every setting is described in [configuration.md](../self-hosting/configuration.md).
 
+`make check` reports `exports.W002` when the host does not have mozjpeg (`cjpeg`) and oxipng. That is expected for
+the lightweight local setup: the built-in optimizer is left out. The Docker image installs both by default through
+`INSTALL_IMAGE_OPTIMIZERS=true`; install those two programs locally only when you need to exercise image
+optimization outside Docker.
+
 ## Make targets
 
 | Target | What it does |
 |--------|--------------|
 | `make help` | List the targets |
+| `make check` | Verify Node/Bun, local Django settings and migration state |
 | `make setup` | Install dependencies and prepare the local database |
 | `make dev-api`, `make dev-web` | Run the API and the frontend |
 | `make migrate` | Apply migrations |

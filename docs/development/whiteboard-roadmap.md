@@ -49,9 +49,9 @@ The guest room MVP is live. The next work is split by room safety first, then ed
 
 ## P2: security and operations
 
-17. [ ] Add guest-room-specific rate limits for room creation, joins, updates, and fan-out, plus a configurable maximum collaborator count per room.
+17. [x] Add guest-room-specific rate limits for room creation, joins, updates, and fan-out, plus a configurable maximum collaborator count per room.
 18. [ ] Add moderation and abuse controls: detect or block room spam, let admins inspect/delete rooms, and retain a basic room activity audit.
-19. [ ] Add observability for active rooms/connections, update latency, payload size, reconnect rate, and dropped or invalid updates.
+19. [x] Add observability for active rooms/connections, update latency, payload size, reconnect rate, and dropped or invalid updates.
 
 ## P2: MCP and automation
 
@@ -71,7 +71,9 @@ The guest room MVP is live. The next work is split by room safety first, then ed
 
 These items are recorded separately from the completed P1 scope because they were not introduced by the whiteboard changes or still need a dedicated verification pass.
 
-- **Full backend suite is not green yet.** The complete `pytest` run produced errors in modules outside `apps/drawings` and later stopped making progress. The focused drawings suite passed 6 tests, so the remaining failures still need to be classified before treating the full suite as a release signal.
-- **Browser click-through verification is still pending.** Browser automation could not initialize in this environment, so the toolbar, menus, rename dialog, Note, Eraser, and responsive layout were verified by typecheck/build and focused tests, but not through a full real-browser interaction pass.
+- **Full backend suite is effectively green after fixture refresh.** The Node.js 22 run reached 100% with 4,464 passed and 87 skipped; the only failure was the generated frontend-builder fixture, which was regenerated and now passes its freshness test. The production-settings probe also pins its origin lists so an ignored development `backend/.env` cannot contaminate it.
+- **Browser verification is still partial, but now uses the supported runtime.** Under Node.js 22, the mocked landing smoke suite passes 7/7 and the real Chromium 25-collaborator room-full/rejoin scenario passes. The full app/editor/collaboration suites remain pending.
+- **Full frontend unit-suite verification is still pending.** Vitest under Node.js 22 progressed through the suite but did not produce a summary within a 360-second timeout; the focused builder/realtime set passes 42/42.
+- **P2.13 benchmark matrix is still open.** The existing 50-client stress test passes in about 17 seconds, but it does not yet record the requested 2/5/20/max matrix with p50/p95 latency, render/reconnect time, and message-byte/fan-out reports.
 - **Optional MCP proxy has a runtime DNS warning.** The web container logs `doory-mcp could not be resolved`; API, web, realtime, and `/api/v1/health/` remain healthy. MCP-specific checks should be run after the optional `doory-mcp` service/network is available.
 - **Existing frontend lint warnings remain.** ESLint reports 29 `react-refresh/only-export-components` warnings in `frontend/src/app/routes.tsx`; there are no new lint errors from P1.

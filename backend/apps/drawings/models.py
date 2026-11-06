@@ -62,3 +62,29 @@ class DrawingRoom(BaseModel):
     @property
     def is_expired(self) -> bool:
         return self.expires_at <= timezone.now()
+
+
+class DrawingRoomEvent(BaseModel):
+    """Small audit records for room lifecycle and update activity; keys and documents are never stored."""
+
+    room = models.ForeignKey(
+        DrawingRoom,
+        blank=True,
+        null=True,
+        on_delete=models.SET_NULL,
+        related_name="events",
+    )
+    room_identifier = models.UUIDField(db_index=True)
+    kind = models.CharField(max_length=40)
+    client_ip_hash = models.CharField(max_length=64, blank=True)
+    metadata = models.JSONField(default=dict)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["room", "-created_at"]),
+            models.Index(fields=["kind", "-created_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.kind} for {self.room_identifier}"

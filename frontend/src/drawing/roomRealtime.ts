@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useLatest } from "../lib/useLatest";
+import { uuid } from "../lib/uuid";
 import type { DrawingDocument } from "./model";
 
 export type DrawingRoomRealtimeStatus =
@@ -102,6 +103,8 @@ export class DrawingRoomRealtime {
     ) => new WebSocket(address) as unknown as DrawingRoomSocket,
   ) {}
 
+  private readonly clientId = uuid();
+
   start(): void {
     if (!this.stopped) return;
     this.stopped = false;
@@ -157,7 +160,7 @@ export class DrawingRoomRealtime {
       this.attempt = 0;
       this.authenticated = false;
       this.canEdit = true;
-      this.send({ type: "auth", key: this.key });
+      this.send({ type: "auth", key: this.key, client_id: this.clientId });
     };
     socket.onmessage = (event) => {
       if (this.socket !== socket) return;
