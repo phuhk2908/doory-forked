@@ -36,6 +36,10 @@ const staticImport = (library: string): RegExp =>
   );
 const bareImport = (library: string): RegExp =>
   new RegExp(`^\\s*import\\s+['"]${library}['"]`, "m");
+const dynamicImport = (specifier: string): RegExp =>
+  new RegExp(
+    `import\\(\\s*(['"])${specifier.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&")}\\1\\s*\\)`,
+  );
 
 describe("heavy dependencies", () => {
   it("finds the sources it checks", () => {
@@ -67,7 +71,7 @@ describe("heavy dependencies", () => {
     ["mp4-muxer", "/src/editor/engine/export/video/container.ts"],
     ["webm-muxer", "/src/editor/engine/export/video/container.ts"],
   ])("%s is loaded with import() where it is used", (library, path) => {
-    expect(sources[path]).toContain(`import('${library}')`);
+    expect(sources[path]).toMatch(dynamicImport(library));
   });
 
   /** The parts of the video export that are only worth their size when somebody makes a video. */
@@ -97,23 +101,23 @@ describe("heavy dependencies", () => {
       )
       .map(([path]) => path);
     expect(offenders).toEqual([]);
-    expect(sources["/src/editor/engine/export/video/formats.ts"]).toContain(
-      "import('./pipeline')",
+    expect(sources["/src/editor/engine/export/video/formats.ts"]).toMatch(
+      dynamicImport("./pipeline"),
     );
-    expect(sources["/src/editor/engine/export/video/pipeline.ts"]).toContain(
-      "import('./gifSink')",
+    expect(sources["/src/editor/engine/export/video/pipeline.ts"]).toMatch(
+      dynamicImport("./gifSink"),
     );
-    expect(sources["/src/editor/engine/export/video/gifSink.ts"]).toContain(
-      "import('./gif')",
+    expect(sources["/src/editor/engine/export/video/gifSink.ts"]).toMatch(
+      dynamicImport("./gif"),
     );
-    expect(sources["/src/editor/engine/export/video/pipeline.ts"]).toContain(
-      "import('./recorder')",
+    expect(sources["/src/editor/engine/export/video/pipeline.ts"]).toMatch(
+      dynamicImport("./recorder"),
     );
-    expect(sources["/src/editor/dialogs/VideoSectionLoader.tsx"]).toContain(
-      "import('./video/VideoSection')",
+    expect(sources["/src/editor/dialogs/VideoSectionLoader.tsx"]).toMatch(
+      dynamicImport("./video/VideoSection"),
     );
-    expect(sources["/src/editor/dialogs/video/useVideoJob.ts"]).toContain(
-      "import('../../engine/export/video/pipeline')",
+    expect(sources["/src/editor/dialogs/video/useVideoJob.ts"]).toMatch(
+      dynamicImport("../../engine/export/video/pipeline"),
     );
   });
 
@@ -134,8 +138,8 @@ describe("heavy dependencies", () => {
   });
 
   it("the editor itself is loaded with import() by the shell", () => {
-    expect(sources["/src/features/editor/LazyEditor.tsx"]).toContain(
-      "import('@/editor')",
+    expect(sources["/src/features/editor/LazyEditor.tsx"]).toMatch(
+      dynamicImport("@/editor"),
     );
     const eager = Object.entries(sources).filter(
       ([path, code]) =>

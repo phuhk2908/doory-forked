@@ -54,6 +54,7 @@ def test_export_job_status_is_private(client, user, anon, monkeypatch):
 
 
 def test_worker_stores_a_successful_result(user, monkeypatch):
+    monkeypatch.setattr(jobs.connections, "close_all", lambda: None)
     design = make_design(user, title="Worker", document=make_doc())
     job = ExportJob.objects.create(
         owner=user,

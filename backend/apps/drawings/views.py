@@ -136,6 +136,7 @@ class DrawingRoomCreateView(CsrfProtectedMixin, APIView):
     permission_classes = [permissions.AllowAny]
     throttle_classes = [GuestRoomCreateThrottle]
 
+    @extend_schema(request=DrawingRoomCreateSerializer, responses={201: DrawingRoomSerializer})
     def post(self, request):
         body = DrawingRoomCreateSerializer(data=request.data)
         body.is_valid(raise_exception=True)
@@ -152,6 +153,7 @@ class DrawingRoomView(APIView):
     authentication_classes: list = []
     permission_classes = [permissions.AllowAny]
 
+    @extend_schema(responses={200: DrawingRoomSerializer, 404: None})
     def get(self, request, pk):
         access = services.get_drawing_room_access(pk, request.headers.get("X-Drawing-Room-Key"))
         if access is None:
@@ -168,7 +170,7 @@ class DrawingRoomManageView(CsrfProtectedMixin, APIView):
     authentication_classes: list = []
     permission_classes = [permissions.AllowAny]
 
-    @extend_schema(request=DrawingRoomManageSerializer)
+    @extend_schema(request=DrawingRoomManageSerializer, responses={200: DrawingRoomSerializer, 404: None})
     def post(self, request, pk):
         body = DrawingRoomManageSerializer(data=request.data)
         body.is_valid(raise_exception=True)

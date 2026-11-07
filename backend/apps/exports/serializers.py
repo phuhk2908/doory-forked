@@ -116,6 +116,14 @@ def validate_page_files(files: list) -> None:
         )
 
 
+@extend_schema_field(
+    {
+        "oneOf": [
+            {"type": "integer", "minimum": 1},
+            {"type": "string", "maxLength": 100},
+        ]
+    }
+)
 class PageRefField(serializers.Field):
     """A page by its id or by its number counting from 1 (as the MCP tools name pages)."""
 

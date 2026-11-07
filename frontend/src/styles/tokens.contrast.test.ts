@@ -20,7 +20,7 @@ function block(selector: string): Record<string, string> {
 }
 
 const base = block(":root");
-const more = block(":root[data-contrast='more']");
+const more = block(':root[data-contrast="more"]');
 const theme = { ...base, ...more };
 
 function resolve(value: string): string {

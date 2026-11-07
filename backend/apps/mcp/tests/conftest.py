@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
+
 import pytest
 from django.core.cache import cache
+from django.db import connection
 
 from apps.accounts.models import User
 from apps.apitokens import services as tokens
@@ -21,6 +24,23 @@ def _clean_cache():
     cache.clear()
     yield
     cache.clear()
+
+
+@pytest.fixture(autouse=True)
+def keep_the_test_connection() -> Iterator[None]:
+    """MCP tools close obsolete connections in production, but not the test transaction's shared connection."""
+    from apps.mcp import registry
+
+    original = registry.close_old_connections
+
+    def close_old_connections_outside_test_transaction() -> None:
+        if connection.in_atomic_block:
+            return
+        original()
+
+    with pytest.MonkeyPatch.context() as patcher:
+        patcher.setattr(registry, "close_old_connections", close_old_connections_outside_test_transaction)
+        yield
 
 
 @pytest.fixture

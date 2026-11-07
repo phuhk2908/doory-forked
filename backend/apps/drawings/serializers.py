@@ -16,6 +16,7 @@ def clean_text(value: str) -> str:
     return " ".join(strip_unsafe_chars(value).split())
 
 
+@extend_schema_field({"type": "object", "additionalProperties": True})
 class DocumentField(serializers.Field):
     def to_internal_value(self, data):
         try:
@@ -40,7 +41,6 @@ class TitleField(serializers.CharField):
         return title
 
 
-@extend_schema_field({"type": "object", "additionalProperties": True})
 class DrawingDocumentField(DocumentField):
     pass
 

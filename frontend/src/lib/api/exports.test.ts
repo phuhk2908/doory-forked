@@ -11,14 +11,16 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-// jsdom's Blob has no text() on every Node version; FileReader reads it everywhere.
-const readText = (blob: Blob): Promise<string> =>
-  new Promise((resolve, reject) => {
+// Responses can return a Node Blob while the test DOM owns a different Blob class.
+const readText = (blob: Blob): Promise<string> => {
+  if (typeof blob.text === "function") return blob.text();
+  return new Promise((resolve, reject) => {
     const r = new FileReader();
     r.onload = () => resolve(r.result as string);
     r.onerror = () => reject(r.error);
     r.readAsText(blob);
   });
+};
 
 const pdf = () =>
   new Response("%PDF", { headers: { "content-type": "application/pdf" } });
