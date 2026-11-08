@@ -11,11 +11,13 @@ def test_account_drawing_updates_use_one_shared_broadcast_path():
     async_to_sync(layer.group_add)(group, channel)
 
     document = {"schemaVersion": 1, "elements": [], "background": "#ffffff"}
+    delta = {"schemaVersion": 1, "elements": [], "background": "#eeeeee"}
     async_to_sync(broadcast_drawing_update)(
         "00000000-0000-4000-8000-000000000000",
         document,
         2,
         source="mcp",
+        delta=delta,
         channel_layer=layer,
     )
 
@@ -23,5 +25,6 @@ def test_account_drawing_updates_use_one_shared_broadcast_path():
         "type": "drawing.document",
         "source": "mcp",
         "document": document,
+        "delta": delta,
         "revision": 2,
     }

@@ -2,6 +2,17 @@
 
 The guest room MVP is live. The next work is split by room safety first, then editor and collaboration quality.
 
+## Current P0/P1 reliability pass
+
+1. [x] Align backend validation with the frontend drawing contract while keeping unknown top-level metadata
+   forward-compatible.
+2. [x] Keep room and account mutations behind revisioned service seams, with committed realtime events.
+3. [x] Add protocol negotiation with full-snapshot fallback for rolling frontend/backend deploys.
+4. [x] Send version-aware element deltas, periodic repair snapshots and full merged acknowledgements.
+5. [x] Record delta/snapshot payload counters alongside existing latency, bytes, reconnect and fan-out metrics.
+6. [ ] Run the live 2/5/20/maximum collaborator benchmark with render and reconnect instrumentation; this remains an
+   environment-dependent verification task rather than a prerequisite for the protocol.
+
 ## P0: room controls
 
 1. [x] End a live room. The owner can close it; existing sockets receive a close event and new API/WebSocket access is rejected.
@@ -43,7 +54,7 @@ The guest room MVP is live. The next work is split by room safety first, then ed
 ## P2: performance and scale
 
 - [ ] **P2.13** Benchmark collaboration at 2, 5, 20, and the maximum expected collaborator count. Capture update latency p50/p95, message count/bytes, render time, reconnect time, and fan-out behavior.
-- [ ] **P2.14** Reduce realtime payload size by moving from full snapshots to element-level deltas. Send only new or version-changed elements and use periodic full snapshots for resync.
+- [x] **P2.14** Reduce realtime payload size by moving from full snapshots to element-level deltas. Send only new or version-changed elements and use periodic full snapshots for resync. See [whiteboard-realtime.md](whiteboard-realtime.md).
 - [ ] **P2.15** Evaluate Yjs/CRDT only if version-based merging is not sufficient, with special attention to text editing and concurrent changes. Record the decision and the measurements behind it.
 - [ ] **P2.16** Optimize persistence: debounce durable saves instead of writing every snapshot, and keep a recovery snapshot that can be applied after reconnect.
 

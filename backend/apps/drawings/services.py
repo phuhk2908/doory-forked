@@ -4,6 +4,7 @@ import hashlib
 import logging
 import secrets
 from collections.abc import Mapping
+from dataclasses import dataclass
 from functools import partial
 from io import BytesIO
 
@@ -22,13 +23,22 @@ from apps.core.images import ImageError, make_thumbnail, process_image_upload
 from .events import publish_drawing_update
 from .exceptions import RevisionConflict
 from .models import Drawing, DrawingRoom, DrawingRoomEvent
-from .validators import validate_drawing_document
+from .validators import validate_drawing_delta, validate_drawing_document
 
 DEFAULT_TITLE = "Untitled whiteboard"
 THUMBNAIL_MAX_BYTES = 2 * 1024 * 1024
 THUMBNAIL_MAX_PIXELS = 16_000_000
 THUMBNAIL_SIDE = 480
 log = logging.getLogger("doory.drawings")
+
+
+@dataclass(frozen=True)
+class DrawingRoomMutation:
+    room: DrawingRoom
+    document: dict
+    revision: int
+    delta: dict
+    changed: bool
 
 
 def blank_document() -> dict:
@@ -232,21 +242,73 @@ def merge_drawing_documents(current: dict, incoming: dict) -> dict:
     return validate_drawing_document(merged, max_bytes=settings.MAX_DRAWING_DOCUMENT_BYTES)
 
 
-def save_drawing_room_update(room_id, key: str, document: dict) -> DrawingRoom | None:
+def compute_drawing_delta(current: dict, incoming: dict) -> dict:
+    current_by_id = {element["id"]: element for element in current.get("elements", [])}
+    elements = [
+        element for element in incoming.get("elements", []) if current_by_id.get(element["id"]) != element
+    ]
+    delta = {"schemaVersion": incoming["schemaVersion"], "elements": elements}
+    if current.get("background") != incoming.get("background"):
+        delta["background"] = incoming.get("background", "#ffffff")
+    current_files = current.get("files") if isinstance(current.get("files"), dict) else {}
+    incoming_files = incoming.get("files") if isinstance(incoming.get("files"), dict) else {}
+    if current_files != incoming_files:
+        delta["files"] = incoming_files
+    return delta
+
+
+def apply_drawing_delta(current: dict, delta: dict) -> dict:
+    incoming = {
+        "schemaVersion": delta["schemaVersion"],
+        "elements": delta["elements"],
+        "background": delta.get("background", current.get("background", "#ffffff")),
+    }
+    if "files" in delta:
+        incoming["files"] = delta["files"]
+    merged = merge_drawing_documents(current, incoming)
+    if "files" in delta:
+        if delta["files"]:
+            merged["files"] = delta["files"]
+        else:
+            merged.pop("files", None)
+    return validate_drawing_document(merged, max_bytes=settings.MAX_DRAWING_DOCUMENT_BYTES)
+
+
+def save_drawing_room_update(
+    room_id,
+    key: str,
+    document: dict | None = None,
+    *,
+    delta: dict | None = None,
+) -> DrawingRoomMutation | None:
     if not _valid_room_key(key):
         return None
+    if (document is None) == (delta is None):
+        raise ValueError("Provide exactly one drawing document or delta.")
     with transaction.atomic():
         room = DrawingRoom.objects.select_for_update().filter(pk=room_id).first()
         if room is None or _room_access(room, key) != "edit":
             return None
-        validate_drawing_document(document, max_bytes=settings.MAX_DRAWING_DOCUMENT_BYTES)
-        merged = merge_drawing_documents(room.document, document)
-        if merged != room.document:
+        if document is not None:
+            validate_drawing_document(document, max_bytes=settings.MAX_DRAWING_DOCUMENT_BYTES)
+            merged = merge_drawing_documents(room.document, document)
+        else:
+            validate_drawing_delta(delta, max_bytes=settings.MAX_DRAWING_DOCUMENT_BYTES)
+            merged = apply_drawing_delta(room.document, delta)
+        previous = room.document
+        changed = merged != previous
+        if changed:
             room.document = merged
             room.revision += 1
             room.save(update_fields=["document", "revision", "updated_at"])
             record_drawing_room_event(room.id, "updated", metadata={"revision": room.revision})
-    return room
+        return DrawingRoomMutation(
+            room=room,
+            document=room.document,
+            revision=room.revision,
+            delta=compute_drawing_delta(previous, room.document),
+            changed=changed,
+        )
 
 
 def _check_drawing_limit(owner) -> None:
@@ -282,6 +344,7 @@ def update_drawing(drawing_id, owner, data: dict) -> Drawing:
     with transaction.atomic():
         drawing = _lock(drawing_id, owner)
         touched: set[str] = set()
+        delta = None
         if "title" in data:
             drawing.title = clean_title(data["title"])
             touched.update(("title", "updated_at"))
@@ -289,14 +352,22 @@ def update_drawing(drawing_id, owner, data: dict) -> Drawing:
             if drawing.revision != data["base_revision"]:
                 raise RevisionConflict(drawing.revision, drawing.updated_at)
             validate_drawing_document(data["document"], max_bytes=settings.MAX_DRAWING_DOCUMENT_BYTES)
+            previous = drawing.document
             drawing.document = data["document"]
             drawing.revision += 1
+            delta = compute_drawing_delta(previous, drawing.document)
             touched.update(("document", "revision", "updated_at"))
         if touched:
             drawing.save(update_fields=sorted(touched))
             if "document" in data:
                 transaction.on_commit(
-                    partial(publish_drawing_update, drawing.pk, drawing.document, drawing.revision)
+                    partial(
+                        publish_drawing_update,
+                        drawing.pk,
+                        drawing.document,
+                        drawing.revision,
+                        delta=delta,
+                    )
                 )
     return drawing
 

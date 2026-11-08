@@ -1,6 +1,6 @@
 import pytest
 
-from apps.drawings.validators import InvalidDrawing, validate_drawing_document
+from apps.drawings.validators import InvalidDrawing, validate_drawing_delta, validate_drawing_document
 
 
 def document(*elements):
@@ -55,3 +55,19 @@ def test_rejects_non_finite_geometry():
 def test_rejects_duplicate_element_ids():
     with pytest.raises(InvalidDrawing):
         validate_drawing_document(document(element(), element()))
+
+
+def test_accepts_a_versioned_delta_with_optional_metadata():
+    delta = {
+        "schemaVersion": 1,
+        "elements": [element("arrow", id="arrow-1", points=[{"x": 0, "y": 0}])],
+        "background": "#f8fafc",
+        "files": {},
+    }
+
+    assert validate_drawing_delta(delta) == delta
+
+
+def test_rejects_malformed_delta_elements():
+    with pytest.raises(InvalidDrawing):
+        validate_drawing_delta({"schemaVersion": 1, "elements": [element("unknown")]})

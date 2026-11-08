@@ -13,13 +13,22 @@ def drawing_group(drawing_id: object) -> str:
     return f"doory.drawing.{drawing_id}"
 
 
-def drawing_document_event(document: dict, revision: int, *, source: str) -> dict[str, Any]:
-    return {
+def drawing_document_event(
+    document: dict,
+    revision: int,
+    *,
+    source: str,
+    delta: dict | None = None,
+) -> dict[str, Any]:
+    event = {
         "type": "drawing.document",
         "source": source,
         "document": document,
         "revision": revision,
     }
+    if delta:
+        event["delta"] = delta
+    return event
 
 
 async def broadcast_drawing_update(
@@ -28,6 +37,7 @@ async def broadcast_drawing_update(
     revision: int,
     *,
     source: str = "server",
+    delta: dict | None = None,
     channel_layer: Any = None,
 ) -> None:
     """Publish one committed account-drawing snapshot to its realtime group."""
@@ -36,14 +46,20 @@ async def broadcast_drawing_update(
         return
     await layer.group_send(
         drawing_group(drawing_id),
-        drawing_document_event(document, revision, source=source),
+        drawing_document_event(document, revision, source=source, delta=delta),
     )
 
 
-def publish_drawing_update(drawing_id: object, document: dict, revision: int) -> None:
+def publish_drawing_update(
+    drawing_id: object,
+    document: dict,
+    revision: int,
+    *,
+    delta: dict | None = None,
+) -> None:
     """Best-effort synchronous bridge for service-layer post-commit callbacks."""
     try:
-        async_to_sync(broadcast_drawing_update)(drawing_id, document, revision)
+        async_to_sync(broadcast_drawing_update)(drawing_id, document, revision, delta=delta)
     except Exception:
         # A missing or unhealthy channel layer must not turn a committed database write into a failure.
         log.warning("could not broadcast drawing=%s", drawing_id, exc_info=True)

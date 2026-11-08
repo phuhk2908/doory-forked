@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { blankDrawing, type DrawingDocument } from "./model";
+import { blankDrawing, createElement, type DrawingDocument } from "./model";
 import {
   DrawingRoomRealtime,
   drawingRoomRealtimeAddress,
@@ -59,21 +59,28 @@ describe("drawing room realtime", () => {
     );
     realtime.start();
     socket.open();
-    const document = blankDrawing();
+    const first = { ...createElement("rectangle"), id: "shape-1" };
+    const document = {
+      ...blankDrawing(),
+      elements: [first, { ...createElement("ellipse"), id: "shape-2" }],
+    };
+    const base = { ...blankDrawing(), elements: [first] };
     realtime.publish(document);
-    socket.receive({ type: "ready", document, revision: 1, peers: 1 });
+    socket.receive({ type: "ready", document: base, revision: 1, peers: 1 });
 
     expect(JSON.parse(socket.sent[0])).toMatchObject({
       type: "auth",
       key: "k".repeat(43),
+      protocol: 2,
     });
     expect(JSON.parse(socket.sent[0]).client_id).toEqual(expect.any(String));
     expect(JSON.parse(socket.sent[1])).toMatchObject({
       type: "update",
-      document,
+      delta: { schemaVersion: 1, elements: [document.elements[1]] },
+      base_revision: 1,
       client_id: 1,
     });
-    expect(documents).toEqual([{ document, revision: 1 }]);
+    expect(documents).toEqual([{ document: base, revision: 1 }]);
     realtime.stop();
   });
 
@@ -144,5 +151,37 @@ describe("drawing room realtime", () => {
     });
     expect(JSON.parse(socket.sent[0]).client_id).toEqual(expect.any(String));
     expect(socket.sent).toHaveLength(1);
+  });
+
+  it("applies a remote delta against the last room snapshot", () => {
+    const socket = new FakeSocket();
+    const documents: DrawingDocument[] = [];
+    const realtime = new DrawingRoomRealtime(
+      "ws://test/ws/drawing-rooms/1/",
+      "k".repeat(43),
+      {
+        onDocument: (document) => documents.push(document),
+        onSaved: () => undefined,
+        onPresence: () => undefined,
+        onStatus: () => undefined,
+        onError: () => undefined,
+      },
+      () => socket,
+    );
+    realtime.start();
+    socket.open();
+    socket.receive({ type: "ready", document: blankDrawing(), revision: 4 });
+    const element = { ...createElement("rectangle"), id: "remote" };
+    socket.receive({
+      type: "document",
+      revision: 5,
+      delta: { schemaVersion: 1, elements: [element] },
+    });
+
+    expect(documents.at(-1)).toMatchObject({
+      background: "#ffffff",
+      elements: [expect.objectContaining({ id: "remote" })],
+    });
+    realtime.stop();
   });
 });

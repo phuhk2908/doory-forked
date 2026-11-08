@@ -34,7 +34,14 @@ from .services import (
     save_drawing_room_update,
     update_drawing,
 )
-from .validators import InvalidDrawing, validate_drawing_document
+from .validators import InvalidDrawing, validate_drawing_delta, validate_drawing_document
+
+REALTIME_PROTOCOL_VERSION = 2
+
+
+def _protocol_version(value: Any) -> int:
+    return REALTIME_PROTOCOL_VERSION if value == REALTIME_PROTOCOL_VERSION else 1
+
 
 _members: dict[str, set[str]] = defaultdict(set)
 _room_members: dict[str, set[str]] = defaultdict(set)
@@ -53,6 +60,7 @@ class DrawingConsumer(AsyncJsonWebsocketConsumer):
         self.drawing_id = self.scope["url_route"]["kwargs"]["drawing_id"]
         self.user = self.scope.get("user")
         self.group = drawing_group(self.drawing_id)
+        self.protocol_version = 1
         if not realtime_enabled():
             await self.close(code=4403)
             return
@@ -133,6 +141,7 @@ class DrawingConsumer(AsyncJsonWebsocketConsumer):
     async def receive_json(self, content: dict[str, Any], **kwargs: Any) -> None:
         kind = content.get("type")
         if kind == "hello":
+            self.protocol_version = _protocol_version(content.get("protocol"))
             snapshot = await self._load()
             if snapshot is not None:
                 await self._send_ready(snapshot)
@@ -187,14 +196,16 @@ class DrawingConsumer(AsyncJsonWebsocketConsumer):
             return
 
     async def drawing_document(self, event: dict[str, Any]) -> None:
-        await self.send_json(
-            {
-                "type": "document",
-                "document": event["document"],
-                "revision": event["revision"],
-                "source": event["source"],
-            }
-        )
+        payload = {
+            "type": "document",
+            "revision": event["revision"],
+            "source": event["source"],
+        }
+        if self.protocol_version >= REALTIME_PROTOCOL_VERSION and event.get("delta"):
+            payload["delta"] = event["delta"]
+        else:
+            payload["document"] = event["document"]
+        await self.send_json(payload)
 
     async def drawing_presence(self, event: dict[str, Any]) -> None:
         await self.send_json(
@@ -255,6 +266,7 @@ class DrawingRoomConsumer(AsyncJsonWebsocketConsumer):
         self.peer_id = secrets.token_urlsafe(6)
         self.room_mode: str | None = None
         self.client_id: str | None = None
+        self.protocol_version = 1
         self.bucket = TokenBucket.guest_room_from_settings()
         self.client_ip = guest_room_client_ip(self.scope)
         self.member_slot = False
@@ -380,23 +392,42 @@ class DrawingRoomConsumer(AsyncJsonWebsocketConsumer):
         if not isinstance(frame_size, int) or isinstance(frame_size, bool):
             frame_size = len(self.encode_json(content).encode("utf-8"))
         document = content.get("document")
+        delta = content.get("delta")
         client_id = content.get("client_id")
         if client_id is not None and (not isinstance(client_id, int) or client_id < 1):
             guest_room_metrics.record_invalid("client_id")
             await self.send_json({"type": "error", "code": "invalid_client_id"})
             return
         try:
-            validate_drawing_document(document, max_bytes=settings.MAX_DRAWING_DOCUMENT_BYTES)
-            room = await self._save(document)
+            if (document is None) == (delta is None):
+                raise InvalidDrawing("Provide exactly one drawing document or delta.")
+            if document is not None:
+                validate_drawing_document(document, max_bytes=settings.MAX_DRAWING_DOCUMENT_BYTES)
+                room = await self._save(document=document)
+                update_kind = "snapshot"
+            else:
+                validate_drawing_delta(delta, max_bytes=settings.MAX_DRAWING_DOCUMENT_BYTES)
+                room = await self._save(delta=delta)
+                update_kind = "delta"
         except InvalidDrawing as exc:
-            guest_room_metrics.record_invalid("update")
-            await self.send_json({"type": "error", "code": "invalid_document", "message": str(exc)})
+            guest_room_metrics.record_invalid("delta" if delta is not None else "update")
+            await self.send_json(
+                {
+                    "type": "error",
+                    "code": "invalid_delta" if delta is not None else "invalid_document",
+                    "message": str(exc),
+                }
+            )
             return
         if room is None:
             guest_room_metrics.record_dropped("closed_room")
             await self._close_room("closed_or_expired")
             return
-        guest_room_metrics.record_update((time.perf_counter() - started) * 1000, frame_size)
+        guest_room_metrics.record_update(
+            (time.perf_counter() - started) * 1000,
+            frame_size,
+            kind=update_kind,
+        )
         guest_room_metrics.record_fanout(recipients)
         await self.send_json(
             {
@@ -406,15 +437,17 @@ class DrawingRoomConsumer(AsyncJsonWebsocketConsumer):
                 "client_id": client_id,
             }
         )
-        await self.channel_layer.group_send(
-            self.group,
-            {
-                "type": "drawing.room_document",
-                "source": self.channel_name,
-                "document": room["document"],
-                "revision": room["revision"],
-            },
-        )
+        if room["changed"]:
+            await self.channel_layer.group_send(
+                self.group,
+                {
+                    "type": "drawing.room_document",
+                    "source": self.channel_name,
+                    "document": room["document"],
+                    "delta": room["delta"],
+                    "revision": room["revision"],
+                },
+            )
 
     async def _authenticate(self, content: dict[str, Any]) -> None:
         if content.get("type") != "auth" or not isinstance(content.get("key"), str):
@@ -429,6 +462,7 @@ class DrawingRoomConsumer(AsyncJsonWebsocketConsumer):
             guest_room_metrics.record_invalid("client_id")
             client_id = None
         self.client_id = client_id
+        self.protocol_version = _protocol_version(content.get("protocol"))
         self.key = content["key"]
         snapshot = await self._load()
         if snapshot is None:
@@ -513,13 +547,12 @@ class DrawingRoomConsumer(AsyncJsonWebsocketConsumer):
     async def drawing_room_document(self, event: dict[str, Any]) -> None:
         if event["source"] == self.channel_name:
             return
-        await self.send_json(
-            {
-                "type": "document",
-                "document": event["document"],
-                "revision": event["revision"],
-            }
-        )
+        payload = {"type": "document", "revision": event["revision"]}
+        if self.protocol_version >= REALTIME_PROTOCOL_VERSION and event.get("delta"):
+            payload["delta"] = event["delta"]
+        else:
+            payload["document"] = event["document"]
+        await self.send_json(payload)
 
     async def drawing_room_presence(self, event: dict[str, Any]) -> None:
         await self.send_json({"type": "presence", "state": event["state"]})
@@ -576,6 +609,18 @@ class DrawingRoomConsumer(AsyncJsonWebsocketConsumer):
         }
 
     @database_sync_to_async
-    def _save(self, document: dict) -> dict | None:
-        room = save_drawing_room_update(self.room_id, self.key or "", document)
-        return None if room is None else {"document": room.document, "revision": room.revision}
+    def _save(self, *, document: dict | None = None, delta: dict | None = None) -> dict | None:
+        mutation = save_drawing_room_update(
+            self.room_id,
+            self.key or "",
+            document=document,
+            delta=delta,
+        )
+        if mutation is None:
+            return None
+        return {
+            "document": mutation.document,
+            "revision": mutation.revision,
+            "delta": mutation.delta,
+            "changed": mutation.changed,
+        }

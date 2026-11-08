@@ -105,6 +105,15 @@ export interface DrawingDocument {
   background: string;
 }
 
+/** A version-aware partial document used by the realtime transport. */
+export interface DrawingDelta {
+  schemaVersion: typeof DRAWING_SCHEMA_VERSION;
+  elements: DrawingElement[];
+  background?: string;
+  /** Files are sent as a complete map because file removal is not element-mergeable. */
+  files?: Record<string, DrawingFile>;
+}
+
 export interface DrawingChange {
   document: DrawingDocument;
   label: string;
@@ -403,6 +412,53 @@ export function mergeDrawingDocuments(
     files:
       local.files || remote.files
         ? { ...(local.files ?? {}), ...(remote.files ?? {}) }
+        : undefined,
+  };
+}
+
+function sameJson(left: unknown, right: unknown): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+export function computeDrawingDelta(
+  current: DrawingDocument,
+  incoming: DrawingDocument,
+): DrawingDelta {
+  const currentById = new Map(
+    current.elements.map((element) => [element.id, element]),
+  );
+  const elements = incoming.elements.filter(
+    (element) => !sameJson(currentById.get(element.id), element),
+  );
+  const delta: DrawingDelta = {
+    schemaVersion: DRAWING_SCHEMA_VERSION,
+    elements,
+  };
+  if (current.background !== incoming.background) {
+    delta.background = incoming.background;
+  }
+  if (!sameJson(current.files ?? {}, incoming.files ?? {})) {
+    delta.files = incoming.files ?? {};
+  }
+  return delta;
+}
+
+export function applyDrawingDelta(
+  current: DrawingDocument,
+  delta: DrawingDelta,
+): DrawingDocument {
+  const merged = mergeDrawingDocuments(current, {
+    schemaVersion: DRAWING_SCHEMA_VERSION,
+    elements: delta.elements,
+    background: delta.background ?? current.background,
+    ...(delta.files ? { files: delta.files } : {}),
+  });
+  if (!("files" in delta)) return merged;
+  return {
+    ...merged,
+    files:
+      delta.files && Object.keys(delta.files).length > 0
+        ? delta.files
         : undefined,
   };
 }

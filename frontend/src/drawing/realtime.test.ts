@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { blankDrawing, type DrawingDocument } from "./model";
+import { blankDrawing, createElement, type DrawingDocument } from "./model";
 import {
   DrawingRealtime,
   drawingRealtimeAddress,
@@ -63,9 +63,20 @@ describe("drawing realtime", () => {
     socket.open();
     const document = blankDrawing();
     socket.receive({ type: "ready", document, revision: 2, peers: 1 });
+    const element = { ...createElement("rectangle"), id: "remote" };
+    socket.receive({
+      type: "document",
+      delta: { schemaVersion: 1, elements: [element] },
+      revision: 3,
+      source: "mcp",
+    });
 
-    expect(JSON.parse(socket.sent[0])).toEqual({ type: "hello" });
-    expect(documents).toEqual([{ document, revision: 2 }]);
+    expect(JSON.parse(socket.sent[0])).toEqual({ type: "hello", protocol: 2 });
+    expect(documents).toHaveLength(2);
+    expect(documents.at(-1)).toMatchObject({
+      revision: 3,
+      document: { elements: [expect.objectContaining({ id: "remote" })] },
+    });
     expect(statuses).toEqual(["connecting", "live"]);
 
     realtime.stop();

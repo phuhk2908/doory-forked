@@ -73,3 +73,16 @@ def test_collab_stats_includes_live_guest_room_metrics(db):
     assert body["guest_rooms"]["active_connections"] == 2
     assert body["guest_rooms"]["updates"] == 3
     assert body["guest_rooms"]["update_latency_ms"]["p95_ms"] == 100
+
+
+def test_guest_room_metrics_distinguish_delta_and_snapshot_payloads():
+    metrics = GuestRoomMetrics(instance="drawing-room:payloads")
+    metrics.record_update(12, 40, kind="delta")
+    metrics.record_update(20, 120, kind="snapshot")
+
+    snapshot = metrics.snapshot()
+    assert snapshot["updates"] == 2
+    assert snapshot["delta_updates"] == 1
+    assert snapshot["delta_payload_bytes"] == 40
+    assert snapshot["snapshot_updates"] == 1
+    assert snapshot["snapshot_payload_bytes"] == 120

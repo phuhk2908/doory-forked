@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { useLatest } from "../lib/useLatest";
 import { uuid } from "../lib/uuid";
-import type { DrawingDocument } from "./model";
+import {
+  applyDrawingDelta,
+  computeDrawingDelta,
+  type DrawingDelta,
+  type DrawingDocument,
+} from "./model";
 
 export type DrawingRoomRealtimeStatus =
   | "offline"
@@ -52,6 +57,9 @@ const PRESENCE_INTERVAL_MS = 33;
 const RETRY_BASE_MS = 1_000;
 const RETRY_MAX_MS = 30_000;
 const PING_MS = 5_000;
+const SNAPSHOT_EVERY_UPDATES = 20;
+const SNAPSHOT_EVERY_MS = 10_000;
+const DELTA_MAX_PAYLOAD_RATIO = 0.75;
 
 export function drawingRoomRealtimeAddress(
   roomId: string,
@@ -75,6 +83,20 @@ function validDocument(value: unknown): value is DrawingDocument {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
+function validDelta(value: unknown): value is DrawingDelta {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    (value as Record<string, unknown>).schemaVersion === 1 &&
+    Array.isArray((value as Record<string, unknown>).elements)
+  );
+}
+
+function payloadSize(value: unknown): number {
+  return JSON.stringify(value).length;
+}
+
 export class DrawingRoomRealtime {
   private socket: DrawingRoomSocket | null = null;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
@@ -87,8 +109,15 @@ export class DrawingRoomRealtime {
   private authenticated = false;
   private pending: { document: DrawingDocument; clientId: number } | null =
     null;
-  private inFlight: { document: DrawingDocument; clientId: number } | null =
-    null;
+  private inFlight: {
+    document: DrawingDocument;
+    clientId: number;
+    snapshot: boolean;
+  } | null = null;
+  private serverDocument: DrawingDocument | null = null;
+  private serverRevision = 1;
+  private updatesSinceSnapshot = 0;
+  private lastSnapshotAt = 0;
   private pendingPresence: {
     cursor: { x: number; y: number } | null;
     selection: string[];
@@ -163,7 +192,12 @@ export class DrawingRoomRealtime {
       this.attempt = 0;
       this.authenticated = false;
       this.canEdit = true;
-      this.send({ type: "auth", key: this.key, client_id: this.clientId });
+      this.send({
+        type: "auth",
+        key: this.key,
+        client_id: this.clientId,
+        protocol: 2,
+      });
     };
     socket.onmessage = (event) => {
       if (this.socket !== socket) return;
@@ -174,7 +208,12 @@ export class DrawingRoomRealtime {
       if (this.socket !== socket) return;
       this.socket = null;
       this.authenticated = false;
-      if (!this.pending && this.inFlight) this.pending = this.inFlight;
+      if (!this.pending && this.inFlight) {
+        this.pending = {
+          document: this.inFlight.document,
+          clientId: this.inFlight.clientId,
+        };
+      }
       this.inFlight = null;
       this.clearPing();
       if (!this.stopped) {
@@ -203,16 +242,40 @@ export class DrawingRoomRealtime {
       this.callbacks.onAccess?.(mode, this.canEdit);
       this.callbacks.onStatus("live");
       this.startPing();
-      if (validDocument(value.document) && validRevision(value.revision))
+      if (validDocument(value.document) && validRevision(value.revision)) {
+        this.serverDocument = value.document;
+        this.serverRevision = value.revision;
+        this.updatesSinceSnapshot = 0;
+        this.lastSnapshotAt = Date.now();
         this.callbacks.onDocument(value.document, value.revision);
+      }
       if (validRevision(value.peers)) this.callbacks.onPresence(value.peers);
       this.replacePeers(value.presence);
       this.flushPending();
       return;
     }
     if (value.type === "document") {
-      if (validDocument(value.document) && validRevision(value.revision))
+      if (
+        !validRevision(value.revision) ||
+        value.revision < this.serverRevision
+      )
+        return;
+      if (validDocument(value.document)) {
+        this.serverDocument = value.document;
+        this.serverRevision = value.revision;
         this.callbacks.onDocument(value.document, value.revision);
+      } else if (validDelta(value.delta) && this.serverDocument) {
+        try {
+          this.serverDocument = applyDrawingDelta(
+            this.serverDocument,
+            value.delta,
+          );
+        } catch {
+          return;
+        }
+        this.serverRevision = value.revision;
+        this.callbacks.onDocument(this.serverDocument, value.revision);
+      }
       return;
     }
     if (value.type === "room_title") {
@@ -228,8 +291,23 @@ export class DrawingRoomRealtime {
         typeof clientId === "number" &&
         Number.isInteger(clientId)
       ) {
-        if (this.inFlight?.clientId === clientId) this.inFlight = null;
-        this.callbacks.onSaved(value.document, value.revision, clientId);
+        if (this.inFlight?.clientId !== clientId) return;
+        const snapshot = this.inFlight.snapshot;
+        this.inFlight = null;
+        if (!this.serverDocument || value.revision >= this.serverRevision) {
+          this.serverDocument = value.document;
+          this.serverRevision = value.revision;
+        }
+        if (snapshot) {
+          this.updatesSinceSnapshot = 0;
+          this.lastSnapshotAt = Date.now();
+        }
+        this.callbacks.onSaved(
+          this.serverDocument ?? value.document,
+          this.serverRevision,
+          clientId,
+        );
+        this.flushPending();
       }
       return;
     }
@@ -284,6 +362,7 @@ export class DrawingRoomRealtime {
   private flushPending(): void {
     if (
       !this.pending ||
+      this.inFlight ||
       !this.authenticated ||
       !this.canEdit ||
       this.socket?.readyState !== OPEN
@@ -291,10 +370,39 @@ export class DrawingRoomRealtime {
       return;
     const pending = this.pending;
     this.pending = null;
-    this.inFlight = pending;
+    const delta = this.serverDocument
+      ? computeDrawingDelta(this.serverDocument, pending.document)
+      : null;
+    const hasDelta = Boolean(
+      delta &&
+      (delta.elements.length > 0 ||
+        delta.background !== undefined ||
+        delta.files !== undefined),
+    );
+    if (!hasDelta && delta) return;
+    const sendSnapshot =
+      !delta ||
+      this.updatesSinceSnapshot >= SNAPSHOT_EVERY_UPDATES ||
+      Date.now() - this.lastSnapshotAt >= SNAPSHOT_EVERY_MS ||
+      payloadSize(delta) >=
+        payloadSize(pending.document) * DELTA_MAX_PAYLOAD_RATIO;
+    this.inFlight = { ...pending, snapshot: sendSnapshot };
+    this.updatesSinceSnapshot = sendSnapshot
+      ? 0
+      : this.updatesSinceSnapshot + 1;
+    if (sendSnapshot) {
+      this.lastSnapshotAt = Date.now();
+      this.send({
+        type: "update",
+        document: pending.document,
+        client_id: pending.clientId,
+      });
+      return;
+    }
     this.send({
       type: "update",
-      document: pending.document,
+      delta,
+      base_revision: this.serverRevision,
       client_id: pending.clientId,
     });
   }

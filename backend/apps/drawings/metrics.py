@@ -119,10 +119,14 @@ class GuestRoomMetrics:
     def record_fanout(self, recipients: int) -> None:
         self._counters["fanout_deliveries"] += max(0, recipients)
 
-    def record_update(self, duration_ms: float, payload_bytes: int) -> None:
+    def record_update(self, duration_ms: float, payload_bytes: int, *, kind: str = "snapshot") -> None:
         duration_ms = max(0.0, duration_ms)
         self._counters["updates"] += 1
         self._counters["update_payload_bytes"] += max(0, payload_bytes)
+        if kind not in {"delta", "snapshot"}:
+            kind = "snapshot"
+        self._counters[f"{kind}_updates"] += 1
+        self._counters[f"{kind}_payload_bytes"] += max(0, payload_bytes)
         self._latency_total_ms += duration_ms
         self._latency_max_ms = max(self._latency_max_ms, duration_ms)
         upper_bound = next(

@@ -96,7 +96,9 @@ def test_service_publishes_document_updates_after_commit(transactional_db, monke
     monkeypatch.setattr(
         services,
         "publish_drawing_update",
-        lambda drawing_id, document, revision: published.append((drawing_id, document, revision)),
+        lambda drawing_id, document, revision, **kwargs: published.append(
+            (drawing_id, document, revision, kwargs["delta"])
+        ),
     )
     document = {**drawing_document(), "background": "#eeeeee"}
 
@@ -106,7 +108,14 @@ def test_service_publishes_document_updates_after_commit(transactional_db, monke
         {"document": document, "base_revision": drawing.revision},
     )
 
-    assert published == [(drawing.pk, document, updated.revision)]
+    assert published == [
+        (
+            drawing.pk,
+            document,
+            updated.revision,
+            {"schemaVersion": 1, "elements": [], "background": "#eeeeee"},
+        )
+    ]
 
 
 def test_drawings_are_private_and_invalid_documents_are_rejected(db):
@@ -208,6 +217,51 @@ def test_guest_room_merges_independent_element_versions(db):
     merged = DrawingRoom.objects.get(pk=room.pk)
     assert merged.revision == 3
     assert {element["id"] for element in merged.document["elements"]} == {"one", "two"}
+
+
+def test_guest_room_delta_update_uses_the_same_revisioned_mutation_seam(db):
+    room, key, _, _ = services.create_drawing_room(title="Room", document=drawing_document())
+    first = {
+        **drawing_document(),
+        "elements": [
+            {
+                "id": "one",
+                "type": "rectangle",
+                "x": 0,
+                "y": 0,
+                "width": 10,
+                "height": 10,
+                "angle": 0,
+                "style": {},
+                "version": 1,
+                "versionNonce": 1,
+            }
+        ],
+    }
+    saved = services.save_drawing_room_update(room.id, key, first)
+    assert saved is not None and saved.changed and saved.revision == 2
+
+    second = {
+        "id": "two",
+        "type": "ellipse",
+        "x": 20,
+        "y": 20,
+        "width": 10,
+        "height": 10,
+        "angle": 0,
+        "style": {},
+        "version": 1,
+        "versionNonce": 2,
+    }
+    mutation = services.save_drawing_room_update(
+        room.id,
+        key,
+        delta={"schemaVersion": 1, "elements": [second]},
+    )
+
+    assert mutation is not None and mutation.changed and mutation.revision == 3
+    assert mutation.delta == {"schemaVersion": 1, "elements": [second]}
+    assert {element["id"] for element in mutation.document["elements"]} == {"one", "two"}
 
 
 def test_guest_room_expiry_blocks_access_and_is_cleaned_up(db):

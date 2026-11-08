@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useLatest } from "../lib/useLatest";
-import type { DrawingDocument } from "./model";
+import {
+  applyDrawingDelta,
+  type DrawingDelta,
+  type DrawingDocument,
+} from "./model";
 
 export type DrawingRealtimeStatus = "offline" | "connecting" | "live";
 
@@ -53,12 +57,24 @@ function validDocument(value: unknown): value is DrawingDocument {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
+function validDelta(value: unknown): value is DrawingDelta {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    (value as Record<string, unknown>).schemaVersion === 1 &&
+    Array.isArray((value as Record<string, unknown>).elements)
+  );
+}
+
 export class DrawingRealtime {
   private socket: DrawingSocket | null = null;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private pingTimer: ReturnType<typeof setInterval> | null = null;
   private attempt = 0;
   private stopped = true;
+  private serverDocument: DrawingDocument | null = null;
+  private serverRevision = 0;
   constructor(
     private readonly url: string,
     private readonly callbacks: DrawingRealtimeCallbacks,
@@ -98,7 +114,7 @@ export class DrawingRealtime {
       this.attempt = 0;
       this.setStatus("live");
       this.startPing();
-      this.send({ type: "hello" });
+      this.send({ type: "hello", protocol: 2 });
     };
     socket.onmessage = (event) => {
       if (this.socket !== socket) return;
@@ -129,21 +145,44 @@ export class DrawingRealtime {
     const value = message as Record<string, unknown>;
     if (value.type === "ready") {
       if (validRevision(value.revision) && validDocument(value.document)) {
+        this.serverDocument = value.document;
+        this.serverRevision = value.revision;
         this.callbacks.onDocument(value.document, value.revision);
       }
       if (validRevision(value.peers)) this.callbacks.onPresence(value.peers);
       return;
     }
     if (value.type === "document") {
-      if (validRevision(value.revision) && validDocument(value.document)) {
+      if (
+        !validRevision(value.revision) ||
+        value.revision < this.serverRevision
+      )
+        return;
+      if (validDocument(value.document)) {
+        this.serverDocument = value.document;
+        this.serverRevision = value.revision;
         this.callbacks.onDocument(value.document, value.revision);
+      } else if (validDelta(value.delta) && this.serverDocument) {
+        try {
+          this.serverDocument = applyDrawingDelta(
+            this.serverDocument,
+            value.delta,
+          );
+        } catch {
+          return;
+        }
+        this.serverRevision = value.revision;
+        this.callbacks.onDocument(this.serverDocument, value.revision);
       }
       return;
     }
     if (value.type === "conflict") {
       const document = validDocument(value.document) ? value.document : null;
-      if (validRevision(value.revision))
+      if (document) this.serverDocument = document;
+      if (validRevision(value.revision)) {
+        this.serverRevision = value.revision;
         this.callbacks.onConflict(document, value.revision);
+      }
       return;
     }
     if (value.type === "presence") {

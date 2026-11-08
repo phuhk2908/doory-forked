@@ -1,5 +1,7 @@
 import {
   blankDrawing,
+  applyDrawingDelta,
+  computeDrawingDelta,
   createElement,
   mergeDrawingDocuments,
   restoreDrawing,
@@ -73,5 +75,27 @@ describe("drawing model", () => {
       "one",
       "two",
     ]);
+  });
+
+  it("computes and applies only changed elements", () => {
+    const one = { ...createElement("rectangle"), id: "one" };
+    const two = { ...createElement("ellipse"), id: "two" };
+    const current = { ...blankDrawing(), elements: [one] };
+    const incoming = {
+      ...current,
+      elements: [{ ...one, x: 40, version: 2 }, two],
+      background: "#f8fafc",
+    };
+
+    const delta = computeDrawingDelta(current, incoming);
+    expect(delta.elements.map((element) => element.id)).toEqual(["one", "two"]);
+    expect(delta.background).toBe("#f8fafc");
+    expect(applyDrawingDelta(current, delta)).toMatchObject({
+      background: incoming.background,
+      elements: expect.arrayContaining([
+        expect.objectContaining({ id: "one", x: 40, version: 2 }),
+        expect.objectContaining({ id: "two" }),
+      ]),
+    });
   });
 });
