@@ -78,19 +78,34 @@ def test_tools_are_listed_with_schemas(issued):
         "get_design",
         "create_design",
         "edit_design",
+        "list_drawings",
+        "get_drawing",
+        "edit_drawing",
         "search_fonts",
         "export_project_backup",
         "import_project_backup",
     } <= set(tools)
     assert tools["list_designs"]["annotations"]["readOnlyHint"] is True
+    assert tools["list_drawings"]["annotations"]["readOnlyHint"] is True
     ops = json.dumps(tools["edit_design"]["inputSchema"])
     assert "add_text" in ops and "set_background" in ops
+
+
+def test_discovery_hides_tools_and_resources_without_scopes(user):
+    read_only = tokens.issue_token(user, name="Design reader", scopes=[DESIGNS_READ], expires_in_days=30)
+    tools = {tool["name"] for tool in rpc(read_only.plaintext, "tools/list").json()["result"]["tools"]}
+    assert "list_designs" in tools and "list_drawings" not in tools
+    templates = rpc(read_only.plaintext, "resources/templates/list").json()["result"]["resourceTemplates"]
+    assert [template["uriTemplate"] for template in templates] == ["doory://designs/{design_id}"]
 
 
 def test_designs_are_resources_and_prompts_are_listed(issued, user):
     design = Design.objects.create(owner=user, title="Poster", document={"version": 1, "pages": []})
     templates = rpc(issued.plaintext, "resources/templates/list").json()["result"]["resourceTemplates"]
-    assert [t["uriTemplate"] for t in templates] == ["doory://designs/{design_id}"]
+    assert [t["uriTemplate"] for t in templates] == [
+        "doory://designs/{design_id}",
+        "doory://drawings/{drawing_id}",
+    ]
     read = rpc(issued.plaintext, "resources/read", {"uri": f"doory://designs/{design.pk}"}).json()
     assert json.loads(read["result"]["contents"][0]["text"])["title"] == "Poster"
     missing = rpc(issued.plaintext, "resources/read", {"uri": "doory://designs/nope"}).json()

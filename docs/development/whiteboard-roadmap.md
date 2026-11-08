@@ -67,11 +67,11 @@ The guest room MVP is live. The next work is split by room safety first, then ed
 
 ## P2: MCP and automation
 
-- [ ] **P2.20** Implement the [account-owned whiteboard MCP interface](mcp-whiteboards.md): dedicated scopes and
+- [x] **P2.20** Implement the [account-owned whiteboard MCP interface](mcp-whiteboards.md): dedicated scopes and
     tools/resources for list, read, create, rename, edit and trash; add restore only when the REST domain supports it.
 - [ ] **P2.21** Define an account-bound room-management model before exposing guest-room creation, close or link rotation to
     MCP. Never use edit, view or owner link keys as MCP credentials.
-- [ ] **P2.22** Implement the drawing-service mutation seam and post-commit realtime event described in
+- [x] **P2.22** Implement the drawing-service mutation seam and post-commit realtime event described in
     [the MCP interface](mcp-whiteboards.md), with revision/conflict handling and tool tests; do not let MCP write raw
     snapshots directly to the database.
 

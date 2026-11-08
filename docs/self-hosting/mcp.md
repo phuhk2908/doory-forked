@@ -42,10 +42,10 @@ back as a download link, and each page after the first counts as one more call. 
 
 ## Connect a client
 
-1. In Doory, open **Settings → AI assistants (MCP)** and create a token. Choose what it may do (read designs, edit
-   them, trash them, add images, comment, manage comments, change brand kits, manage share links), set when it
-   expires (at most a year), and confirm with your password. The token is shown only once. A token never gains a
-   permission it wasn't given, even when new tools are added.
+1. In Doory, open **Settings → AI assistants (MCP)** and create a token. Choose what it may do (read or edit designs,
+   read or edit whiteboards, trash them, add images, comment, manage comments, change brand kits, manage share links),
+   set when it expires (at most a year), and confirm with your password. The token is shown only once. A token never
+   gains a permission it wasn't given, even when new tools are added.
 2. Add the server to your client with the URL `https://your-domain/mcp` and the header
    `Authorization: Bearer <token>`. In a JSON configuration that is:
 
@@ -57,13 +57,16 @@ Revoke a token on the same settings page. Changing or resetting a password revok
 
 ## What assistants can do
 
-Assistants can work with designs and their contents:
+Assistants can work with designs, account-owned whiteboards and their contents:
 
 - **Designs:** list, read, create, rename, duplicate and edit them; star them, organise them in folders, trash
   and restore them.
 - **On the page:** add text (with effects), shapes, lines, pictures, QR codes and pages; group objects; set
   backgrounds and speaker notes.
 - **Search:** templates, elements, fonts and stock photos.
+- **Whiteboards:** list and read account-owned boards, create blank or validated boards, rename and edit with
+  revision checking, and move boards to the trash. Whiteboard documents are available as
+  `doory://drawings/{drawing_id}` resources.
 
 They can also handle comments, brand kits, share links and earlier versions, and export pages as PNG, JPG,
 WebP or AVIF images, or several pages as a ZIP, optionally [optimized](../integrations/image-optimization.md),
@@ -77,19 +80,18 @@ backups can be restored in the editor. Designs are also available as MCP resourc
 
 ## Whiteboards and MCP
 
-The MCP registry currently exposes the design domain only. The new whiteboard module is available through the
-authenticated REST endpoints and the realtime service, but it does not yet register MCP tools or resources:
+Account-owned whiteboards are available through dedicated MCP scopes and tools. The module uses the same drawing
+service and revision checks as REST:
 
 - Account-owned whiteboards use `/api/v1/drawings/` and `/ws/drawings/{id}/`.
 - Anonymous guest rooms use `/api/v1/drawing-rooms/` and `/ws/drawing-rooms/{id}/`; edit, view and owner keys are
   capability credentials kept in the room URL fragment or browser session.
 
 An MCP personal access token is not a guest-room key. MCP clients must not be given an edit, view or owner key and
-cannot currently join, edit, close or rotate an anonymous room. Account-owned whiteboards also remain UI/REST-only
-until dedicated MCP scopes and tools are added.
+cannot currently join, create, close or rotate an anonymous room. Guest-room capabilities remain outside MCP.
 
-The planned integration is intentionally separate from the existing design tools. The proposed account-owned
-whiteboard interface, scopes, resource URI, tools, revision rules and test gates are defined in
+The integration is intentionally separate from the existing design tools. The account-owned whiteboard interface,
+scopes, resource URI, tools, revision rules and test gates are defined in
 [the development contract](../development/mcp-whiteboards.md). It routes edits through the drawing service and a
 post-commit realtime event; it does not expose guest-room creation, close or rotate actions until an account-bound
 room-management model exists. Guest room bearer keys should never be treated as an MCP authentication mechanism.

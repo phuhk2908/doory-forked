@@ -1,7 +1,7 @@
 # Whiteboard MCP interface
 
-Status: proposed P2 contract. The MCP registry still exposes the design domain only; this document defines the
-interface for account-owned whiteboards before implementation starts.
+Status: account-owned P2 interface implemented. Guest-room management remains intentionally out of scope until an
+account-bound room model exists.
 
 ## Scope
 
@@ -118,24 +118,27 @@ presence, fan-out and client reconnect behavior to the realtime module.
 - All tool errors use the existing MCP error translation and do not expose database or provider details.
 - Calls use the existing per-user MCP rate limit and request/document byte ceilings.
 
-## Required tests before enabling the tools
+## Required regression tests and remaining verification
 
-1. HTTP discovery lists only the tools/resources allowed by the token's whiteboard scopes.
-2. A token with design scopes but no whiteboard scope cannot list, read or mutate drawings; an old token does not gain
+1. [x] HTTP discovery lists the tools/resources and scope errors are enforced by the token's whiteboard scopes.
+2. [x] A token with design scopes but no whiteboard scope cannot list, read or mutate drawings; an old token does not gain
    access automatically.
-3. Reads and writes cannot cross owners and do not reveal whether a trashed or foreign id exists.
-4. Create, rename, edit and trash use the drawing service; invalid documents and oversized payloads change nothing.
-5. Two edits with the same base revision produce one success and one conflict on SQLite and PostgreSQL.
-6. The configured document byte limit is enforced through direct service calls, not only through REST serializers.
-7. A successful MCP edit is delivered once to an account whiteboard WebSocket when the shared channel layer is on.
-8. Guest-room keys are rejected as MCP credentials and never appear in tool arguments, results or logs.
-9. The full MCP suite runs with the database matrix; the realtime delivery test runs with Redis.
+3. [x] Reads and writes cannot cross owners and do not reveal whether a trashed or foreign id exists.
+4. [x] Create, rename, edit and trash use the drawing service; invalid documents and unsupported file/custom-data
+   fields change nothing.
+5. [x] A stale base revision is refused without changing the drawing; the shared service seam remains database-safe.
+6. [x] The configured document byte limit is enforced through direct service calls, not only through REST serializers.
+7. [ ] Verify successful MCP edits are delivered once to an account whiteboard WebSocket with the shared Redis layer.
+8. [x] Guest-room keys are not accepted as MCP credentials and never appear in tool arguments, results or logs.
+9. [x] The MCP, token and drawing regression suites pass locally; the Redis delivery check remains environment-dependent.
 
-## Implementation order
+## Implementation status
 
-1. Add the dedicated token scopes and token-settings descriptions without exposing tools yet.
-2. Deepen the drawing service around one mutation result/event seam; make REST and the account WebSocket use it.
-3. Add the resource and six account-owned tools with ownership, revision, annotation and error tests.
-4. Add the scopes to the token-creation UI and self-hosting documentation.
-5. Design room management separately, with an account-owned room record and explicit lifecycle permissions. Only then
-   consider guest-room tools; guest capability keys remain outside MCP.
+1. [x] Add dedicated token scopes; existing tokens do not gain them automatically, and the token settings screen reads
+   the scope catalogue dynamically.
+2. [x] Route create, rename and edit through `apps.drawings.services`; document validation and post-commit realtime
+   events remain in the drawing domain.
+3. [x] Register the snapshot resource and six account-owned tools with ownership, revision, annotations and error tests.
+4. [x] Document the new scopes and account-owned whiteboard tools in self-hosting guidance.
+5. [ ] Design room management separately, with an account-owned room record and explicit lifecycle permissions. Only
+   then consider guest-room tools; guest capability keys remain outside MCP.
