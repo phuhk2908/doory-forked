@@ -118,6 +118,8 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.4
+      - name: Install canvas build dependencies
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev
       - run: bun install --frozen-lockfile
       - run: bun run lint
       - run: bun run typecheck
@@ -227,6 +229,8 @@ jobs:
           bun-version: 1.4.4
       - name: Install the API, the web app and Chromium
         run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev
           pip install -r backend/requirements-dev.txt
           bun install --frozen-lockfile --cwd frontend
           cd frontend && bunx --no-install playwright install --with-deps chromium
