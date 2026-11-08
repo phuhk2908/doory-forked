@@ -51,7 +51,7 @@ check-backend: ## Run Django's local-settings system checks
 
 check-migrations: ## Verify that migrations match the Django models
 	@test -x "$(PY)" || { echo "Missing $(PY); run 'make setup' first." >&2; exit 1; }
-	cd backend && $(abspath $(PY)) manage.py makemigrations --check --dry-run
+	cd backend && DJANGO_SETTINGS_MODULE=doory.settings.dev $(abspath $(PY)) manage.py makemigrations --check --dry-run
 
 dev-api: check-backend ## Run the Django API on http://localhost:8000
 	$(MANAGE) runserver 8000
@@ -70,15 +70,16 @@ test-api: check-migrations ## Backend tests (pytest)
 test-web: check-tooling ## Frontend tests (vitest)
 	cd frontend && bun run test
 
-lint: docs-check check-tooling check-backend check-migrations ## Ruff, TypeScript, ESLint and docs checks (no changes)
+lint: docs-check check-tooling check-backend check-migrations ## Ruff, Oxlint, Oxfmt, TypeScript and docs checks (no changes)
 	cd backend && $(abspath $(PY)) -m ruff check . && $(abspath $(PY)) -m ruff format --check .
-	cd frontend && bun run lint && bun run typecheck
+	cd frontend && bun run lint && bun run format:check && bun run typecheck
 
 docs-check: ## Check that every setting is documented in docs/self-hosting/configuration.md
 	sh docs/check-settings.sh
 
-fmt: ## Auto-fix and format the backend code
+fmt: ## Auto-fix and format backend and frontend code
 	cd backend && $(abspath $(PY)) -m ruff check --fix . && $(abspath $(PY)) -m ruff format .
+	cd frontend && bun run format
 
 # The downloads are independent and every command can simply be run again, so one failing source
 # (make prints "Error 1 (ignored)") does not stop the others.

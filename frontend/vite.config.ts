@@ -54,6 +54,8 @@ export default defineConfig({
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
     css: false,
+    // MSW's Node interceptor is process-global; parallel files can reset another file's handlers mid-request.
+    fileParallelism: false,
     exclude: ["e2e/**", "node_modules/**"],
   },
 });

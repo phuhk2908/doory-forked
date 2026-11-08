@@ -96,7 +96,8 @@ test.describe("[layout] images", () => {
         async () =>
           (
             (await pageObjects(page))[0].filters as
-              { type: string; value: number }[] | undefined
+              | { type: string; value: number }[]
+              | undefined
           )?.find((f) => f.type === "brightness")?.value,
       )
       .toBeCloseTo(0.4, 1);

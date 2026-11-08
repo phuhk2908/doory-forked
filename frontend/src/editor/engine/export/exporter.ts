@@ -14,7 +14,9 @@ import "./formats";
 import "./video/formats";
 
 export type PageSelection =
-  { kind: "all" } | { kind: "current" } | { kind: "pages"; pages: number[] };
+  | { kind: "all" }
+  | { kind: "current" }
+  | { kind: "pages"; pages: number[] };
 
 export class ExportError extends Error {
   constructor(message: string) {

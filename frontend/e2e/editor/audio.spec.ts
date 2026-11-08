@@ -464,7 +464,7 @@ test.describe("the timeline", () => {
     await page.mouse.up();
     const moved = (await tracksOf(page))[0];
     expect(moved.startMs).toBeGreaterThan(300);
-    expect(moved.startMs % 100).toBe(0);
+    expect((moved.startMs + moved.trimEndMs - moved.trimStartMs) % 100).toBe(0);
 
     // The row's switches come out when the pointer is on it.
     await page.getByTestId(`tl-audio-${track.id}`).hover();

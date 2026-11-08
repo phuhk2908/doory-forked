@@ -4,6 +4,7 @@ import hashlib
 import logging
 import secrets
 from collections.abc import Mapping
+from functools import partial
 from io import BytesIO
 
 from django.conf import settings
@@ -18,6 +19,7 @@ from apps.assets.storage import delete_files_on_commit
 from apps.assets.uploads import strip_unsafe_chars
 from apps.core.images import ImageError, make_thumbnail, process_image_upload
 
+from .events import publish_drawing_update
 from .exceptions import RevisionConflict
 from .models import Drawing, DrawingRoom, DrawingRoomEvent
 from .validators import validate_drawing_document
@@ -92,7 +94,7 @@ def _normalise_element(element: dict) -> dict:
 
 
 def create_drawing_room(*, title: str, document: dict) -> tuple[DrawingRoom, str, str, str]:
-    validate_drawing_document(document)
+    validate_drawing_document(document, max_bytes=settings.MAX_DRAWING_DOCUMENT_BYTES)
     edit_key = secrets.token_urlsafe(32)
     view_key = secrets.token_urlsafe(32)
     owner_key = secrets.token_urlsafe(32)
@@ -227,7 +229,7 @@ def merge_drawing_documents(current: dict, incoming: dict) -> dict:
     files = {**current_files, **incoming_files}
     if files:
         merged["files"] = files
-    return validate_drawing_document(merged)
+    return validate_drawing_document(merged, max_bytes=settings.MAX_DRAWING_DOCUMENT_BYTES)
 
 
 def save_drawing_room_update(room_id, key: str, document: dict) -> DrawingRoom | None:
@@ -237,7 +239,7 @@ def save_drawing_room_update(room_id, key: str, document: dict) -> DrawingRoom |
         room = DrawingRoom.objects.select_for_update().filter(pk=room_id).first()
         if room is None or _room_access(room, key) != "edit":
             return None
-        validate_drawing_document(document)
+        validate_drawing_document(document, max_bytes=settings.MAX_DRAWING_DOCUMENT_BYTES)
         merged = merge_drawing_documents(room.document, document)
         if merged != room.document:
             room.document = merged
@@ -254,7 +256,7 @@ def _check_drawing_limit(owner) -> None:
 
 
 def create_drawing(owner, *, title: str, document: dict) -> Drawing:
-    validate_drawing_document(document)
+    validate_drawing_document(document, max_bytes=settings.MAX_DRAWING_DOCUMENT_BYTES)
     with transaction.atomic():
         _check_drawing_limit(owner)
         drawing = Drawing(
@@ -286,12 +288,16 @@ def update_drawing(drawing_id, owner, data: dict) -> Drawing:
         if "document" in data:
             if drawing.revision != data["base_revision"]:
                 raise RevisionConflict(drawing.revision, drawing.updated_at)
-            validate_drawing_document(data["document"])
+            validate_drawing_document(data["document"], max_bytes=settings.MAX_DRAWING_DOCUMENT_BYTES)
             drawing.document = data["document"]
             drawing.revision += 1
             touched.update(("document", "revision", "updated_at"))
         if touched:
             drawing.save(update_fields=sorted(touched))
+            if "document" in data:
+                transaction.on_commit(
+                    partial(publish_drawing_update, drawing.pk, drawing.document, drawing.revision)
+                )
     return drawing
 
 

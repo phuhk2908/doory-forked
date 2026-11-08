@@ -73,6 +73,8 @@ COPY --from=optimizers /opt/optimizers/bin/ /usr/local/bin/
 
 RUN if [ "$INSTALL_CHROMIUM" = "true" ]; then \
         playwright install --with-deps chromium \
+        && apt-get update \
+        && apt-get install -y --no-install-recommends poppler-utils \
         && chmod -R a+rX /ms-playwright \
         && rm -rf /var/lib/apt/lists/*; \
     fi

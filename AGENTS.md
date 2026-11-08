@@ -9,8 +9,8 @@ before you change code in an area you don't know.
 ```bash
 make setup      # backend/.venv, dependencies, backend/.env, local database
 make test       # pytest (backend) + vitest (frontend)
-make lint       # ruff, ESLint, TypeScript and docs-check: run before you finish
-make fmt        # format the backend code
+make lint       # ruff, Oxlint, Oxfmt, TypeScript and docs-check: run before you finish
+make fmt        # format the backend and frontend code
 ```
 
 - Use Node.js 22. Newer versions make some frontend tests fail.

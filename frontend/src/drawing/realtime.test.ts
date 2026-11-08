@@ -43,7 +43,7 @@ describe("drawing realtime", () => {
     ).toBe("wss://boards.example/ws/drawings/a%2F..%2Fb%3Fx%3D1/");
   });
 
-  it("publishes after connecting and accepts remote snapshots", () => {
+  it("connects and accepts committed remote snapshots", () => {
     const socket = new FakeSocket();
     const documents: Array<{ document: DrawingDocument; revision: number }> =
       [];
@@ -62,15 +62,9 @@ describe("drawing realtime", () => {
     realtime.start();
     socket.open();
     const document = blankDrawing();
-    realtime.publish(document, 2);
     socket.receive({ type: "ready", document, revision: 2, peers: 1 });
 
     expect(JSON.parse(socket.sent[0])).toEqual({ type: "hello" });
-    expect(JSON.parse(socket.sent[1])).toEqual({
-      type: "publish",
-      document,
-      revision: 2,
-    });
     expect(documents).toEqual([{ document, revision: 2 }]);
     expect(statuses).toEqual(["connecting", "live"]);
 

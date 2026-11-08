@@ -118,6 +118,11 @@ test.describe("[layout] presenter view", () => {
     await expect(counter(page)).toHaveText("2 / 3");
     await view.keyboard.press("Home");
     await expect(counter(page)).toHaveText("1 / 3");
+    // The preceding Home key leaves focus on the previous-page button. Blur it so this assertion exercises the
+    // presentation shortcut, rather than activating that button while the presenter view catches up.
+    await view.evaluate(() =>
+      (document.activeElement as HTMLElement | null)?.blur(),
+    );
     await view.keyboard.press("Space");
     await expect(counter(page)).toHaveText("2 / 3");
     await view.getByTestId("view-restart").click();
@@ -349,7 +354,10 @@ test.describe("[layout] presenter view: clocks on a fake clock", () => {
     await openDeck(page);
     await setAllTimes(page, 10);
     const view = await startWithView(page);
-    await context.clock.pauseAt(Date.now() + 300);
+    // Read the fake clock from the page. Node's wall clock may be several hundred milliseconds ahead while the
+    // popup is opening, which made a small `pauseAt(Date.now() + …)` offset fall into the past on busy workers.
+    const clockNow = await page.evaluate(() => Date.now());
+    await context.clock.pauseAt(clockNow + 300);
     await context.clock.runFor(3200);
     await expect(view.getByTestId("view-timer")).toContainText(/0:0[5-8] left/);
     await expect(view.getByTestId("view-elapsed")).toHaveText(/^0:0[3-6]$/);

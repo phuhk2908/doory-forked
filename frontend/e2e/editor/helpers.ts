@@ -164,11 +164,39 @@ export async function moreMenu(
   page: Page,
   name: string | RegExp,
 ): Promise<void> {
-  await page.locator('[data-testid="ed-more"]').click();
-  await page
+  const item = page
     .getByRole("menuitem", { name })
-    .or(page.getByRole("menuitemcheckbox", { name }))
-    .click();
+    .or(page.getByRole("menuitemcheckbox", { name }));
+  const compactMenu = page.locator('[data-testid="ed-more"]');
+  if (await compactMenu.count()) {
+    await compactMenu.click();
+    if (await item.count()) {
+      await item.first().click();
+      return;
+    }
+    await page.keyboard.press("Escape");
+  }
+
+  for (const menuName of ["File", "View"]) {
+    await page.getByRole("button", { name: menuName, exact: true }).click();
+    if (await item.count()) {
+      await item.first().click();
+      return;
+    }
+    await page.keyboard.press("Escape");
+  }
+
+  // Presentation with notes lives in the Share menu, not File/View.
+  const share = page.getByTestId("ed-share");
+  if (await share.count()) {
+    await share.click();
+    if (await item.count()) {
+      await item.first().click();
+      return;
+    }
+    await page.keyboard.press("Escape");
+  }
+  throw new Error(`Menu item not found: ${String(name)}`);
 }
 
 /** Pixel probe on the overlay canvas of the first live page: any non-transparent pixel? */

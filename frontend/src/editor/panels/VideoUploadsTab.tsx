@@ -143,7 +143,7 @@ export function VideoUploadsTab({
         .finally(() => following.current.delete(clip.id));
     }
     // `clips` is rebuilt on every render; the ids of the ones processing are what matters.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [processing, service]);
 
   const place = (clip: AssetRef): void => {

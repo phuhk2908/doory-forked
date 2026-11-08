@@ -7,7 +7,8 @@ interface ProbeView {
   canvas: {
     getObjects(): unknown[];
     getActiveObject():
-      { oCoords: Record<string, { x: number; y: number }> } | undefined;
+      | { oCoords: Record<string, { x: number; y: number }> }
+      | undefined;
     upperCanvasEl: HTMLCanvasElement;
   };
 }

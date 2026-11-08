@@ -78,7 +78,10 @@ export type TextElement = DrawingElementBase & {
 };
 
 export type DrawingElement =
-  ShapeElement | LinearElement | FreedrawElement | TextElement;
+  | ShapeElement
+  | LinearElement
+  | FreedrawElement
+  | TextElement;
 
 export interface DrawingBinding {
   elementId: string;

@@ -4,7 +4,10 @@ import { uuid } from "../lib/uuid";
 import type { DrawingDocument } from "./model";
 
 export type DrawingRoomRealtimeStatus =
-  "offline" | "connecting" | "live" | "closed";
+  | "offline"
+  | "connecting"
+  | "live"
+  | "closed";
 
 export interface DrawingRoomPeer {
   id: string;

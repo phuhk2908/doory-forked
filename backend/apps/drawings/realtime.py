@@ -24,6 +24,7 @@ from apps.collab.limits import (
     release_guest_room_slot,
 )
 
+from .events import drawing_group
 from .exceptions import RevisionConflict
 from .metrics import guest_room_metrics
 from .models import Drawing
@@ -43,15 +44,15 @@ _room_presence: dict[str, dict[str, dict[str, Any]]] = defaultdict(dict)
 class DrawingConsumer(AsyncJsonWebsocketConsumer):
     """Owner-only live snapshots for whiteboards.
 
-    REST remains the durable write path. A client publishes a document only after its REST PATCH succeeds;
-    peers receive it immediately and can replace their clean local snapshot without competing with the REST
-    save.
+    REST and the drawing service remain the durable write path. A committed document mutation emits one
+    post-commit event; peers receive it immediately and can replace their clean local snapshot without
+    competing with the durable save.
     """
 
     async def connect(self) -> None:
         self.drawing_id = self.scope["url_route"]["kwargs"]["drawing_id"]
         self.user = self.scope.get("user")
-        self.group = f"doory.drawing.{self.drawing_id}"
+        self.group = drawing_group(self.drawing_id)
         if not realtime_enabled():
             await self.close(code=4403)
             return
@@ -151,7 +152,10 @@ class DrawingConsumer(AsyncJsonWebsocketConsumer):
                     },
                 )
             return
-        if kind not in {"publish", "update"}:
+        if kind == "publish":
+            # REST/service writes emit the committed event. Never fan out a client-supplied duplicate.
+            return
+        if kind != "update":
             await self.send_json({"type": "error", "code": "unknown_message"})
             return
         document = content.get("document")
@@ -165,43 +169,22 @@ class DrawingConsumer(AsyncJsonWebsocketConsumer):
             await self.send_json({"type": "error", "code": "invalid_document", "message": str(exc)})
             return
 
-        if kind == "update":
-            base_revision = content.get("base_revision")
-            if not isinstance(base_revision, int) or base_revision < 1:
-                await self.send_json({"type": "error", "code": "invalid_revision"})
-                return
-            try:
-                drawing = await self._save(document, base_revision)
-            except RevisionConflict as exc:
-                current = await self._load()
-                await self.send_json(
-                    {
-                        "type": "conflict",
-                        "revision": exc.revision,
-                        "document": current[0] if current else None,
-                    }
-                )
-                return
-            revision = drawing["revision"]
-            document = drawing["document"]
-        else:
+        base_revision = content.get("base_revision")
+        if not isinstance(base_revision, int) or base_revision < 1:
+            await self.send_json({"type": "error", "code": "invalid_revision"})
+            return
+        try:
+            await self._save(document, base_revision)
+        except RevisionConflict as exc:
             current = await self._load()
-            if current is None:
-                await self.close(code=4404)
-                return
-            if current[1] != revision:
-                await self.send_json({"type": "conflict", "revision": current[1], "document": current[0]})
-                return
-
-        await self.channel_layer.group_send(
-            self.group,
-            {
-                "type": "drawing.document",
-                "source": self.channel_name,
-                "document": document,
-                "revision": revision,
-            },
-        )
+            await self.send_json(
+                {
+                    "type": "conflict",
+                    "revision": exc.revision,
+                    "document": current[0] if current else None,
+                }
+            )
+            return
 
     async def drawing_document(self, event: dict[str, Any]) -> None:
         await self.send_json(

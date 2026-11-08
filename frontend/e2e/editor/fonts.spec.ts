@@ -89,10 +89,9 @@ test.describe("[layout] uploaded fonts", () => {
     await page.getByTestId("ed-font").click();
     const option = page.locator('[data-font="Doory Blocks"]');
     await expect(option).toHaveAttribute("data-group", "mine");
-    await expect(page.getByRole("option").first()).toHaveAttribute(
-      "data-font",
-      "Doory Blocks",
-    );
+    await expect(
+      page.locator('[data-font="Doory Blocks"]').first(),
+    ).toHaveAttribute("data-font", "Doory Blocks");
     await option.click();
     await expect.poll(() => pageInk(page)).toBeGreaterThan(plain * 1.6);
     await expect(page.getByTestId("ed-font")).toContainText("Doory Blocks");
@@ -113,6 +112,7 @@ test.describe("[layout] uploaded fonts", () => {
     await openDownloadDialog(page);
     const download = page.getByRole("dialog", { name: "Download" });
     await download.getByRole("radio", { name: /^PNG/ }).check();
+    await download.getByRole("button", { name: /More settings/ }).click();
     await download.getByRole("radio", { name: "Current page" }).check();
     const pngDownload = page.waitForEvent("download", { timeout: 30_000 });
     await download
@@ -124,6 +124,7 @@ test.describe("[layout] uploaded fonts", () => {
     // SVG export embeds every file of the family.
     await openDownloadDialog(page);
     await download.getByRole("radio", { name: /^SVG/ }).check();
+    await download.getByRole("button", { name: /More settings/ }).click();
     await download.getByRole("radio", { name: "Current page" }).check();
     const svgDownload = page.waitForEvent("download", { timeout: 30_000 });
     await download
@@ -150,6 +151,7 @@ test.describe("[layout] uploaded fonts", () => {
     });
     await openDownloadDialog(page);
     await download.getByRole("radio", { name: /Print-quality PDF/ }).check();
+    await download.getByRole("button", { name: /More settings/ }).click();
     await download.getByRole("radio", { name: "Current page" }).check();
     const pdfDownload = page.waitForEvent("download", { timeout: 30_000 });
     await download

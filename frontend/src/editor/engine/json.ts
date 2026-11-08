@@ -4,7 +4,12 @@
  * so an unchanged value never produces a Yjs operation.
  */
 export type Json =
-  null | boolean | number | string | Json[] | { [key: string]: Json };
+  | null
+  | boolean
+  | number
+  | string
+  | Json[]
+  | { [key: string]: Json };
 
 const MAX_DEPTH = 64;
 

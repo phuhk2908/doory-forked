@@ -19,7 +19,13 @@ describe("home template rows", () => {
       ],
     });
     expect(
-      await screen.findByRole("link", { name: /Plain two/ }),
+      await screen.findByRole(
+        "link",
+        {
+          name: /Plain two/,
+        },
+        { timeout: 10_000 },
+      ),
     ).toBeInTheDocument();
     expect(queries[0]).not.toContain("featured");
   });

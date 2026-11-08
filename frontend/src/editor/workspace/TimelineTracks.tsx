@@ -289,10 +289,12 @@ export function TimelineTracks({
   const startDrag = useCallback(
     (span: AnimSpan, part: BarDrag, e: React.PointerEvent<HTMLDivElement>) => {
       if (e.button !== 0) return;
-      if (!(
-        editor.state.selection.ids.length === 1 &&
-        editor.state.selection.ids[0] === span.objectId
-      ))
+      if (
+        !(
+          editor.state.selection.ids.length === 1 &&
+          editor.state.selection.ids[0] === span.objectId
+        )
+      )
         editor.select([span.objectId]);
       if (readOnly) return;
       const pointerMs = timeAt(e.clientX, span.objectId);

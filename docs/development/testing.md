@@ -8,7 +8,7 @@ make check      # toolchain, Django settings and migration preflight
 make test        # both suites
 make test-api    # backend: pytest (backend/)
 make test-web    # frontend: vitest (frontend/)
-make lint        # ruff, TypeScript, ESLint, docs-check
+make lint        # ruff, Oxlint, Oxfmt, TypeScript, docs-check
 ```
 
 - **Backend:** tests live next to the code in `backend/apps/<app>/tests/`. Make targets use
@@ -17,14 +17,17 @@ make lint        # ruff, TypeScript, ESLint, docs-check
   `bun install --cwd backend/apps/collab/tests/interop` once.
 - **Frontend:** `*.test.ts(x)` files next to the code. Run them with Node.js 22.
 
-`make check` may print `exports.W002` on a host without `cjpeg` and `oxipng`; it is a warning about the optional
-built-in image optimizer, not a test failure. The Docker image includes both when `INSTALL_IMAGE_OPTIMIZERS=true`.
+The local `backend/.env.example` leaves the optional built-in image optimizer off, so `make check` is clean without
+`cjpeg` and `oxipng`. Set `IMAGE_OPTIMIZERS=builtin` when both programs are installed; the Docker image includes
+them when `INSTALL_IMAGE_OPTIMIZERS=true`.
 
 ### Real-Chromium export tests (backend)
 
 Export tests that need a real browser run when `DOORY_TEST_CHROMIUM` points at a Chromium binary. On macOS, set
 `EXPORT_WORK_DIR` (and `TMPDIR`) to short paths such as `/tmp/dxw`, because the default temp path is too long for
 Chromium's socket. Image export tests also need the built frontend (`bun run build`).
+PDF raster assertions also need `pdftoppm` from `poppler-utils`; the backend Docker image installs it when
+`INSTALL_CHROMIUM=true`.
 
 ## End-to-end tests (frontend, Playwright)
 

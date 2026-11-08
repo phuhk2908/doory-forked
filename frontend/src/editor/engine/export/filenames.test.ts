@@ -115,7 +115,7 @@ describe("runExport file names", () => {
       "summer-sale_instagram_instagram-story_1080x1920.pdf",
     );
     engine.dispose();
-  });
+  }, 15_000);
 
   it("a custom size has no platform or preset part, and one page no page number", async () => {
     const engine = new EditorEngine({

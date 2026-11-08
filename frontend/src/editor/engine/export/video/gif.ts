@@ -7,7 +7,7 @@
  * previous frame is shown for longer. A still page therefore costs one frame whatever its time.
  */
 // `gifenc` ships without types; this brings ours in for every TypeScript project that reaches this file (the app, the template scripts).
-// eslint-disable-next-line @typescript-eslint/triple-slash-reference
+// oxlint-disable-next-line typescript/triple-slash-reference
 /// <reference path="./gifenc.d.ts" />
 import { GIFEncoder, applyPalette, quantize } from "gifenc";
 import { type GifSetup, GifTooLargeError } from "./gifProtocol";

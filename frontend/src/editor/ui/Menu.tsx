@@ -163,7 +163,7 @@ export function Menu({
       {groupTiles(items).map((entry) =>
         Array.isArray(entry) ? (
           <div key={entry[0].id} className={styles.tiles}>
-            {entry.map((item) => renderItem(item, onClose))}
+            {entry.map((item) => renderItem(item, onClose, anchorRef))}
           </div>
         ) : entry.separator ? (
           <div key={entry.id} role="separator" className={styles.sep} />
@@ -172,7 +172,7 @@ export function Menu({
             {entry.label}
           </div>
         ) : (
-          renderItem(entry, onClose)
+          renderItem(entry, onClose, anchorRef)
         ),
       )}
     </div>,
@@ -191,7 +191,11 @@ function groupTiles(items: MenuItem[]): (MenuItem | MenuItem[])[] {
   return out;
 }
 
-function renderItem(item: MenuItem, onClose: () => void) {
+function renderItem(
+  item: MenuItem,
+  onClose: () => void,
+  anchorRef?: RefObject<HTMLElement | null>,
+) {
   const className = item.tile
     ? styles.tile
     : item.feature !== undefined
@@ -210,6 +214,7 @@ function renderItem(item: MenuItem, onClose: () => void) {
       onClick={() => {
         if (item.disabled) return;
         onClose();
+        anchorRef?.current?.focus();
         item.onSelect?.();
       }}
     >

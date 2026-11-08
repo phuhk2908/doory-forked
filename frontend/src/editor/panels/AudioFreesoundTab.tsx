@@ -264,7 +264,7 @@ export function AudioFreesoundTab({ info }: { info: Info }) {
       window.clearTimeout(timer);
       abort.current?.abort();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- a new search whenever one of its inputs changes
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- a new search whenever one of its inputs changes
   }, [q, kind, sub, length, sort, attempt]);
 
   const add = async (

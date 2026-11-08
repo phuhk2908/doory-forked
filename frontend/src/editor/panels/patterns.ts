@@ -4,7 +4,12 @@
  */
 
 export type PatternId =
-  "dots" | "grid" | "stripes" | "checks" | "zigzag" | "plus";
+  | "dots"
+  | "grid"
+  | "stripes"
+  | "checks"
+  | "zigzag"
+  | "plus";
 export const PATTERN_IDS: readonly PatternId[] = [
   "dots",
   "grid",

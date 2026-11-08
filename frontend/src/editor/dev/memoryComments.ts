@@ -11,7 +11,12 @@ import type { DoryDocument } from "@/types/document";
 
 export type CommentRole = "owner" | "commenter" | "anonymous";
 export type CommentCall =
-  "list" | "create" | "resolve" | "remove" | "move" | "viewer";
+  | "list"
+  | "create"
+  | "resolve"
+  | "remove"
+  | "move"
+  | "viewer";
 
 const OWNER = { id: "user-1", name: "Alex Rivera", avatar_url: null };
 const GUEST = { id: "user-2", name: "Sam Lee", avatar_url: null };

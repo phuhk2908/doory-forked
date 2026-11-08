@@ -38,7 +38,12 @@ export function EditorSkeleton({
 }
 
 export type EditorProblem =
-  "not-found" | "forbidden" | "offline" | "error" | "local-missing" | "trashed";
+  | "not-found"
+  | "forbidden"
+  | "offline"
+  | "error"
+  | "local-missing"
+  | "trashed";
 
 const COPY: Record<
   EditorProblem,

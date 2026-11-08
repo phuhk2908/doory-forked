@@ -72,7 +72,11 @@ async function fillFromToolbar(
   await toolbarOf(page).getByTestId("ed-grid-cells").click();
   const chooser = page.waitForEvent("filechooser");
   await page
-    .getByRole("button", { name: `Replace the image in grid cell ${position}` })
+    .getByRole("button", {
+      name: new RegExp(
+        `(?:Add an image to|Replace the image in) grid cell ${position}`,
+      ),
+    })
     .click();
   await (
     await chooser

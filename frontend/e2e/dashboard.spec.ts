@@ -71,7 +71,9 @@ test("folders: create one and move a design into it", async ({ page }) => {
   await page.getByRole("button", { name: "New folder" }).click();
   await page.getByLabel("Folder name").fill("Client work");
   await page.getByRole("button", { name: "Create folder" }).click();
-  await expect(page.getByRole("link", { name: "Client work" })).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Client work", exact: true }),
+  ).toBeVisible();
 
   await page
     .getByRole("button", { name: "More actions for Quarterly report" })
@@ -84,7 +86,7 @@ test("folders: create one and move a design into it", async ({ page }) => {
   await expect(
     page.getByRole("link", { name: "Quarterly report" }),
   ).toBeHidden();
-  await page.getByRole("link", { name: "Client work" }).click();
+  await page.getByRole("link", { name: "Client work", exact: true }).click();
   await expect(
     page.getByRole("link", { name: "Quarterly report" }),
   ).toBeVisible();

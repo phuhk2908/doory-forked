@@ -15,7 +15,12 @@ import { t } from "../../strings";
 import type { PrintPresetId } from "../print/printOptions";
 
 export type PurposeIcon =
-  "preset" | "web" | "graphic" | "print" | "document" | "video";
+  | "preset"
+  | "web"
+  | "graphic"
+  | "print"
+  | "document"
+  | "video";
 
 /** One "What is it for?" card: a format and the options that suit it. */
 export interface Purpose {

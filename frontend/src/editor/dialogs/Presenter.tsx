@@ -153,7 +153,9 @@ export function Presenter({ props }: { props?: Record<string, unknown> }) {
     onExit: close,
     previews,
   });
-  const viewOpen = host.connected && windowOpen;
+  // The button reflects the popup's lifecycle. Channel connectivity is only a transport detail and may lag the
+  // window opening by a tick during the BroadcastChannel handshake.
+  const viewOpen = viewWindow.current !== null && windowOpen;
 
   // Everything the key handler reads: it is registered once and must never see stale values.
   const live = useLatest({ state, laser, helpOpen, close, sound });

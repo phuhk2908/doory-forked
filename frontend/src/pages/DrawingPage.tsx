@@ -157,7 +157,6 @@ export default function DrawingPage() {
         } catch {
           // The document is already safe; a missing thumbnail should not make the editor look unsaved.
         }
-        realtime.publish(saved.document, saved.revision);
         if (!pendingRef.current) setDirty(false);
       } catch (error) {
         pendingRef.current = document;

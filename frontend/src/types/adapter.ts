@@ -56,7 +56,11 @@ export interface AudioStockQuery {
 }
 
 export type EditorMode =
-  "guest" | "account" | "shared-view" | "shared-comment" | "shared-edit";
+  | "guest"
+  | "account"
+  | "shared-view"
+  | "shared-comment"
+  | "shared-edit";
 
 export interface EditorMeta {
   /** Server design id (account / shared modes) or local id (guest mode). */
@@ -106,7 +110,12 @@ export interface SaveResult {
 }
 
 export type AccountReason =
-  "save" | "share" | "brand-kit" | "version-history" | "comment" | "video";
+  | "save"
+  | "share"
+  | "brand-kit"
+  | "version-history"
+  | "comment"
+  | "video";
 
 export type SaveState =
   | { status: "idle" }

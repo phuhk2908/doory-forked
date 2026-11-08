@@ -63,7 +63,7 @@ Read from 466 npm packages (the per-platform binaries of esbuild, rollup and sim
 | `onnxruntime-web`'s `.wasm` file | MIT, plus the third-party components of onnxruntime | Browser, loaded for background removal | **Accept.** Served unmodified from the npm package; the components Microsoft built into it are listed in [ThirdPartyNotices.txt](https://github.com/microsoft/onnxruntime/blob/main/ThirdPartyNotices.txt) of the onnxruntime repository. That list includes Eigen under MPL-2.0 (file-level copyleft, source at https://gitlab.com/libeigen/eigen); it was not possible to confirm from the binary which listed components the CPU WebAssembly build contains |
 | U²-Net weights (`u2netp`, `u2net`) | Apache-2.0 as released by the authors; see [the model section](#background-removal-models) | Downloaded by `sync_models`, never committed | **Accept, residual risk documented below** |
 | Ubuntu and Ubuntu Mono fonts | UFL-1.0 (Ubuntu Font Licence 1.0) | Two of the 253 curated families, downloaded by `sync_fonts`; `ubuntu` is among the first 100 | **Not in the permissive list; flagged for the product owner.** The UFL is the font equivalent of the OFL: free use, embedding and redistribution, with the font itself kept under the same licence and renamed when modified; documents made with the fonts are unaffected. Doory never modifies or commits them. The Ubuntu woff2 files carry no licence text in their `name` table. To drop both families, remove the two entries from `popular_fonts.json` and `ubuntu` from `PERMISSIVE_LICENSE` in `apps/fonts/sync.py` |
-| `pdftoppm` (poppler-utils) | GPL-2.0-or-later | Test only: renders PDFs to images in the export tests, which skip when it is missing | **Accept: not a dependency.** A separate command that is never installed in the product image, linked or redistributed |
+| `pdftoppm` (poppler-utils) | GPL-2.0-or-later | Test only: renders PDFs to images in the export tests; the Docker image installs it when `INSTALL_CHROMIUM=true` | **Accept: a separate program.** Doory does not link to it or include its code. If a published image includes it, that image redistributes a GPL program and must offer its source; Debian's source package satisfies this |
 | `redis:7-alpine` Docker image | Redis 7.4 is RSALv2 or SSPLv1 (source available, not open source); Redis 7.2 and earlier are BSD-3-Clause; Redis 8 adds AGPL-3.0 | `docker-compose.yml`, optional `redis` profile for several real-time workers | **Flagged for the maintainers.** Doory neither contains nor redistributes Redis; the compose file names an image that operators pull, and the floating tag `7-alpine` is Redis 7.4.11 today (checked 2026-10-09). A permissive choice with the same protocol: `redis:7.2-alpine` (7.2.16, BSD-3-Clause) or `valkey/valkey:8-alpine` (BSD-3-Clause). The Python client `redis` is MIT |
 | Chromium (installed by `playwright install` when `INSTALL_CHROMIUM=true`, and by Playwright for the test suites) | BSD-3-Clause for Chromium, with many third-party components (some LGPL) | Server-side print PDF and the browser suites | **Accept: not redistributed.** The operator's image build downloads it; Doory ships none of it |
 | `ffmpeg` and `ffprobe` (Debian's `ffmpeg` package, installed when `INSTALL_FFMPEG=true`, or by the operator) | GPL-2.0-or-later as Debian builds it (with libx264); FFmpeg itself is LGPL-2.1-or-later | Video clips: checks uploads and stock videos and converts them to H.264 MP4, with a poster, a filmstrip and the sound (`apps/assets/video.py`) | **Accept: a separate program, flagged for the maintainers.** Doory runs the two commands as child processes with a fixed argument list; it doesn't link to FFmpeg's libraries, import bindings or include any of its code, so the GPL doesn't reach Doory. The operator's image build installs the Debian package (like Chromium). If a published image includes it, that image redistributes a GPL program and must offer its source (Debian's source package satisfies this). Without it, video is off (`VIDEO_ENABLED`) |
@@ -88,13 +88,13 @@ the small libraries behind the video and GIF export; the type declarations they 
 | [`@fontsource-variable/inter`](https://github.com/fontsource/font-files) | `^5.3.0` | 5.3.0 | OFL-1.1 | default body font of text in designs (variable Inter), bundled so new text renders instantly and offline: woff2 files in the bundle |
 | [`@fontsource-variable/nunito`](https://github.com/fontsource/font-files) | `^5.3.0` | 5.3.0 | OFL-1.1 | UI body font (variable Nunito), served by the app: woff2 files in the bundle |
 | [`@fontsource-variable/plus-jakarta-sans`](https://github.com/fontsource/font-files) | `^5.3.0` | 5.3.0 | OFL-1.1 | default heading font of text in designs (variable Plus Jakarta Sans), bundled so new text renders instantly and offline: woff2 files in the bundle |
-| [`@tanstack/react-query`](https://github.com/TanStack/query) | `^5.62.0` | 5.104.1 | MIT | server-state cache of the app shell |
+| [`@tanstack/react-query`](https://github.com/TanStack/query) | `^5.104.2` | 5.104.2 | MIT | server-state cache of the app shell |
 | [`fabric`](https://github.com/fabricjs/fabric.js) | `^7.2.0` | 7.4.0 | MIT | canvas engine of the editor |
 | [`fflate`](https://github.com/101arrowz/fflate) | `^0.8.3` | 0.8.3 | MIT | ZIP archive of a multi-page image export (lazy-loaded; also a dependency of jspdf) |
 | [`gifenc`](https://github.com/mattdesl/gifenc) | `^1.0.3` | 1.0.3 | MIT | colour reduction (PnnQuant) and LZW compression of the animated GIF export (lazy-loaded, 11 kB minified). Dithering and removal of repeated frames are Doory's own (`frontend/src/editor/engine/export/video/gifPixels.ts`) |
 | [`jspdf`](https://github.com/parallax/jsPDF) | `^4.2.1` | 4.2.1 | MIT | client-side PDF export (lazy-loaded) |
 | [`lib0`](https://github.com/dmonad/lib0) | `^0.2.119` | 0.2.119 | MIT | binary encoding helpers used by the Yjs protocols |
-| [`lucide-react`](https://github.com/lucide-icons/lucide) | `^1.52.0` | 1.52.0 | ISC | editor and app icons |
+| [`lucide-react`](https://github.com/lucide-icons/lucide) | `^1.57.0` | 1.57.0 | ISC | editor and app icons |
 | [`mp4-muxer`](https://github.com/Vanilagy/mp4-muxer) | `^5.2.2` | 5.2.2 | MIT | writes the MP4 file of the video export from WebCodecs output (lazy-loaded, 9 kB gzipped). Its author has deprecated it in favour of Mediabunny, which is MPL-2.0 (file-level copyleft) and so outside the permissive list; 5.2 does what the export needs |
 | [`mp4box`](https://github.com/gpac/mp4box.js) | `^2.4.1` | 2.4.1 | BSD-3-Clause | reads the video clips of a design (MP4 boxes and samples) so the video export can decode each frame with WebCodecs (lazy-loaded with the export) |
 | [`onnxruntime-web`](https://github.com/Microsoft/onnxruntime) | `^1.30.0` | 1.30.0 | MIT | in-browser model runtime for background removal: the WebAssembly CPU build, loaded lazily and run in a Web Worker (the `.wasm` file is built by Microsoft from onnxruntime and its third-party sources, see the notes below) |
@@ -112,30 +112,36 @@ the small libraries behind the video and GIF export; the type declarations they 
 
 | Package | Range | Locked | Licence (SPDX) | Use |
 |---|---|---|---|---|
-| [`boto3`](https://github.com/boto/boto3) | `>=1.35` | 1.43.109 | Apache-2.0 | S3-compatible object storage client (used when `USE_S3` is set) |
-| [`brotli`](https://github.com/google/brotli) | `>=1.1` | 1.2.0 | MIT | Brotli codec that fontTools needs to read and write woff2 fonts |
+| [`boto3`](https://github.com/boto/boto3) | `>=1.35` | 1.43.125 | Apache-2.0 | S3-compatible object storage client (used when `USE_S3` is set) |
+| [`brotli`](https://github.com/google/brotli) | `>=1.1` | 1.2.1 | MIT | Brotli codec that fontTools needs to read and write woff2 fonts |
+| [`certifi`](https://github.com/certifi/python-certifi) | `>=2026.10.19` | 2026.10.23 | MPL-2.0 |  |
 | [`channels`](http://github.com/django/channels) | `>=4.2,<5` | 4.3.2 | BSD-3-Clause | ASGI and WebSocket layer of real-time co-editing |
 | [`channels_redis`](http://github.com/django/channels_redis/) | `>=4.2` | 4.3.0 | BSD-3-Clause | shared channel layer for several real-time workers (with `redis-py`, MIT) |
-| [`defusedxml`](https://github.com/tiran/defusedxml) | `>=0.7` | 0.7.1 | PSF-2.0 | safe XML parsing in the SVG sanitiser, element import and print layout |
-| [`Django`](https://github.com/django/django) | `>=5.2,<5.3` | 5.2.18 | BSD-3-Clause | web framework |
+| [`cryptography`](https://github.com/pyca/cryptography/) | `>=44` | 50.0.2 | Apache-2.0 OR BSD-3-Clause |  |
+| [`defusedxml`](https://github.com/tiran/defusedxml) | `>=0.7.1` | 0.7.1 | PSF-2.0 | safe XML parsing in the SVG sanitiser, element import and print layout |
+| [`Django`](https://github.com/django/django) | `>=6.1.2,<6.2` | 6.1.3 | BSD-3-Clause | web framework |
 | [`django-cors-headers`](https://github.com/adamchainz/django-cors-headers) | `>=4.7` | 4.9.0 | MIT | CORS headers |
 | [`django-environ`](https://github.com/joke2k/django-environ) | `>=0.12` | 0.14.0 | MIT | settings from environment variables |
 | [`django-filter`](https://github.com/carltongibson/django-filter) | `>=25.1` | 26.2 | BSD-3-Clause | API filtering |
 | [`django-storages`](https://github.com/jschneier/django-storages) | `>=1.14` | 1.14.6 | BSD-3-Clause | S3 storage backend |
-| [`django-unfold`](https://github.com/unfoldadmin/django-unfold) | `>=0.60` | 0.108.0 | MIT | theme of the Django admin used for content |
+| [`django-unfold`](https://github.com/unfoldadmin/django-unfold) | `>=0.60` | 0.110.1 | MIT | theme of the Django admin used for content |
 | [`djangorestframework`](https://github.com/encode/django-rest-framework) | `>=3.16` | 3.18.3 | BSD-3-Clause | HTTP API |
 | [`drf-spectacular`](https://github.com/tfranzel/drf-spectacular) | `>=0.28` | 0.30.0 | BSD-3-Clause | OpenAPI schema and the staff-only Swagger page |
-| [`fonttools`](http://github.com/fonttools/fonttools) | `>=4.50` | 4.66.1 | MIT | inspects uploaded and downloaded font files |
-| [`google-auth`](https://github.com/googleapis/google-cloud-python/tree/main/packages/google-auth) | `>=2.38` | 2.61.0 | Apache-2.0 | verifies Google sign-in tokens |
+| [`fonttools`](http://github.com/fonttools/fonttools) | `>=4.50` | 4.68.0 | MIT | inspects uploaded and downloaded font files |
+| [`google-auth`](https://github.com/googleapis/google-cloud-python/tree/main/packages/google-auth) | `>=2.62.0` | 2.62.1 | Apache-2.0 | verifies Google sign-in tokens |
 | [`gunicorn`](https://github.com/benoitc/gunicorn) | `>=23` | 26.2.0 | MIT | production WSGI server of the API |
-| [`pillow`](https://github.com/python-pillow/Pillow) | `>=13.0` | 13.0.0 | MIT-CMU | validates uploaded raster images, makes thumbnails and encodes server-side image exports (the wheel bundles libjpeg-turbo, libpng, zlib, FreeType, HarfBuzz, LittleCMS, OpenJPEG, libwebp, libavif, libtiff; their notices are in the wheel) |
-| [`playwright`](https://github.com/Microsoft/playwright-python) | `>=1.50` | 1.63.0 | Apache-2.0 | drives headless Chromium for server-side print PDF export. The wheel bundles Playwright's Node.js driver (MIT; its dependencies' notices are in `driver/package/ThirdPartyNotices.txt`); the browser itself is downloaded by `playwright install` only when `INSTALL_CHROMIUM=true`, see the decisions above |
-| [`psycopg2-binary`](https://psycopg.org/) | `>=2.9` | 2.9.13 | LGPL-3.0-or-later | PostgreSQL driver of Django (the wheel bundles libpq, PostgreSQL licence, and OpenSSL, Apache-2.0) |
-| [`pycrdt`](https://github.com/y-crdt/pycrdt) | `>=0.14,<0.15` | 0.14.8 | MIT | Yjs-compatible CRDT, bindings to the Rust `yrs` engine (real-time co-editing) |
-| [`pypdf`](https://github.com/py-pdf/pypdf) | `>=5` | 6.19.0 | BSD-3-Clause | writes the TrimBox/BleedBox, `/Lang` and `/Creator` of the PDF Chromium printed; page content is copied unchanged |
+| [`mcp`](https://github.com/modelcontextprotocol/python-sdk) | `>=2.3,<3` | 2.3.0 | MIT |  |
+| [`pillow`](https://github.com/python-pillow/Pillow) | `>=13.0` | 13.0.0 | MIT-CMU | validates uploaded raster images and makes thumbnails (the wheel bundles libjpeg-turbo, libpng, zlib, FreeType, HarfBuzz, LittleCMS, OpenJPEG, libwebp, libtiff; their notices are in the wheel) |
+| [`playwright`](https://github.com/Microsoft/playwright-python) | `>=1.50` | 1.64.1 | Apache-2.0 | drives headless Chromium for server-side print PDF export. The wheel bundles Playwright's Node.js driver (MIT; its dependencies' notices are in `driver/package/ThirdPartyNotices.txt`); the browser itself is downloaded by `playwright install` only when `INSTALL_CHROMIUM=true`, see the decisions above |
+| [`psycopg2-binary`](https://psycopg.org/) | `>=2.9.13` | 2.9.13 | LGPL-3.0-or-later | PostgreSQL driver of Django (the wheel bundles libpq, PostgreSQL licence, and OpenSSL, Apache-2.0) |
+| [`pycrdt`](https://github.com/y-crdt/pycrdt) | `>=0.14,<0.15` | 0.14.13 | MIT | Yjs-compatible CRDT, bindings to the Rust `yrs` engine (real-time co-editing) |
+| [`pydantic`](https://github.com/pydantic/pydantic) | `>=2.7,<3` | 2.14.3 | MIT |  |
+| [`PyJWT`](https://github.com/jpadilla/pyjwt) | `>=2.10.1` | 2.15.1 | MIT |  |
+| [`pypdf`](https://github.com/py-pdf/pypdf) | `>=5` | 6.21.4 | BSD-3-Clause | writes the TrimBox/BleedBox, `/Lang` and `/Creator` of the PDF Chromium printed; page content is copied unchanged |
 | [`requests`](https://github.com/psf/requests) | `>=2.32` | 2.34.2 | Apache-2.0 | outbound HTTP: font, element pack, model and audio pack downloads, stock photo search |
+| [`urllib3`](https://pypi.org/project/urllib3/) | `>=2.6,<3` | 2.8.0 | MIT |  |
 | [`uvicorn`](https://github.com/Kludex/uvicorn) | `>=0.30` | 0.54.0 | BSD-3-Clause | production ASGI server of the real-time service |
-| [`websockets`](https://github.com/python-websockets/websockets) | `>=13` | 17.2 | BSD-3-Clause | WebSocket protocol implementation used by uvicorn |
+| [`websockets`](https://github.com/python-websockets/websockets) | `>=17.2` | 17.4 | BSD-3-Clause | WebSocket protocol implementation used by uvicorn |
 | [`whitenoise`](https://github.com/evansd/whitenoise) | `>=6.9` | 6.12.0 | MIT | serves the admin's static files |
 
 #### Development and tests only: npm (`frontend/package.json` `devDependencies`, and `axe-core`, which `@axe-core/playwright` brings)
@@ -143,11 +149,10 @@ the small libraries behind the video and GIF export; the type declarations they 
 | Package | Range | Locked | Licence (SPDX) | Use |
 |---|---|---|---|---|
 | [`@axe-core/playwright`](https://github.com/dequelabs/axe-core-npm) | `^4.13.0` | 4.13.0 | MPL-2.0 | automated accessibility checks of every shell page in the end-to-end suite (`frontend/e2e/app/a11y.spec.ts`); never part of the app bundle |
-| [`@eslint/js`](https://github.com/eslint/eslint) | `^9.39.0` | 9.39.5 | MIT | lint rules |
-| [`@playwright/test`](https://github.com/microsoft/playwright) | `^1.50.0` | 1.63.0 | Apache-2.0 | end-to-end test runner |
+| [`@playwright/test`](https://github.com/microsoft/playwright) | `^1.64.1` | 1.64.1 | Apache-2.0 | end-to-end test runner |
 | [`@testing-library/jest-dom`](https://github.com/testing-library/jest-dom) | `^6.6.0` | 6.9.1 | MIT | unit-test matchers |
 | [`@testing-library/react`](https://github.com/testing-library/react-testing-library) | `^16.1.0` | 16.3.3 | MIT | unit-test helpers for React components |
-| [`@testing-library/user-event`](https://github.com/testing-library/user-event) | `^14.5.0` | 14.6.7 | MIT | unit-test user input |
+| [`@testing-library/user-event`](https://github.com/testing-library/user-event) | `^14.6.8` | 14.6.8 | MIT | unit-test user input |
 | [`@types/node`](https://github.com/DefinitelyTyped/DefinitelyTyped) | `^24.10.0` | 24.19.1 | MIT | type declarations |
 | [`@types/qrcode`](https://github.com/DefinitelyTyped/DefinitelyTyped) | `^1.5.6` | 1.5.6 | MIT | type declarations |
 | [`@types/react`](https://github.com/DefinitelyTyped/DefinitelyTyped) | `^19.2.0` | 19.3.0 | MIT | type declarations |
@@ -155,17 +160,15 @@ the small libraries behind the video and GIF export; the type declarations they 
 | [`@vitejs/plugin-react`](https://github.com/vitejs/vite-plugin-react) | `^5.1.0` | 5.2.0 | MIT | React support of the Vite build |
 | [`axe-core`](https://github.com/dequelabs/axe-core) | via a direct dependency | 4.13.0 | MPL-2.0 | the accessibility rule engine that `@axe-core/playwright` runs in the page under test; never part of the app bundle |
 | [`canvas`](https://github.com/Automattic/node-canvas) | `^3.2.3` | 3.2.3 | MIT | node-canvas for unit tests in jsdom |
-| [`eslint`](https://github.com/eslint/eslint) | `^9.39.0` | 9.39.5 | MIT | linter |
-| [`eslint-plugin-react-hooks`](https://github.com/facebook/react) | `^7.0.0` | 7.1.1 | MIT | lint rules |
-| [`eslint-plugin-react-refresh`](https://github.com/ArnaudBarre/eslint-plugin-react-refresh) | `^0.4.24` | 0.4.26 | MIT | lint rules |
 | [`fake-indexeddb`](https://github.com/dumbmatter/fakeIndexedDB) | `^6.2.5` | 6.2.5 | Apache-2.0 | IndexedDB for unit tests |
-| [`globals`](https://github.com/sindresorhus/globals) | `^16.5.0` | 16.5.0 | MIT | lint configuration |
 | [`jsdom`](https://github.com/jsdom/jsdom) | `^26.0.0` | 26.1.0 | MIT | DOM for unit tests |
 | [`msw`](https://github.com/mswjs/msw) | `^2.15.0` | 2.15.0 | MIT | HTTP mocking in unit tests |
+| [`oxfmt`](https://github.com/oxc-project/oxc) | `0.75.0` | 0.75.0 | MIT | frontend formatter |
+| [`oxlint`](https://github.com/oxc-project/oxc) | `1.90.0` | 1.90.0 | MIT | frontend linter |
 | [`typescript`](https://github.com/microsoft/TypeScript) | `~5.9.3` | 5.9.3 | Apache-2.0 | type checker and compiler |
-| [`typescript-eslint`](https://github.com/typescript-eslint/typescript-eslint) | `^8.48.0` | 8.71.0 | MIT | lint rules for TypeScript |
-| [`vite`](https://github.com/vitejs/vite) | `^7.3.0` | 7.3.6 | MIT | dev server and production bundler |
-| [`vitest`](https://github.com/vitest-dev/vitest) | `^3.2.0` | 3.2.7 | MIT | unit-test runner |
+| [`vite`](https://github.com/vitejs/vite) | `^8.3.4` | 8.3.4 | MIT | dev server and production bundler |
+| [`vite-node`](https://github.com/antfu-collective/vite-node) | `^6.0.0` | 6.0.0 | MIT |  |
+| [`vitest`](https://github.com/vitest-dev/vitest) | `^5.0.4` | 5.0.4 | MIT | unit-test runner |
 
 #### Development and tests only: Python (`backend/requirements-dev.txt`)
 
@@ -173,10 +176,11 @@ the small libraries behind the video and GIF export; the type declarations they 
 |---|---|---|---|---|
 | [`daphne`](https://github.com/django/daphne) | `>=4.1` | 4.2.3 | BSD-3-Clause | ASGI development server (not installed in the production image) |
 | [`factory_boy`](https://github.com/FactoryBoy/factory_boy) | `>=3.3` | 3.3.3 | MIT | test data factories |
-| [`hypothesis`](https://github.com/HypothesisWorks/hypothesis) | `>=6.100` | 6.168.5 | MPL-2.0 | property-based tests; never installed in the production image or redistributed with the product |
-| [`pytest`](https://github.com/pytest-dev/pytest) | `>=8` | 9.1.1 | MIT | test runner |
+| [`httpx`](https://github.com/encode/httpx) | `>=0.27` | 0.28.1 | BSD-3-Clause |  |
+| [`hypothesis`](https://github.com/HypothesisWorks/hypothesis) | `>=6.100` | 6.170.14 | MPL-2.0 | property-based tests; never installed in the production image or redistributed with the product |
+| [`pytest`](https://github.com/pytest-dev/pytest) | `>=8` | 9.2.0 | MIT | test runner |
 | [`pytest-django`](https://github.com/pytest-dev/pytest-django) | `>=4.9` | 4.14.0 | BSD-3-Clause | Django integration of pytest |
-| [`ruff`](https://github.com/astral-sh/ruff) | `>=0.8` | 0.16.10 | MIT | linter and formatter |
+| [`ruff`](https://github.com/astral-sh/ruff) | `>=0.8` | 0.17.4 | MIT | linter and formatter |
 
 <!-- END direct-dependencies -->
 

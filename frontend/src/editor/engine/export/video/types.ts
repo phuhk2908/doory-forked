@@ -34,7 +34,10 @@ export interface VideoProgress {
 
 /** Something the person should know about the file they get. */
 export type VideoWarning =
-  "video-fallback" | "audio-fallback" | "no-audio" | "real-time";
+  | "video-fallback"
+  | "audio-fallback"
+  | "no-audio"
+  | "real-time";
 
 export interface VideoResult {
   blob: Blob;

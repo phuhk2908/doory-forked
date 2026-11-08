@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { type KeyboardEvent, useCallback } from "react";
 import { useEditorState } from "../context";
 import { type PanelDefinition } from "../panels/registry";
 import { useVisiblePanels } from "../panels/useVisiblePanels";
@@ -10,10 +10,12 @@ function RailEntry({
   panel,
   open,
   onToggle,
+  onKeyDown,
 }: {
   panel: PanelDefinition;
   open: boolean;
   onToggle: () => void;
+  onKeyDown: (event: KeyboardEvent<HTMLButtonElement>) => void;
 }) {
   const chrome = useChrome();
   const ref = useCallback(
@@ -33,6 +35,7 @@ function RailEntry({
       data-tool={panel.id}
       onPointerEnter={panel.preload}
       onFocus={panel.preload}
+      onKeyDown={onKeyDown}
       onClick={(e) => {
         chrome.setKeyboardOpen(e.detail === 0);
         onToggle();
@@ -65,12 +68,26 @@ export function ToolRail({ edge }: { edge: "side" | "bottom" }) {
       aria-label={t.chrome.tools}
       data-testid="ed-tool-rail"
     >
-      {tools.map((p) => (
+      {tools.map((p, index) => (
         <RailEntry
           key={p.id}
           panel={p}
           open={openId === p.id}
           onToggle={() => toggle(p.id)}
+          onKeyDown={(event) => {
+            const next =
+              event.key === "ArrowRight" || event.key === "ArrowDown"
+                ? 1
+                : event.key === "ArrowLeft" || event.key === "ArrowUp"
+                  ? -1
+                  : 0;
+            if (next === 0) return;
+            event.preventDefault();
+            const entries = event.currentTarget
+              .closest<HTMLElement>('[data-testid="ed-tool-rail"]')
+              ?.querySelectorAll<HTMLButtonElement>("button");
+            entries?.[(index + next + tools.length) % tools.length]?.focus();
+          }}
         />
       ))}
     </nav>

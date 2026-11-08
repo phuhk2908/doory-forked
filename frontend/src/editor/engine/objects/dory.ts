@@ -25,7 +25,12 @@ export interface QrSpec {
 }
 
 export type ShapeKind =
-  "rect" | "ellipse" | "triangle" | "polygon" | "star" | "path";
+  | "rect"
+  | "ellipse"
+  | "triangle"
+  | "polygon"
+  | "star"
+  | "path";
 
 export interface DoryProps {
   id?: string;

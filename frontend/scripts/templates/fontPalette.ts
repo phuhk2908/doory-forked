@@ -6,7 +6,11 @@
  * downloads by default (and a family that only has one weight is used at that weight, never faux-bolded).
  */
 export type FontCategory =
-  "sans-serif" | "serif" | "display" | "handwriting" | "monospace";
+  | "sans-serif"
+  | "serif"
+  | "display"
+  | "handwriting"
+  | "monospace";
 
 export interface FontPick {
   /** Family name exactly as the catalog lists it. */

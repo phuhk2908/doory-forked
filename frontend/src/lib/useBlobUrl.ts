@@ -7,7 +7,6 @@ export function useBlobUrl(blob: Blob | null | undefined): string | null {
     if (!blob) return undefined;
     const created = URL.createObjectURL(blob);
     // Object URLs are an external, revocable resource: they can only be created inside an effect.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setUrl(created);
     return () => {
       URL.revokeObjectURL(created);

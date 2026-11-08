@@ -41,11 +41,21 @@ export function SidebarHost() {
   const id = panel?.id;
   useEffect(() => {
     if (!id || !chrome.isKeyboardOpen()) return;
-    ref.current
-      ?.querySelector<HTMLElement>(
+    const focusFirst = (): boolean => {
+      const target = ref.current?.querySelector<HTMLElement>(
         'input, button:not([data-close]), [tabindex="0"]',
-      )
-      ?.focus({ preventScroll: true });
+      );
+      if (!target) return false;
+      target.focus({ preventScroll: true });
+      return true;
+    };
+    if (focusFirst()) return;
+    const observer = new MutationObserver(() => {
+      if (focusFirst()) observer.disconnect();
+    });
+    if (ref.current)
+      observer.observe(ref.current, { childList: true, subtree: true });
+    return () => observer.disconnect();
   }, [id, chrome]);
   if (!panel || compact) return null;
   const Body = panel.component;

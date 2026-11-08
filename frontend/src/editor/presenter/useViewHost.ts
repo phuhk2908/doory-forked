@@ -106,31 +106,52 @@ export function useViewHost(options: ViewHostOptions): ViewHost {
   const [connected, setConnected] = useState(false);
   const supported = createChannel !== undefined || canLink();
   const linkRef = useRef<PresenterLink | null>(null);
+  const readyRef = useRef(false);
 
   useEffect(() => {
     const opened = openLink(session, "show", createChannel);
     linkRef.current = opened;
     if (!opened) return;
+    let viewReady = false;
+    const sendInit = (): void => {
+      const o = latest.current;
+      opened.send({
+        kind: "init",
+        title: o.title.slice(0, 300) || t.untitled,
+        theme: currentTheme(),
+        pages: previewsRef.current,
+        state: o.state,
+      });
+    };
+    const markReady = (): void => {
+      viewReady = true;
+      readyRef.current = true;
+      setConnected(true);
+    };
     const off = opened.subscribe((message) => {
       const o = latest.current;
       switch (message.kind) {
         case "hello":
-          setConnected(true);
-          opened.send({
-            kind: "init",
-            title: o.title.slice(0, 300) || t.untitled,
-            theme: currentTheme(),
-            pages: previewsRef.current,
-            state: o.state,
-          });
+          markReady();
+          sendInit();
           break;
         case "command": {
+          // An init retry can reach the view before its hello reaches this listener. A command proves that the view
+          // is alive, so it must also promote the link to ready before the resulting state change is broadcast.
+          if (!viewReady) {
+            markReady();
+            sendInit();
+          }
           const action = actionOf(message.command);
           if (action === "exit") o.onExit();
           else o.dispatch(action);
           break;
         }
         case "need-frame":
+          if (!viewReady) {
+            markReady();
+            sendInit();
+          }
           void sendFrame(
             opened,
             o.previews,
@@ -139,17 +160,25 @@ export function useViewHost(options: ViewHostOptions): ViewHost {
           );
           break;
         case "bye":
+          readyRef.current = false;
+          viewReady = false;
           setConnected(false);
           break;
         default:
           break;
       }
     });
+    // A view can open before this effect subscribes; keep the handshake recoverable until it says hello.
+    const initRetry = window.setInterval(() => {
+      if (!viewReady) sendInit();
+    }, 1000);
     // A closed tab never unmounts: tell the view then too.
     const leave = (): void => opened.send({ kind: "bye" });
     window.addEventListener("pagehide", leave);
     return () => {
       window.removeEventListener("pagehide", leave);
+      window.clearInterval(initRetry);
+      readyRef.current = false;
       leave();
       off();
       opened.close();
@@ -160,18 +189,17 @@ export function useViewHost(options: ViewHostOptions): ViewHost {
   // The state goes out when something other than a clock changed, and again every second while a view is listening.
   const { index, ended, autoAdvance, paused, loop, blackout } = options.state;
   useEffect(() => {
-    if (connected)
+    if (readyRef.current) {
       linkRef.current?.send({ kind: "state", state: latest.current.state });
-  }, [connected, index, ended, autoAdvance, paused, loop, blackout, latest]);
+    }
+  }, [index, ended, autoAdvance, paused, loop, blackout, latest]);
   useEffect(() => {
-    if (!connected) return;
-    const timer = window.setInterval(
-      () =>
-        linkRef.current?.send({ kind: "state", state: latest.current.state }),
-      HEARTBEAT_MS,
-    );
+    const timer = window.setInterval(() => {
+      if (readyRef.current)
+        linkRef.current?.send({ kind: "state", state: latest.current.state });
+    }, HEARTBEAT_MS);
     return () => window.clearInterval(timer);
-  }, [connected, latest]);
+  }, [latest]);
 
   return { supported, connected };
 }

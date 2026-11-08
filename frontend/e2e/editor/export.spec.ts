@@ -23,6 +23,13 @@ async function download(
   return { file, bytes: await readFile(path) };
 }
 
+async function openMoreSettings(page: Page): Promise<void> {
+  await page
+    .getByRole("dialog", { name: "Download" })
+    .getByRole("button", { name: /More settings/ })
+    .click();
+}
+
 test.describe("[engine] export", () => {
   test("PNG at 2x has the right pixel size and real content", async ({
     page,
@@ -31,8 +38,9 @@ test.describe("[engine] export", () => {
     const { file, bytes } = await download(page, "PNG", async () => {
       await page
         .getByRole("dialog", { name: "Download" })
-        .getByRole("radio", { name: "2×" })
-        .check();
+        .getByRole("button", { name: "2x", exact: true })
+        .click();
+      await openMoreSettings(page);
       await page
         .getByRole("dialog", { name: "Download" })
         .getByRole("radio", { name: "Current page" })
@@ -56,6 +64,7 @@ test.describe("[engine] export", () => {
   }) => {
     await openEditor(page, "doc=demo");
     const jpg = await download(page, "JPG", async () => {
+      await openMoreSettings(page);
       await page
         .getByRole("dialog", { name: "Download" })
         .getByRole("radio", { name: "Current page" })
@@ -64,6 +73,7 @@ test.describe("[engine] export", () => {
     expect([...jpg.bytes.subarray(0, 3)]).toEqual([0xff, 0xd8, 0xff]);
 
     const svg = await download(page, "SVG", async () => {
+      await openMoreSettings(page);
       await page
         .getByRole("dialog", { name: "Download" })
         .getByRole("radio", { name: "Current page" })
@@ -76,6 +86,7 @@ test.describe("[engine] export", () => {
     expect(text).not.toMatch(/href="(?:blob|idb):/);
 
     const pdf = await download(page, "PDF", async () => {
+      await openMoreSettings(page);
       await page
         .getByRole("dialog", { name: "Download" })
         .getByRole("radio", { name: "Current page" })
@@ -98,6 +109,7 @@ test.describe("[engine] export", () => {
     await openDownloadDialog(page);
     const dialog = page.getByRole("dialog", { name: "Download" });
     await dialog.getByRole("radio", { name: /^PNG/ }).check();
+    await dialog.getByRole("button", { name: /More settings/ }).click();
     await dialog.getByRole("radio", { name: "Select pages" }).check();
     await dialog.getByRole("textbox", { name: "Select pages" }).fill("9");
     await expect(dialog.getByRole("alert")).toContainText("Enter page numbers");
@@ -107,7 +119,7 @@ test.describe("[engine] export", () => {
     await dialog.getByRole("textbox", { name: "Select pages" }).fill("1, 3");
     const names: string[] = [];
     page.on("download", (d) => names.push(d.suggestedFilename()));
-    await dialog.getByRole("button", { name: "Download", exact: true }).click();
+    await dialog.getByRole("button", { name: /^Download/ }).click();
     await expect.poll(() => names.length, { timeout: 15_000 }).toBe(1);
     expect(names[0]).toMatch(/\.zip$/);
   });

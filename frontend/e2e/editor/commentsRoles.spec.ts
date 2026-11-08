@@ -190,18 +190,15 @@ test.describe("[layout] a visitor who is not signed in", () => {
 });
 
 test.describe("[layout] guests and view-only links", () => {
-  test("a guest design offers the sign-up gate and no pins or comment mode", async ({
+  test("a guest design offers no comments until it is moved to an account", async ({
     page,
   }) => {
     await openEditor(page, "mode=guest&doc=demo");
-    await page.getByTestId("ed-end-comments").click();
-    await expect(page.getByTestId("comments-gate")).toBeVisible();
+    await expect(page.getByTestId("ed-end-comments")).toHaveCount(0);
+    await page.keyboard.press("Shift+C");
     await expect(surfaces(page)).toHaveCount(0);
     await expect(pins(page)).toHaveCount(0);
-    await page.getByTestId("comments-signup").click();
-    await expect
-      .poll(() => page.evaluate(() => window.__doory!.accountRequests))
-      .toContain("comment");
+    await expect(page.getByTestId("comments-panel")).toHaveCount(0);
   });
 
   test("a view-only link has no comments at all", async ({ page }) => {

@@ -8,13 +8,13 @@ The guest room MVP is live. The next work is split by room safety first, then ed
 2. [x] Revoke and rotate links. Rotation invalidates the previous edit and view capabilities while leaving the owner capability intact.
 3. [x] Create a view-only link. The view capability can load the board and receive updates, but the server rejects document writes and the editor disables editing.
 4. [x] Keep room ownership separate from share links. The owner capability is returned once at creation and stored in the browser session; it is never placed in a share URL.
-5. [x] Expire and clean up rooms. New rooms expire after \`DRAWING_ROOM_TTL_DAYS\` (30 days by default). \`collab_maintenance\` deletes expired rows.
+5. [x] Expire and clean up rooms. New rooms expire after `DRAWING_ROOM_TTL_DAYS` (30 days by default). `collab_maintenance` deletes expired rows.
 
 ## P1: editor and collaboration quality
 
-1. [x] Add fast keyboard actions: tool keys (\`V\`, \`H\`, \`R\`, \`O\`, \`D\`, \`L\`, \`A\`, \`P\`, \`T\`, \`N\`, \`E\`), undo/redo, save, delete, nudge, duplicate, grouping, zoom, and fit-to-content.
-2. [x] Hold \`Space\` to pan. The canvas shows a grab cursor, temporarily pans with the pointer, and restores the selected tool after release.
-3. [x] Use a non-passive native wheel listener. \`Ctrl\`/\`Command\` + wheel zooms the board without browser zoom; plain wheel pans the board.
+1. [x] Add fast keyboard actions: tool keys (`V`, `H`, `R`, `O`, `D`, `L`, `A`, `P`, `T`, `N`, `E`), undo/redo, save, delete, nudge, duplicate, grouping, zoom, and fit-to-content.
+2. [x] Hold `Space` to pan. The canvas shows a grab cursor, temporarily pans with the pointer, and restores the selected tool after release.
+3. [x] Use a non-passive native wheel listener. `Ctrl`/`Command` + wheel zooms the board without browser zoom; plain wheel pans the board.
 4. [x] Relay volatile cursor and selection presence separately from the document. Presence is throttled at 33ms, bounded, and never persisted.
 5. [x] Show collaborator presence in the room: peer count, remote cursors, and selection outlines with reconnect-safe cleanup.
 6. [x] Add a share dialog with edit and view-only links, copy actions, link rotation, and end-room control for the owner.
@@ -42,25 +42,26 @@ The guest room MVP is live. The next work is split by room safety first, then ed
 
 ## P2: performance and scale
 
-13. [ ] Benchmark collaboration at 2, 5, 20, and the maximum expected collaborator count. Capture update latency p50/p95, message count/bytes, render time, reconnect time, and fan-out behavior.
-14. [ ] Reduce realtime payload size by moving from full snapshots to element-level deltas. Send only new or version-changed elements and use periodic full snapshots for resync.
-15. [ ] Evaluate Yjs/CRDT only if version-based merging is not sufficient, with special attention to text editing and concurrent changes. Record the decision and the measurements behind it.
-16. [ ] Optimize persistence: debounce durable saves instead of writing every snapshot, and keep a recovery snapshot that can be applied after reconnect.
+- [ ] **P2.13** Benchmark collaboration at 2, 5, 20, and the maximum expected collaborator count. Capture update latency p50/p95, message count/bytes, render time, reconnect time, and fan-out behavior.
+- [ ] **P2.14** Reduce realtime payload size by moving from full snapshots to element-level deltas. Send only new or version-changed elements and use periodic full snapshots for resync.
+- [ ] **P2.15** Evaluate Yjs/CRDT only if version-based merging is not sufficient, with special attention to text editing and concurrent changes. Record the decision and the measurements behind it.
+- [ ] **P2.16** Optimize persistence: debounce durable saves instead of writing every snapshot, and keep a recovery snapshot that can be applied after reconnect.
 
 ## P2: security and operations
 
-17. [x] Add guest-room-specific rate limits for room creation, joins, updates, and fan-out, plus a configurable maximum collaborator count per room.
-18. [ ] Add moderation and abuse controls: detect or block room spam, let admins inspect/delete rooms, and retain a basic room activity audit.
-19. [x] Add observability for active rooms/connections, update latency, payload size, reconnect rate, and dropped or invalid updates.
+- [x] **P2.17** Add guest-room-specific rate limits for room creation, joins, updates, and fan-out, plus a configurable maximum collaborator count per room.
+- [ ] **P2.18** Add moderation and abuse controls: detect or block room spam, let admins inspect/delete rooms, and retain a basic room activity audit.
+- [x] **P2.19** Add observability for active rooms/connections, update latency, payload size, reconnect rate, and dropped or invalid updates.
 
 ## P2: MCP and automation
 
-20. [ ] Add dedicated MCP scopes and tools/resources for account-owned whiteboards: list, read, create, rename, edit,
-    trash and restore where the REST domain supports the operation.
-21. [ ] Define an account-bound room-management model before exposing guest-room creation, close or link rotation to
+- [ ] **P2.20** Implement the [account-owned whiteboard MCP interface](mcp-whiteboards.md): dedicated scopes and
+    tools/resources for list, read, create, rename, edit and trash; add restore only when the REST domain supports it.
+- [ ] **P2.21** Define an account-bound room-management model before exposing guest-room creation, close or link rotation to
     MCP. Never use edit, view or owner link keys as MCP credentials.
-22. [ ] Route MCP whiteboard edits through the drawing service and realtime broadcast path, with revision/conflict
-    handling and tool tests; do not let MCP write raw snapshots directly to the database.
+- [ ] **P2.22** Implement the drawing-service mutation seam and post-commit realtime event described in
+    [the MCP interface](mcp-whiteboards.md), with revision/conflict handling and tool tests; do not let MCP write raw
+    snapshots directly to the database.
 
 ## Later, after P2
 
@@ -76,4 +77,3 @@ These items are recorded separately from the completed P1 scope because they wer
 - **Full frontend unit-suite verification is still pending.** Vitest under Node.js 22 progressed through the suite but did not produce a summary within a 360-second timeout; the focused builder/realtime set passes 42/42.
 - **P2.13 benchmark matrix is still open.** The existing 50-client stress test passes in about 17 seconds, but it does not yet record the requested 2/5/20/max matrix with p50/p95 latency, render/reconnect time, and message-byte/fan-out reports.
 - **Optional MCP proxy has a runtime DNS warning.** The web container logs `doory-mcp could not be resolved`; API, web, realtime, and `/api/v1/health/` remain healthy. MCP-specific checks should be run after the optional `doory-mcp` service/network is available.
-- **Existing frontend lint warnings remain.** ESLint reports 29 `react-refresh/only-export-components` warnings in `frontend/src/app/routes.tsx`; there are no new lint errors from P1.

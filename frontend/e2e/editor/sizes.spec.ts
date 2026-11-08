@@ -361,12 +361,12 @@ test.describe("[engine] pages of different sizes", () => {
     await openDownloadDialog(page);
     const dialog = page.getByRole("dialog", { name: "Download" });
     await dialog.getByRole("radio", { name: /^PNG/ }).check();
-    await dialog.getByRole("radio", { name: "2×" }).check();
+    await dialog.getByRole("button", { name: "2x", exact: true }).click();
     await expect(dialog.getByTestId("download-size")).toHaveText(
       "Each page is exported at its own size.",
     );
     const pending = page.waitForEvent("download", { timeout: 60_000 });
-    await dialog.getByRole("button", { name: "Download", exact: true }).click();
+    await dialog.getByRole("button", { name: /^Download/ }).click();
     const file = await pending;
     expect(file.suggestedFilename()).toMatch(/\.zip$/);
     const entries = unzipSync(

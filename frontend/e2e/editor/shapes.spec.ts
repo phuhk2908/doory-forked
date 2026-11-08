@@ -115,7 +115,10 @@ test.describe("[layout] shapes and elements", () => {
   }) => {
     await openEditor(page, "doc=blank");
     await openTool(page, "elements");
-    const sun = page.getByRole("button", { name: "Add Sun", exact: true });
+    const sun = page.getByRole("button", {
+      name: "Add Sun from Starter pack",
+      exact: true,
+    });
     await expect(sun).toBeVisible();
     await sun.click();
     await waitForObjectCount(page, 1);
@@ -138,10 +141,16 @@ test.describe("[layout] shapes and elements", () => {
     await openTool(page, "elements");
     await page.getByPlaceholder("Search stickers").fill("coffee");
     await expect(
-      page.getByRole("button", { name: "Add Coffee", exact: true }),
+      page.getByRole("button", {
+        name: "Add Coffee from Starter pack",
+        exact: true,
+      }),
     ).toBeVisible();
     await expect(
-      page.getByRole("button", { name: "Add Sun", exact: true }),
+      page.getByRole("button", {
+        name: "Add Sun from Starter pack",
+        exact: true,
+      }),
     ).toHaveCount(0);
     await page.getByPlaceholder("Search stickers").fill("zzzzqq");
     await expect(page.getByText(/No stickers match/)).toBeVisible();

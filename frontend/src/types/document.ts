@@ -180,7 +180,12 @@ export interface DocTextFit {
  * ---------------------------------------------------------------------------------------------- */
 
 export type AnimEasing =
-  "linear" | "ease-in" | "ease-out" | "ease-in-out" | "spring" | "bounce";
+  | "linear"
+  | "ease-in"
+  | "ease-out"
+  | "ease-in-out"
+  | "spring"
+  | "bounce";
 
 /** `left`/`right`/`up`/`down`: the side the object comes in from (or leaves towards); `in`/`out`: zoom in or out. */
 export type AnimDirection = "left" | "right" | "up" | "down" | "in" | "out";

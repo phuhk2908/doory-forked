@@ -88,10 +88,11 @@ An MCP personal access token is not a guest-room key. MCP clients must not be gi
 cannot currently join, edit, close or rotate an anonymous room. Account-owned whiteboards also remain UI/REST-only
 until dedicated MCP scopes and tools are added.
 
-The planned integration is intentionally separate from the existing design tools: add scoped read/write tools and
-resources for account-owned whiteboards, route edits through the drawing service so revision checks and realtime
-broadcasts remain intact, and define an account-bound room-management model before exposing create/close/rotate
-actions. Guest room bearer keys should never be treated as an MCP authentication mechanism.
+The planned integration is intentionally separate from the existing design tools. The proposed account-owned
+whiteboard interface, scopes, resource URI, tools, revision rules and test gates are defined in
+[the development contract](../development/mcp-whiteboards.md). It routes edits through the drawing service and a
+post-commit realtime event; it does not expose guest-room creation, close or rotate actions until an account-bound
+room-management model exists. Guest room bearer keys should never be treated as an MCP authentication mechanism.
 
 Some actions are protected:
 

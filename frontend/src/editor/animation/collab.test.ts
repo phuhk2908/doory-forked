@@ -82,7 +82,8 @@ const animationOf = (
   id: string,
 ): ObjectAnimation | undefined =>
   engine.state.doc.pages[0].objects.find((o) => o.id === id)?.animation as
-    ObjectAnimation | undefined;
+    | ObjectAnimation
+    | undefined;
 
 describe("animation in a live room", () => {
   let restore: () => void;

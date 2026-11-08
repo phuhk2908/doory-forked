@@ -114,7 +114,8 @@ test.describe("[layout] text", () => {
         async () =>
           (
             (await pageObjects(page))[0].effects as
-              { shadow?: unknown } | undefined
+              | { shadow?: unknown }
+              | undefined
           )?.shadow,
       )
       .toBeTruthy();

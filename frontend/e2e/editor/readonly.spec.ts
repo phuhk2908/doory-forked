@@ -25,7 +25,7 @@ test.describe("[engine] read-only modes", () => {
       await expect(page.getByTestId(`ed-add-entry-${id}`)).toHaveCount(0);
     await expect(page.getByTestId("ed-add-entry-layers")).toBeVisible();
     await expect(page.getByTestId("ed-end-comments")).toHaveCount(0);
-    await expect(page.getByTestId("ed-share")).toHaveCount(0);
+    await expect(page.getByTestId("ed-share")).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Add page", exact: true }),
     ).toHaveCount(0);

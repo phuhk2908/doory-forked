@@ -307,7 +307,9 @@ function applyDesignFilters(state: MockState, url: URL): MockDesign[] {
   else if (folder) list = list.filter((design) => design.folder === folder);
   const desc = ordering.startsWith("-");
   const key = ordering.replace("-", "") as
-    "updated_at" | "created_at" | "title";
+    | "updated_at"
+    | "created_at"
+    | "title";
   list = [...list].sort(
     (a, b) =>
       (a[key] < b[key] ? -1 : a[key] > b[key] ? 1 : 0) * (desc ? -1 : 1),

@@ -196,6 +196,7 @@ export const PageSlot = memo(function PageSlot({
         style={{ width, height, background: backgroundCss(page) }}
         data-artboard
         data-page-id={page.id}
+        onPointerDown={() => editor.onPointerActivate(page.id)}
       >
         {snapshot && (!live || loading) ? (
           <img

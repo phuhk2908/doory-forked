@@ -1,11 +1,14 @@
 from datetime import timedelta
 
+import pytest
+from django.test import override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.accounts.models import User
 from apps.drawings import services
-from apps.drawings.models import DrawingRoom
+from apps.drawings.models import Drawing, DrawingRoom
+from apps.drawings.validators import InvalidDrawing
 
 
 def drawing_document():
@@ -66,6 +69,44 @@ def test_owner_can_create_update_with_revision_and_list(db):
     assert listed.status_code == 200
     assert listed.data["count"] == 1
     assert listed.data["results"][0]["id"] == drawing_id
+
+
+def test_service_uses_the_configured_document_limit(db):
+    user = User.objects.create_user("limit@example.com", "password-123456")
+    drawing = services.create_drawing(user, title="Board", document=drawing_document())
+    oversized = {**drawing_document(), "customData": "x" * 200}
+
+    with override_settings(MAX_DRAWING_DOCUMENT_BYTES=100), pytest.raises(InvalidDrawing, match="too large"):
+        services.update_drawing(
+            drawing.pk,
+            user,
+            {"document": oversized, "base_revision": drawing.revision},
+        )
+    with override_settings(MAX_DRAWING_DOCUMENT_BYTES=100), pytest.raises(InvalidDrawing, match="too large"):
+        services.create_drawing_room(title="Room", document=oversized)
+
+    saved = Drawing.objects.get(pk=drawing.pk)
+    assert saved.revision == 1 and saved.document == drawing_document()
+
+
+def test_service_publishes_document_updates_after_commit(transactional_db, monkeypatch):
+    user = User.objects.create_user("events@example.com", "password-123456")
+    drawing = services.create_drawing(user, title="Board", document=drawing_document())
+    published = []
+    monkeypatch.setattr(
+        services,
+        "publish_drawing_update",
+        lambda drawing_id, document, revision: published.append((drawing_id, document, revision)),
+    )
+    document = {**drawing_document(), "background": "#eeeeee"}
+
+    updated = services.update_drawing(
+        drawing.pk,
+        user,
+        {"document": document, "base_revision": drawing.revision},
+    )
+
+    assert published == [(drawing.pk, document, updated.revision)]
 
 
 def test_drawings_are_private_and_invalid_documents_are_rejected(db):

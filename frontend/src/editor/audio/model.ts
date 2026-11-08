@@ -77,7 +77,7 @@ export function isKind(value: unknown): value is AudioTrackKind {
 /** Text without control characters, cut to `limit` UTF-16 units (never in the middle of a surrogate pair). */
 export function cleanText(value: string, limit: number): string {
   const text = value
-    // eslint-disable-next-line no-control-regex
+    // oxlint-disable-next-line no-control-regex
     .replace(/[\u0000-\u001f\u007f]/g, " ")
     .replace(/\s+/g, " ")
     .trim();

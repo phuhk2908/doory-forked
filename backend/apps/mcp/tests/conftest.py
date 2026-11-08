@@ -26,7 +26,7 @@ def _clean_cache():
     cache.clear()
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture
 def keep_the_test_connection() -> Iterator[None]:
     """MCP tools close obsolete connections in production, but not the test transaction's shared connection."""
     from apps.mcp import registry
@@ -59,7 +59,7 @@ def issued(user):
 
 
 @pytest.fixture
-def as_caller(issued):
+def as_caller(issued, keep_the_test_connection):
     """Run tool functions directly, as the holder of `issued`."""
     bound = context.bind(context.Caller(issued.token.owner, issued.token))
     yield issued

@@ -7,6 +7,7 @@ import { expect, test } from "@playwright/test";
 import {
   addShape,
   addText,
+  click,
   getDoc,
   openEditor,
   openTool,
@@ -125,6 +126,8 @@ test.describe("[layout] brand", () => {
 
     // Nothing selected: the brand colour paints the page.
     await page.keyboard.press("Escape");
+    await click(page, 60, 60);
+    await openTool(page, "brand");
     await page.getByTestId("brand-color").click();
     await expect
       .poll(async () => (await getDoc(page)).pages[0].background)
@@ -222,9 +225,9 @@ test.describe("[layout] text, shapes and background extras", () => {
       .toMatchObject({ type: "image", fit: "tile" });
     await page.keyboard.press("Escape");
     await toolbarOf(page).getByTestId("ed-page-bg").click();
-    await page.getByRole("button", { name: "Use #1c1517" }).first().click();
+    await page.getByRole("button", { name: "Use #2b1c17" }).first().click();
     await expect
       .poll(async () => (await getDoc(page)).pages[0].background)
-      .toMatchObject({ type: "solid", color: "#1c1517" });
+      .toMatchObject({ type: "solid", color: "#2b1c17" });
   });
 });

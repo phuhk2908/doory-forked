@@ -76,13 +76,13 @@
 
   /* Typography */
   --font-sans:
-    'Nunito Variable', 'Nunito', system-ui, -apple-system, 'Segoe UI', Roboto,
-    'Helvetica Neue', Arial, sans-serif;
+    "Nunito Variable", "Nunito", system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
   --font-display:
-    'Fraunces Variable', 'Fraunces', Georgia, 'Times New Roman', serif;
+    "Fraunces Variable", "Fraunces", Georgia, "Times New Roman", serif;
   --font-hand:
-    'Caveat Variable', 'Caveat', 'Segoe Print', 'Bradley Hand', cursive;
-  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    "Caveat Variable", "Caveat", "Segoe Print", "Bradley Hand", cursive;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --text-xs: 0.75rem;
   --text-sm: 0.8125rem;
   --text-base: 0.9375rem;

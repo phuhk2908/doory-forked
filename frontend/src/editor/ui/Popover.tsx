@@ -155,8 +155,14 @@ export function Popover({
   }, [anchorRef, placement, gap]);
 
   useLayoutEffect(() => {
-    if (open) reposition();
-  }, [open, reposition, children]);
+    if (!open) return;
+    const panel = panelRef.current;
+    if (!panel) return;
+    reposition();
+    const observer = new ResizeObserver(reposition);
+    observer.observe(panel);
+    return () => observer.disconnect();
+  }, [open, reposition]);
 
   useEffect(() => {
     if (!open || !focusOnOpen) return;

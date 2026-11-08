@@ -169,12 +169,16 @@ export function PresenterView({ session, createChannel }: PresenterViewProps) {
       }
       const action = actionForKey(e);
       if (!action || phase !== "live") return;
-      if (
-        isActivationKey(e.key) &&
-        e.target instanceof Element &&
-        e.target.closest("button, a, input, textarea, select")
-      )
-        return;
+      if (isActivationKey(e.key) && e.target instanceof Element) {
+        const control = e.target.closest("button, a, input, textarea, select");
+        // A disabled button can retain focus after Home/End. It cannot consume Space, so the presenter shortcut
+        // must still advance the show.
+        if (
+          control &&
+          !(control instanceof HTMLButtonElement && control.disabled)
+        )
+          return;
+      }
       const command = {
         next: "next",
         prev: "prev",

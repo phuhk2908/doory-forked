@@ -59,9 +59,6 @@ export class DrawingRealtime {
   private pingTimer: ReturnType<typeof setInterval> | null = null;
   private attempt = 0;
   private stopped = true;
-  private pending: { document: DrawingDocument; revision: number } | null =
-    null;
-
   constructor(
     private readonly url: string,
     private readonly callbacks: DrawingRealtimeCallbacks,
@@ -85,11 +82,6 @@ export class DrawingRealtime {
     this.setStatus("offline");
   }
 
-  publish(document: DrawingDocument, revision: number): void {
-    this.pending = { document, revision };
-    this.flushPending();
-  }
-
   private connect(): void {
     if (this.stopped || this.socket) return;
     this.setStatus("connecting");
@@ -107,7 +99,6 @@ export class DrawingRealtime {
       this.setStatus("live");
       this.startPing();
       this.send({ type: "hello" });
-      this.flushPending();
     };
     socket.onmessage = (event) => {
       if (this.socket !== socket) return;
@@ -169,17 +160,6 @@ export class DrawingRealtime {
     this.socket.send(JSON.stringify(message));
   }
 
-  private flushPending(): void {
-    if (!this.pending || this.socket?.readyState !== OPEN) return;
-    const pending = this.pending;
-    this.pending = null;
-    this.send({
-      type: "publish",
-      document: pending.document,
-      revision: pending.revision,
-    });
-  }
-
   private scheduleRetry(): void {
     if (this.stopped || this.retryTimer) return;
     const delay = Math.min(RETRY_MAX_MS, RETRY_BASE_MS * 2 ** this.attempt);
@@ -224,9 +204,7 @@ export function useDrawingRealtime({
   onDocument: (document: DrawingDocument, revision: number) => void;
   onConflict: (document: DrawingDocument | null, revision: number) => void;
   onPresence: (count: number) => void;
-}): DrawingRealtimeState & {
-  publish(document: DrawingDocument, revision: number): void;
-} {
+}): DrawingRealtimeState {
   const latestCallbacks = useLatest({ onDocument, onConflict, onPresence });
   const realtimeRef = useRef<DrawingRealtime | null>(null);
   const [state, setState] = useState<DrawingRealtimeState>({
@@ -270,7 +248,5 @@ export function useDrawingRealtime({
 
   return {
     ...state,
-    publish: (document, revision) =>
-      realtimeRef.current?.publish(document, revision),
   };
 }

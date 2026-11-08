@@ -232,6 +232,7 @@ test.describe("[layout] pages of different sizes", () => {
     await openEditor(page, "mode=account&doc=blank&w=1080&h=1080");
     await openComments(page);
     await placeComment(page, 900, 900, "Far corner", 0);
+    await page.getByTestId("comment-mode-done").click();
     // Make the (only) page small: the pin must not hang outside it.
     await page.getByTestId("ed-canvas-size").click();
     const pop = page.getByTestId("ed-canvas-size-pop");

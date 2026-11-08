@@ -159,7 +159,8 @@ async function readStored(key: string): Promise<Peaks | undefined> {
         .get(key);
       request.onsuccess = () => {
         const v = request.result as
-          { values?: Float32Array; durationMs?: number } | undefined;
+          | { values?: Float32Array; durationMs?: number }
+          | undefined;
         resolve(
           v?.values instanceof Float32Array && typeof v.durationMs === "number"
             ? { values: v.values, durationMs: v.durationMs }

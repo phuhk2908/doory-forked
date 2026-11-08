@@ -17,6 +17,7 @@ test.describe("[layout] share", () => {
   }) => {
     await openEditor(page, "doc=blank&mode=account");
     await page.getByTestId("ed-share").click();
+    await page.getByRole("menuitem", { name: "Share with people" }).click();
     const dialog = page.getByRole("dialog", { name: "Share design" });
     await expect(dialog).toBeVisible();
     await expect(dialog.getByText("No links yet")).toBeVisible();
@@ -60,6 +61,7 @@ test.describe("[layout] share", () => {
   test("guests are asked to sign up before sharing", async ({ page }) => {
     await openEditor(page, "doc=blank");
     await page.getByTestId("ed-share").click();
+    await page.getByRole("menuitem", { name: "Share with people" }).click();
     await expect
       .poll(() => page.evaluate(() => window.__doory!.accountRequests))
       .toContain("share");

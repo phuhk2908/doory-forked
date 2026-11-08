@@ -1,0 +1,25 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["eslint", "oxc", "react", "typescript"],
+  "rules": {
+    "eslint/no-unsafe-optional-chaining": "off",
+    "oxc/double-comparisons": "off",
+    "react/refs": "off",
+    "react/set-state-in-effect": "off",
+    "typescript/no-unused-vars": [
+      "error",
+      { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }
+    ]
+  },
+  "overrides": [
+    {
+      "files": ["src/app/routes.tsx", "src/app/lazyPages.tsx"],
+      "rules": { "react/only-export-components": "error" }
+    }
+  ],
+  "options": {
+    "denyWarnings": true,
+    "reportUnusedDisableDirectives": "error",
+    "respectEslintDisableDirectives": true
+  }
+}

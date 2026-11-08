@@ -4,7 +4,14 @@
  * them have unit tests (`src/editor/animation`).
  */
 import { expect, test, type Page } from "@playwright/test";
-import { addShape, getDoc, openEditor, openTool, pageObjects } from "./helpers";
+import {
+  addShape,
+  getDoc,
+  moreMenu,
+  openEditor,
+  openTool,
+  pageObjects,
+} from "./helpers";
 
 interface AnimatedObject {
   id: string;
@@ -22,8 +29,11 @@ const timeline = (page: Page) => page.getByTestId("ed-timeline");
 const preview = (page: Page) => page.getByTestId("ed-preview");
 
 async function openTimeline(page: Page): Promise<void> {
-  if (!(await timeline(page).isVisible()))
-    await page.getByTestId("ed-timeline-toggle").click();
+  if (!(await timeline(page).isVisible())) {
+    const toggle = page.getByTestId("ed-timeline-toggle");
+    if (await toggle.isVisible()) await toggle.click();
+    else await moreMenu(page, /timeline/i);
+  }
   await expect(timeline(page)).toBeVisible();
 }
 
@@ -232,8 +242,7 @@ test.describe("[layout] timeline", () => {
     await expect(timeline(page)).toBeVisible();
     await page.getByTestId("tl-close").click();
     await expect(timeline(page)).toBeHidden();
-    await page.getByTestId("ed-more").click();
-    await page.getByRole("menuitemcheckbox", { name: /timeline/i }).click();
+    await moreMenu(page, /timeline/i);
     await expect(timeline(page)).toBeVisible();
   });
 
@@ -315,7 +324,11 @@ test.describe("[layout] timeline", () => {
     expect(bg[0]).toBeGreaterThan(240);
     expect(bg[1]).toBeGreaterThan(200);
     // Later it is in place: the dark star.
-    await page.mouse.click(box.x + box.width * 0.5, box.y + 10);
+    const middle = (await ruler.boundingBox())!;
+    await page.mouse.click(
+      middle.x + middle.width * 0.5,
+      middle.y + middle.height * 0.5,
+    );
     await expect
       .poll(async () => (await previewPixel(page, 250, 560))[1], {
         timeout: 5000,
@@ -342,16 +355,25 @@ test.describe("[layout] timeline", () => {
     )!;
     const bar = page.getByTestId(`tl-bar-${heading.id}-enter`);
     const original = JSON.stringify(heading.animation);
+    await expect(bar).toBeVisible();
+    await bar.hover();
     const box = (await bar.boundingBox())!;
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await page.mouse.down();
     await page.mouse.move(box.x + box.width / 2 + 70, box.y + box.height / 2, {
       steps: 8,
     });
     await page.mouse.up();
+    await expect
+      .poll(
+        async () =>
+          (
+            (await objects(page)).find((o) => o.id === heading.id)!.animation!
+              .enter as { delayMs: number }
+          ).delayMs,
+      )
+      .toBeGreaterThan(300);
     const moved = (await objects(page)).find((o) => o.id === heading.id)!
       .animation!.enter as { delayMs: number; durationMs: number };
-    expect(moved.delayMs).toBeGreaterThan(300);
     expect(moved.delayMs % 100).toBe(0);
     expect(moved.durationMs).toBe(900);
     await expect(page.getByTestId(`tl-lane-${heading.id}`)).toHaveAttribute(
@@ -360,13 +382,22 @@ test.describe("[layout] timeline", () => {
     );
 
     const edge = bar.locator('[data-edge="end"]');
+    await edge.hover();
     const e = (await edge.boundingBox())!;
-    await page.mouse.move(e.x + e.width / 2, e.y + e.height / 2);
     await page.mouse.down();
     await page.mouse.move(e.x + e.width / 2 + 60, e.y + e.height / 2, {
       steps: 6,
     });
     await page.mouse.up();
+    await expect
+      .poll(
+        async () =>
+          (
+            (await objects(page)).find((o) => o.id === heading.id)!.animation!
+              .enter as { durationMs: number }
+          ).durationMs,
+      )
+      .toBeGreaterThan(900);
     const longer = (await objects(page)).find((o) => o.id === heading.id)!
       .animation!.enter as { delayMs: number; durationMs: number };
     expect(longer.delayMs).toBe(moved.delayMs);

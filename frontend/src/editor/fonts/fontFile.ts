@@ -35,7 +35,11 @@ export interface FontFileInfo {
 }
 
 export type FontFileProblem =
-  "empty" | "too-large" | "unsupported" | "collection" | "corrupt";
+  | "empty"
+  | "too-large"
+  | "unsupported"
+  | "collection"
+  | "corrupt";
 
 export class FontFileError extends Error {
   readonly problem: FontFileProblem;

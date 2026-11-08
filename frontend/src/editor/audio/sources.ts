@@ -13,7 +13,12 @@ export const DECODE_RATE = 48000;
 export const MEMORY_BUDGET_BYTES = 190 * 1024 * 1024;
 
 export type LoadFailure =
-  "network" | "missing" | "decode" | "unsupported" | "too-long" | "blocked";
+  | "network"
+  | "missing"
+  | "decode"
+  | "unsupported"
+  | "too-long"
+  | "blocked";
 
 /** A file that could not be fetched or decoded; `code` says why and `message` is fit for the person. */
 export class AudioLoadError extends Error {

@@ -53,16 +53,16 @@ test.describe("[layout] chrome", () => {
       .poll(async () => String((await pageObjects(page))[0].fill))
       .toMatch(/^#ff8800(40)?$/);
     await page.getByRole("button", { name: "Back to colors" }).click();
-    await page.getByRole("button", { name: "Use #1c1517" }).first().click();
+    await page.getByRole("button", { name: "Use #2b1c17" }).first().click();
     await expect
       .poll(async () => (await pageObjects(page))[0].fill)
-      .toBe("#1c1517");
+      .toBe("#2b1c17");
     // The popover stays open after a swatch, so the custom view is one click away.
     await page.getByTestId("ed-fill-custom").click();
     await page.getByRole("textbox", { name: "Alpha" }).fill("50");
     await expect
       .poll(async () => String((await pageObjects(page))[0].fill))
-      .toMatch(/rgba\(28, ?21, ?23, ?0\.5\)|#1c151780/);
+      .toMatch(/rgba\(43, ?28, ?23, ?0\.5\)|#2b1c1780/);
   });
 
   test("tools stay open while the canvas is used, switch directly and close from inside", async ({
@@ -110,10 +110,10 @@ test.describe("[layout] keyboard and focus", () => {
   }) => {
     await openEditor(page, "doc=blank&mode=account");
     const text = page.getByTestId("ed-add-entry-text");
-    const sticker = page.getByTestId("ed-add-entry-elements");
+    const shapes = page.getByTestId("ed-add-entry-shapes");
     await text.focus();
     await page.keyboard.press("ArrowRight");
-    await expect(sticker).toBeFocused();
+    await expect(shapes).toBeFocused();
     await page.keyboard.press("ArrowLeft");
     await expect(text).toBeFocused();
     await page.keyboard.press("Enter");
@@ -132,6 +132,7 @@ test.describe("[layout] keyboard and focus", () => {
     const share = page.getByTestId("ed-share");
     await share.focus();
     await page.keyboard.press("Enter");
+    await page.getByRole("menuitem", { name: "Share with people" }).click();
     const dialog = page.getByRole("dialog", { name: "Share design" });
     await expect(dialog).toBeVisible();
     for (let i = 0; i < 12; i++) {
@@ -163,9 +164,11 @@ test.describe("[layout] keyboard and focus", () => {
     page,
   }) => {
     await openEditor(page, "doc=blank&mode=account");
-    const more = page.getByTestId("ed-more");
+    const more = page
+      .getByTestId("ed-more")
+      .or(page.getByRole("button", { name: "File", exact: true }));
     await more.click();
-    const menu = page.getByRole("menu", { name: "More" });
+    const menu = page.getByRole("menu").last();
     await expect(menu).toBeVisible();
     await expect(menu.getByRole("menuitem").first()).toBeFocused();
     await page.keyboard.press("ArrowDown");
@@ -184,7 +187,10 @@ test.describe("[layout] keyboard and focus", () => {
     page,
   }) => {
     await openEditor(page, "doc=blank");
-    await page.getByTestId("ed-more").click();
+    await page
+      .getByTestId("ed-more")
+      .or(page.getByRole("button", { name: "File", exact: true }))
+      .click();
     await expect(
       page.getByRole("menuitem", { name: "Reset design" }),
     ).toBeDisabled();

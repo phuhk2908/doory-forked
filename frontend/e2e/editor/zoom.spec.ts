@@ -101,6 +101,11 @@ test.describe("[layout] zoom and pan", () => {
       y: el.scrollTop,
     }));
     const start = await toClient(page, 540, 540);
+    // The zoom menu restores focus to its trigger for keyboard accessibility. Blur it so Space belongs to the
+    // workspace's temporary hand tool in this pointer-gesture test.
+    await page.evaluate(() =>
+      (document.activeElement as HTMLElement | null)?.blur(),
+    );
     await page.keyboard.down("Space");
     await page.mouse.move(start.x, start.y);
     await page.mouse.down();

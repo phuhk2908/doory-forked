@@ -284,8 +284,10 @@ Every edit records a version before the change, subject to the version interval 
 The `drawings` app is deliberately outside this MCP registry for now. Its account-owned whiteboards have a separate
 REST document and revision model, while guest rooms authenticate with edit/view/owner capability keys rather than a
 user identity. An MCP personal access token therefore cannot join or manage a guest room, and room keys must not be
-passed as tool arguments. A future whiteboard integration needs dedicated token scopes, account-owned resources,
-and a service seam that applies revisions and broadcasts changes instead of writing raw snapshots directly.
+passed as tool arguments. The proposed account-owned interface is documented in
+[mcp-whiteboards.md](mcp-whiteboards.md): it adds dedicated scopes, a snapshot resource and a small set of tools
+behind one drawing-service mutation seam. The seam must apply revisions and publish one post-commit event for
+realtime clients; it must not write raw snapshots directly or open a guest-room WebSocket.
 
 MCP is disabled by default. Docker requires both `MCP_ENABLED=true` and the `mcp` Compose profile. It authenticates
 with personal tokens rather than OAuth, and the nginx route deliberately returns 404 for OAuth discovery paths.

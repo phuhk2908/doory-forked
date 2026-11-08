@@ -11,7 +11,12 @@
  */
 
 export type RecorderFailure =
-  "denied" | "blocked" | "no-device" | "busy" | "unsupported" | "failed";
+  | "denied"
+  | "blocked"
+  | "no-device"
+  | "busy"
+  | "unsupported"
+  | "failed";
 
 export type RecorderState =
   | { status: "idle" }

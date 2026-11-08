@@ -26,6 +26,7 @@ export default defineConfig({
     url: `http://localhost:${PORT}/editor-harness.html`,
     reuseExistingServer: true,
     timeout: 60_000,
+    env: { VITE_E2E: "true" },
   },
   projects: [
     {

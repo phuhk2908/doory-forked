@@ -42,7 +42,9 @@ test("sign up creates an account and lands on the dashboard; logout returns home
   ).toHaveAttribute("aria-valuenow", "4");
   await page.getByRole("button", { name: "Create free account" }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
-  await expect(page.getByRole("heading", { level: 1 })).toContainText("Grace");
+  await expect(
+    page.getByRole("button", { name: "Account menu for Grace Hopper" }),
+  ).toBeVisible();
   await expect(page.getByText("Verify your email.")).toBeVisible();
   await page.getByRole("button", { name: /Account menu for/ }).click();
   await page.getByRole("menuitem", { name: "Sign out" }).click();

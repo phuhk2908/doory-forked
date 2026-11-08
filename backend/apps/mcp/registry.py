@@ -30,6 +30,7 @@ from rest_framework.exceptions import ValidationError as DrfValidationError
 
 from apps.designs.doc.ops import EditError
 from apps.designs.exceptions import RevisionConflict
+from apps.drawings.exceptions import RevisionConflict as DrawingRevisionConflict
 
 from . import context
 from .models import CallWindow
@@ -75,6 +76,11 @@ def explain(exc: Exception) -> str | None:
         return (
             f"The design changed since the revision you sent; it is now at revision {exc.revision}. "
             "Read it again with get_design and retry."
+        )
+    if isinstance(exc, DrawingRevisionConflict):
+        return (
+            f"The whiteboard changed since the revision you sent; it is now at revision {exc.revision}. "
+            "Read it again with get_drawing and retry."
         )
     if isinstance(exc, EditError):
         return f"{exc} Nothing was changed."

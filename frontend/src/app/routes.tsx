@@ -1,47 +1,42 @@
-import { lazy, Suspense } from "react";
+import { Suspense } from "react";
 import { Navigate, type RouteObject } from "react-router-dom";
 import { RequireAuth } from "@/features/auth/RequireAuth";
 import { PageLoader } from "./PageLoader";
 import { RouteErrorPage } from "./RouteErrorPage";
 import { AuthLayout } from "./layouts/AuthLayout";
+import {
+  BrandPage,
+  ContactPage,
+  CreateDrawingPage,
+  CreatePage,
+  DashboardHomePage,
+  DashboardLayout,
+  DashboardTemplatesPage,
+  DesignEditorPage,
+  DesignsPage,
+  DrawingPage,
+  DrawingRoomPage,
+  DrawingsPage,
+  FaqPage,
+  FeaturesPage,
+  ForgotPasswordPage,
+  LandingPage,
+  LocalDrawingPage,
+  LocalEditorPage,
+  LoginPage,
+  NotFoundPage,
+  ResetPasswordPage,
+  SettingsPage,
+  SharedDesignPage,
+  SignupPage,
+  TemplateDetailPage,
+  TemplatesPage,
+  TrashPage,
+  UploadsPage,
+  VerifyEmailPage,
+} from "./lazyPages";
 import { MarketingLayout } from "./layouts/MarketingLayout";
 import { RootLayout } from "./layouts/RootLayout";
-
-const LandingPage = lazy(() => import("@/pages/LandingPage"));
-const TemplatesPage = lazy(() => import("@/pages/TemplatesPage"));
-const FeaturesPage = lazy(() => import("@/pages/FeaturesPage"));
-const FaqPage = lazy(() => import("@/pages/FaqPage"));
-const ContactPage = lazy(() => import("@/pages/ContactPage"));
-const TemplateDetailPage = lazy(() => import("@/pages/TemplateDetailPage"));
-const LoginPage = lazy(() => import("@/pages/auth/LoginPage"));
-const SignupPage = lazy(() => import("@/pages/auth/SignupPage"));
-const ForgotPasswordPage = lazy(
-  () => import("@/pages/auth/ForgotPasswordPage"),
-);
-const ResetPasswordPage = lazy(() => import("@/pages/auth/ResetPasswordPage"));
-const VerifyEmailPage = lazy(() => import("@/pages/auth/VerifyEmailPage"));
-const CreatePage = lazy(() => import("@/pages/CreatePage"));
-const LocalEditorPage = lazy(() => import("@/pages/LocalEditorPage"));
-const DesignEditorPage = lazy(() => import("@/pages/DesignEditorPage"));
-const CreateDrawingPage = lazy(() => import("@/pages/CreateDrawingPage"));
-const LocalDrawingPage = lazy(() => import("@/pages/LocalDrawingPage"));
-const DrawingRoomPage = lazy(() => import("@/pages/DrawingRoomPage"));
-const DrawingPage = lazy(() => import("@/pages/DrawingPage"));
-const SharedDesignPage = lazy(() => import("@/pages/SharedDesignPage"));
-const NotFoundPage = lazy(() => import("@/pages/NotFoundPage"));
-const DashboardLayout = lazy(
-  () => import("@/features/dashboard/DashboardLayout"),
-);
-const DashboardHomePage = lazy(() => import("@/pages/dashboard/HomePage"));
-const DesignsPage = lazy(() => import("@/pages/dashboard/DesignsPage"));
-const DrawingsPage = lazy(() => import("@/pages/dashboard/DrawingsPage"));
-const DashboardTemplatesPage = lazy(
-  () => import("@/pages/dashboard/TemplatesPage"),
-);
-const BrandPage = lazy(() => import("@/pages/dashboard/BrandPage"));
-const UploadsPage = lazy(() => import("@/pages/dashboard/UploadsPage"));
-const TrashPage = lazy(() => import("@/pages/dashboard/TrashPage"));
-const SettingsPage = lazy(() => import("@/pages/dashboard/SettingsPage"));
 
 const page = (element: React.ReactNode) => (
   <Suspense fallback={<PageLoader />}>{element}</Suspense>

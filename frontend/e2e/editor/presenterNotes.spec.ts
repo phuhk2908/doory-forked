@@ -47,7 +47,10 @@ test.describe("[layout] speaker notes", () => {
     await expect(bar(page)).toBeHidden();
     await moreMenu(page, /^Notes/);
     await expect(bar(page)).toBeVisible();
-    await page.getByTestId("ed-more").click();
+    const menu = page
+      .getByTestId("ed-more")
+      .or(page.getByRole("button", { name: "View", exact: true }));
+    await menu.click();
     await expect(
       page.getByRole("menuitemcheckbox", { name: /^Notes/ }),
     ).toHaveAttribute("aria-checked", "true");
@@ -187,10 +190,9 @@ test.describe("[layout] notes download", () => {
     page,
   }) => {
     await openDeck(page);
-    await page.getByTestId("ed-more").click();
     const [download] = await Promise.all([
       page.waitForEvent("download"),
-      page.getByRole("menuitem", { name: "Download notes (Markdown)" }).click(),
+      moreMenu(page, "Download notes (Markdown)"),
     ]);
     expect(download.suggestedFilename()).toBe("untitled-design-notes.md");
     const path = await download.path();
@@ -218,12 +220,9 @@ test.describe("[layout] notes download", () => {
 
   test("plain text uses underlined headings", async ({ page }) => {
     await openDeck(page);
-    await page.getByTestId("ed-more").click();
     const [download] = await Promise.all([
       page.waitForEvent("download"),
-      page
-        .getByRole("menuitem", { name: "Download notes (plain text)" })
-        .click(),
+      moreMenu(page, "Download notes (plain text)"),
     ]);
     expect(download.suggestedFilename()).toBe("untitled-design-notes.txt");
     const text = readFileSync(await download.path(), "utf8");
@@ -238,19 +237,15 @@ test.describe("[layout] notes download", () => {
     page,
   }) => {
     await openEditor(page, "doc=blank");
-    await page.getByTestId("ed-more").click();
-    await page
-      .getByRole("menuitem", { name: "Download notes (Markdown)" })
-      .click();
+    await moreMenu(page, "Download notes (Markdown)");
     await expect(page.getByText("No page has notes yet.")).toBeVisible();
   });
 
   test("view-only links can download the notes", async ({ page }) => {
     await openDeck(page, "mode=shared-view");
-    await page.getByTestId("ed-more").click();
     const [download] = await Promise.all([
       page.waitForEvent("download"),
-      page.getByRole("menuitem", { name: "Download notes (Markdown)" }).click(),
+      moreMenu(page, "Download notes (Markdown)"),
     ]);
     expect(download.suggestedFilename()).toMatch(/-notes\.md$/);
   });

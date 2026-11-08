@@ -64,7 +64,8 @@ const animationOf = (
   id: string,
 ): ObjectAnimation | undefined =>
   objectsOf(engine).find((o) => o.id === id)?.animation as
-    ObjectAnimation | undefined;
+    | ObjectAnimation
+    | undefined;
 
 const animated = () => [
   rectObject("a", 100, 100, {

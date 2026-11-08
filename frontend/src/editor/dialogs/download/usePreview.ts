@@ -163,7 +163,7 @@ export function usePreview({
       clearTimeout(timer);
     };
     // `size` is read through its width and height.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [engine, page, size.width, size.height, scale, output, transparent]);
 
   const {
@@ -320,7 +320,7 @@ export function usePreview({
       controller.abort();
     };
     // `options` is read through the fields listed.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [
     drawn,
     engine,

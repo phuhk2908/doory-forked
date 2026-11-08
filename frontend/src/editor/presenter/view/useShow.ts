@@ -147,11 +147,9 @@ export function useShow(
     };
   }, [session, createChannel, initial]);
 
-  const send = useCallback(
-    (command: ViewCommand) =>
-      linkRef.current?.send({ kind: "command", command }),
-    [],
-  );
+  const send = useCallback((command: ViewCommand) => {
+    linkRef.current?.send({ kind: "command", command });
+  }, []);
   const request = useCallback(
     (pageId: string, width: number) => {
       const key = `${pageId}@${width}`;

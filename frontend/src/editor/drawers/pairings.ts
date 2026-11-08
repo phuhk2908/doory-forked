@@ -10,7 +10,12 @@ interface Face {
 }
 
 export type PairingId =
-  "classic" | "modern" | "editorial" | "playful" | "poster" | "elegant";
+  | "classic"
+  | "modern"
+  | "editorial"
+  | "playful"
+  | "poster"
+  | "elegant";
 
 /** A heading face and a body face that look good together (visible names are in `strings.ts`). Families come from the font catalog; a missing one falls back to its generic family. */
 export interface Pairing {

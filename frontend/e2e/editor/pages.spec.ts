@@ -95,10 +95,10 @@ test.describe("[layout] pages", () => {
       .last()
       .click();
     await openTool(page, "background");
-    await page.getByRole("button", { name: "Set background #e11d48" }).click();
+    await page.getByRole("button", { name: "Set background #ef4444" }).click();
     await expect
       .poll(async () => (await getDoc(page)).pages[1].background)
-      .toMatchObject({ type: "solid", color: "#e11d48" });
+      .toMatchObject({ type: "solid", color: "#ef4444" });
     await page.getByRole("button", { name: "Sunset gradient" }).click();
     await expect
       .poll(async () => (await getDoc(page)).pages[1].background.type)

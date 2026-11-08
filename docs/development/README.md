@@ -23,10 +23,9 @@ To reuse an existing virtualenv: `make <target> PY=/path/to/venv/bin/python`.
 The local settings are in `backend/.env`, created from [`backend/.env.example`](../../backend/.env.example).
 Every setting is described in [configuration.md](../self-hosting/configuration.md).
 
-`make check` reports `exports.W002` when the host does not have mozjpeg (`cjpeg`) and oxipng. That is expected for
-the lightweight local setup: the built-in optimizer is left out. The Docker image installs both by default through
-`INSTALL_IMAGE_OPTIMIZERS=true`; install those two programs locally only when you need to exercise image
-optimization outside Docker.
+The local `backend/.env.example` leaves the optional built-in image optimizer off because the lightweight setup does
+not install mozjpeg (`cjpeg`) and oxipng. Set `IMAGE_OPTIMIZERS=builtin` only when both programs are on `PATH`.
+The Docker image installs them by default through `INSTALL_IMAGE_OPTIMIZERS=true`.
 
 ## Make targets
 
@@ -40,8 +39,8 @@ optimization outside Docker.
 | `make content` | Install the first-run content (templates, elements, fonts, model, audio); downloads, takes minutes |
 | `make seed ADMIN_PASSWORD=…` | `content`, plus an admin account (`ADMIN_EMAIL`, default `admin@doory.local`) |
 | `make test` | Backend and frontend unit tests ([testing.md](testing.md)) |
-| `make lint` | Ruff, TypeScript, ESLint and `docs-check` |
-| `make fmt` | Format the backend code |
+| `make lint` | Ruff, Oxlint, Oxfmt, TypeScript and `docs-check` |
+| `make fmt` | Format the backend and frontend code |
 | `make docs-check` | Check that every setting is documented in configuration.md |
 | `make docker-up`, `make docker-down` | Start and stop the full Docker stack |
 
@@ -58,6 +57,7 @@ Then set `DATABASE_URL` (and `REDIS_URL`) in `backend/.env`.
 
 - [architecture.md](architecture.md): how the code is organised
 - [architecture-deep-dive.md](architecture-deep-dive.md): runtime flows, persistence and service boundaries
+- [mcp-whiteboards.md](mcp-whiteboards.md): proposed account-owned whiteboard MCP interface and implementation seam
 - [whiteboard-roadmap.md](whiteboard-roadmap.md): completed guest-room/editor scope and remaining scale work
 - [excalidraw-guest-collaboration.md](excalidraw-guest-collaboration.md): collaboration and URL design research
 - [testing.md](testing.md): unit and end-to-end tests

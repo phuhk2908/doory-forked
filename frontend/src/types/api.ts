@@ -228,7 +228,12 @@ export interface DrawingPatchInput {
   base_revision?: number;
 }
 export type BulkAction =
-  "trash" | "restore" | "delete" | "star" | "unstar" | "move";
+  | "trash"
+  | "restore"
+  | "delete"
+  | "star"
+  | "unstar"
+  | "move";
 
 export interface VersionSummary {
   id: string;
@@ -499,7 +504,13 @@ export interface TemplateQuery {
 }
 
 export type ElementKind =
-  "shape" | "line" | "icon" | "sticker" | "illustration" | "frame" | "graphic";
+  | "shape"
+  | "line"
+  | "icon"
+  | "sticker"
+  | "illustration"
+  | "frame"
+  | "graphic";
 /** How an icon is drawn; blank where the distinction does not apply (shapes, charts, …). */
 export type ElementStyle = "" | "outline" | "filled" | "duotone" | "colour";
 export interface ElementPack {
@@ -550,7 +561,11 @@ export interface ElementQuery {
 }
 
 export type FontCategory =
-  "sans-serif" | "serif" | "display" | "handwriting" | "monospace";
+  | "sans-serif"
+  | "serif"
+  | "display"
+  | "handwriting"
+  | "monospace";
 export interface FontVariant {
   weight: number;
   style: "normal" | "italic";
@@ -741,7 +756,11 @@ export interface ApiTokenScope {
 
 /** The API styles a provider can speak (see the backend's `apps.ai.styles`). */
 export type AiProviderStyle =
-  "doory" | "multipart" | "json" | "mask" | "custom";
+  | "doory"
+  | "multipart"
+  | "json"
+  | "mask"
+  | "custom";
 
 /** A model a user's provider offers for a task, as they picked and labelled it. */
 export interface AiProviderModel {

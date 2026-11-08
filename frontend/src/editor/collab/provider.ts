@@ -468,7 +468,8 @@ export class CollabProvider {
   private onReady(frame: Record<string, unknown>): void {
     const role = typeof frame.role === "string" ? (frame.role as Role) : null;
     const user = frame.user as
-      { id?: unknown; name?: unknown; avatar_url?: unknown } | undefined;
+      | { id?: unknown; name?: unknown; avatar_url?: unknown }
+      | undefined;
     const limits = frame.limits as { maxFrameBytes?: unknown } | undefined;
     if (frame.canWrite === true && this.state.unsentChanges) {
       // The right to edit came back to a window that still shows changes the server refused: they must not reach the design

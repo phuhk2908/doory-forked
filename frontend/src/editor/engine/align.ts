@@ -12,7 +12,12 @@ import {
 } from "./geometry";
 
 export type AlignEdge =
-  "left" | "center" | "right" | "top" | "middle" | "bottom";
+  | "left"
+  | "center"
+  | "right"
+  | "top"
+  | "middle"
+  | "bottom";
 export type DistributeAxis = "horizontal" | "vertical";
 
 export interface Item {

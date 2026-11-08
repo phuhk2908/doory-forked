@@ -271,7 +271,7 @@ export function PresenterMotionStage({
       cache.peek(motion.page, pixelWidth)?.setMediaClock(false, 1);
     };
     // `css` and `size` describe the box this run draws into; they are read at the time the page is ready.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [cache, plan, doc, index, pixelWidth, settled, dpr, loop, attempt]);
 
   const ready = readyIndex === index;

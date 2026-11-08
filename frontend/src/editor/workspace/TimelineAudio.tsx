@@ -289,7 +289,12 @@ export function AudioSection({
         grabMs: pointerMs - edge,
         startMs: item.startMs,
         fullEndMs: item.fullEndMs,
-        targets: [0, item.scopeEndMs, playback.state.timeMs, ...others],
+        targets: [
+          0,
+          item.scopeEndMs,
+          ...(playback.state.active ? [playback.state.timeMs] : []),
+          ...others,
+        ],
       };
       editor.sealHistory();
       bar.setPointerCapture?.(e.pointerId);

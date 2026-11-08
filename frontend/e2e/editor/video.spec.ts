@@ -62,6 +62,25 @@ async function canEncode(page: Page, codec: string): Promise<boolean> {
   }, codec);
 }
 
+async function canEncodeAac(page: Page): Promise<boolean> {
+  return page.evaluate(async () => {
+    try {
+      return (
+        (
+          await AudioEncoder.isConfigSupported({
+            codec: "mp4a.40.2",
+            sampleRate: 48000,
+            numberOfChannels: 2,
+            bitrate: 128000,
+          })
+        ).supported === true
+      );
+    } catch {
+      return false;
+    }
+  });
+}
+
 test.describe("video export", () => {
   test("WebM: the deck with a sound becomes a video of the right length and size, with the push and the sound where they belong", async ({
     page,
@@ -141,6 +160,7 @@ test.describe("video export", () => {
     await chooseOption(page, "Size", "480p");
     await chooseOption(page, "Frame rate", "24 fps");
     const h264 = await canEncode(page, "avc1.640028");
+    const aac = await canEncodeAac(page);
     if (!h264)
       await expect(page.getByTestId("video-notes")).toContainText(
         "This browser has no H.264 encoder",
@@ -168,7 +188,7 @@ test.describe("video export", () => {
     });
     expect(video.sampleEntry).toBe(h264 ? "avc1" : "vp09");
     expect(audio.handler).toBe("soun");
-    expect(audio.sampleEntry).toBe(h264 ? "mp4a" : "Opus");
+    expect(audio.sampleEntry).toBe(aac ? "mp4a" : "Opus");
     expect(Math.abs(video.durationMs - TOTAL_MS)).toBeLessThan(5);
     expect(Math.abs(info.durationMs - TOTAL_MS)).toBeLessThan(60);
 
@@ -326,6 +346,7 @@ test.describe("video export", () => {
     await openVideoDialog(page, "GIF");
     await chooseOption(page, "Size", "240p");
     await chooseOption(page, "Frame rate", "10 fps");
+    await page.getByRole("button", { name: "More settings" }).click();
     await page
       .getByRole("dialog")
       .getByRole("radio", { name: "Select pages" })

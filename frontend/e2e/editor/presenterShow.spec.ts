@@ -63,7 +63,7 @@ test.describe("[layout] present: opening and leaving", () => {
     await expect(overlay(page)).toHaveAttribute("aria-modal", "true");
     await page.keyboard.press("Escape");
     await expect(overlay(page)).toBeHidden();
-    await moreMenu(page, /^Present$/);
+    await moreMenu(page, /^Present full screen$/);
     await expect(overlay(page)).toBeVisible();
     await page.getByTestId("present-exit").click();
     await expect(overlay(page)).toBeHidden();
@@ -481,7 +481,8 @@ test.describe("[layout] present: auto-advance on a fake clock", () => {
     await setAllTimes(page, seconds);
     await present(page);
     // From here on time only moves when the test says so.
-    await page.clock.pauseAt(Date.now() + 200);
+    const clockNow = await page.evaluate(() => Date.now());
+    await page.clock.pauseAt(clockNow + 200);
   }
 
   test("a timed design starts with auto-advance on and moves on after each page time", async ({
@@ -569,7 +570,8 @@ test.describe("[layout] present: auto-advance on a fake clock", () => {
       "aria-pressed",
       "true",
     );
-    await page.clock.runFor(3500);
+    // Advance in page-sized steps so the fake clock gives React a turn between timer batches.
+    for (let i = 0; i < 3; i++) await page.clock.runFor(1100);
     await expect(page.getByTestId("present-end")).toHaveCount(0);
     await expect(counter(page)).toHaveText("1 / 3");
   });

@@ -128,7 +128,7 @@ export function DownloadDialog({
   const formats = allFormats.filter((f) => !f.available || f.available(editor));
   const doc = useEditorState((s) => s.doc);
   const catalogue = useSizePresets();
-  const preset = useMemo(() => designPreset(editor), [editor, catalogue, doc]); // eslint-disable-line react-hooks/exhaustive-deps
+  const preset = useMemo(() => designPreset(editor), [editor, catalogue, doc]); // oxlint-disable-line react-hooks/exhaustive-deps
   const purposes = useMemo(() => purposesFor(editor, preset), [editor, preset]);
   // `openDialog('download', { format: 'mp4' })` starts on that format (the Share menu's "Video").
   const [start] = useState(() =>
