@@ -36,8 +36,9 @@ snapshot through the shared `CollabInstance` heartbeat; stale worker snapshots d
 window.
 
 Room lifecycle and update activity is retained in the `DrawingRoomEvent` audit table without storing room keys,
-documents, or raw client IP addresses. Staff can inspect the events in Django admin and close selected rooms with the
-room action; automatic spam detection and retention policies still need a separate operations pass.
+documents, or raw client IP addresses. Staff can inspect, close, or delete selected rooms in Django admin; the
+creation throttle and shared-cache room budgets are the baseline spam controls. Content-based spam scoring and a
+configurable audit-retention policy are intentionally left for a later operations pass.
 
 ## Turn it on or off
 

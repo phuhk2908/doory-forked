@@ -62,7 +62,9 @@ The guest room MVP is live. The next work is split by room safety first, then ed
 ## P2: security and operations
 
 - [x] **P2.17** Add guest-room-specific rate limits for room creation, joins, updates, and fan-out, plus a configurable maximum collaborator count per room.
-- [ ] **P2.18** Add moderation and abuse controls: detect or block room spam, let admins inspect/delete rooms, and retain a basic room activity audit.
+- [x] **P2.18** Add baseline moderation and abuse controls: IP and shared-cache rate limits block room spam, staff can
+    inspect/close/delete rooms in admin, and `DrawingRoomEvent` retains a basic room activity audit. Content-based
+    spam scoring and configurable audit retention remain optional follow-up work.
 - [x] **P2.19** Add observability for active rooms/connections, update latency, payload size, reconnect rate, and dropped or invalid updates.
 
 ## P2: MCP and automation

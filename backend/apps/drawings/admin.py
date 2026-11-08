@@ -29,7 +29,7 @@ class DrawingRoomAdmin(admin.ModelAdmin):
     )
     actions = ("close_rooms",)
 
-    @admin.action(description="Close selected guest rooms")
+    @admin.action(description="Close selected rooms")
     def close_rooms(self, request, queryset):
         from .views import notify_drawing_room
 
@@ -38,7 +38,7 @@ class DrawingRoomAdmin(admin.ModelAdmin):
             if services.moderate_close_drawing_room(room.pk, actor_id=request.user.pk):
                 notify_drawing_room(room.pk, "moderated")
                 closed += 1
-        self.message_user(request, f"Closed {closed} guest room(s).")
+        self.message_user(request, f"Closed {closed} room(s).")
 
 
 @admin.register(DrawingRoomEvent)
