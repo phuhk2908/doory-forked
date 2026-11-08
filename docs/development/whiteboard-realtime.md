@@ -59,6 +59,14 @@ still persists under the row lock. A separate recovery-snapshot/persistence pass
 ## Verification boundary
 
 Unit tests cover schema validation, version merging, delta application, protocol negotiation and reconnect requeueing.
-The full 2/5/20/maximum collaborator browser benchmark remains open because it needs a stable multi-worker runtime and
-render/reconnect instrumentation. It should measure p50/p95 latency, bytes, fan-out, render time and recovery rather
-than turn a particular browser or worker limit into a hard product rule.
+The transport matrix can be run with:
+
+```bash
+cd backend
+DJANGO_SETTINGS_MODULE=doory.settings.dev python manage.py benchmark_drawing_room
+```
+
+It reports p50/p95/max update latency, sent/received bytes, server payload counters, delta/snapshot counts and expected
+fan-out for 2, 5, 20 and the configured maximum collaborators. The browser render/reconnect portion still needs a
+Chromium run and a stable multi-worker environment; the command does not turn its single-process transport numbers into
+a hard product limit.
