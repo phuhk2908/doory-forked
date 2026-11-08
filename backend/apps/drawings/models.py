@@ -33,13 +33,21 @@ class Drawing(BaseModel):
 
 
 class DrawingRoom(BaseModel):
-    """A shareable, anonymous whiteboard room.
+    """A shareable whiteboard room.
 
     The key is deliberately stored as a digest.  The browser keeps the actual key in the URL
     fragment, which is never sent in an HTTP Referer header, and presents it only when it opens
-    the room API or WebSocket.
+    the room API or WebSocket.  ``account_owner`` is a separate, nullable relationship used by
+    authenticated management paths; it is never a replacement for a browser capability key.
     """
 
+    account_owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        blank=True,
+        null=True,
+        on_delete=models.SET_NULL,
+        related_name="drawing_rooms",
+    )
     title = models.CharField(max_length=200, default="Untitled whiteboard")
     document = models.JSONField(default=dict)
     room_key_hash = models.CharField(max_length=64, editable=False)

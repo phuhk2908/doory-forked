@@ -103,12 +103,15 @@ def _normalise_element(element: dict) -> dict:
     return {**element, "version": version, "versionNonce": nonce}
 
 
-def create_drawing_room(*, title: str, document: dict) -> tuple[DrawingRoom, str, str, str]:
+def _create_drawing_room(
+    *, account_owner=None, title: str, document: dict
+) -> tuple[DrawingRoom, str, str, str]:
     validate_drawing_document(document, max_bytes=settings.MAX_DRAWING_DOCUMENT_BYTES)
     edit_key = secrets.token_urlsafe(32)
     view_key = secrets.token_urlsafe(32)
     owner_key = secrets.token_urlsafe(32)
     room = DrawingRoom(
+        account_owner=account_owner,
         title=clean_title(title),
         document=document,
         room_key_hash=_room_key_hash(edit_key),
@@ -118,6 +121,73 @@ def create_drawing_room(*, title: str, document: dict) -> tuple[DrawingRoom, str
     room.save()
     record_drawing_room_event(room.id, "created")
     return room, edit_key, view_key, owner_key
+
+
+def create_drawing_room(*, title: str, document: dict) -> tuple[DrawingRoom, str, str, str]:
+    """Create an anonymous room managed only through its browser owner capability."""
+    return _create_drawing_room(title=title, document=document)
+
+
+def create_account_drawing_room(account_owner, *, title: str, document: dict):
+    """Create a room bound to an account while retaining separate browser capabilities.
+
+    The returned keys are for a trusted browser-facing adapter.  MCP must not expose them as
+    credentials or use them in place of ``account_owner``.
+    """
+    return _create_drawing_room(account_owner=account_owner, title=title, document=document)
+
+
+def list_account_drawing_rooms(account_owner):
+    """Return rooms explicitly owned by ``account_owner``; anonymous rooms are never included."""
+    return DrawingRoom.objects.filter(account_owner=account_owner)
+
+
+def _lock_account_drawing_room(room_id, account_owner) -> DrawingRoom | None:
+    return DrawingRoom.objects.select_for_update().filter(pk=room_id, account_owner=account_owner).first()
+
+
+def close_account_drawing_room(room_id, account_owner) -> DrawingRoom | None:
+    """Close a room through account identity, without accepting a browser owner key."""
+    with transaction.atomic():
+        room = _lock_account_drawing_room(room_id, account_owner)
+        if room is None:
+            return None
+        if room.closed_at is None:
+            room.closed_at = timezone.now()
+            room.save(update_fields=["closed_at", "updated_at"])
+            record_drawing_room_event(room.id, "closed")
+    return room
+
+
+def rename_account_drawing_room(room_id, account_owner, title: str) -> DrawingRoom | None:
+    """Rename a live account-owned room without accepting a browser owner key."""
+    with transaction.atomic():
+        room = _lock_account_drawing_room(room_id, account_owner)
+        if room is None or room.is_closed or room.is_expired:
+            return None
+        room.title = clean_title(title)
+        room.save(update_fields=["title", "updated_at"])
+        record_drawing_room_event(room.id, "renamed")
+    return room
+
+
+def rotate_account_drawing_room_keys(room_id, account_owner) -> tuple[DrawingRoom, str, str] | None:
+    """Rotate browser edit/view capabilities using account identity.
+
+    The account owner relation remains the management authority.  Callers must keep the returned
+    keys inside a trusted browser adapter; they are not MCP credentials.
+    """
+    with transaction.atomic():
+        room = _lock_account_drawing_room(room_id, account_owner)
+        if room is None or room.is_closed or room.is_expired:
+            return None
+        edit_key = secrets.token_urlsafe(32)
+        view_key = secrets.token_urlsafe(32)
+        room.room_key_hash = _room_key_hash(edit_key)
+        room.view_key_hash = _room_key_hash(view_key)
+        room.save(update_fields=["room_key_hash", "view_key_hash", "updated_at"])
+        record_drawing_room_event(room.id, "keys_rotated")
+    return room, edit_key, view_key
 
 
 def get_drawing_room(room_id, key: str | None) -> DrawingRoom | None:

@@ -284,7 +284,8 @@ Every edit records a version before the change, subject to the version interval 
 The `drawings` app is deliberately outside this MCP registry for now. Its account-owned whiteboards have a separate
 REST document and revision model, while guest rooms authenticate with edit/view/owner capability keys rather than a
 user identity. An MCP personal access token therefore cannot join or manage a guest room, and room keys must not be
-passed as tool arguments. The proposed account-owned interface is documented in
+passed as tool arguments. The account-bound room ownership seam and its future MCP constraints are documented in
+[whiteboard-room-management.md](whiteboard-room-management.md). The proposed account-owned interface is documented in
 [mcp-whiteboards.md](mcp-whiteboards.md): it adds dedicated scopes, a snapshot resource and a small set of tools
 behind one drawing-service mutation seam. The seam must apply revisions and publish one post-commit event for
 realtime clients; it must not write raw snapshots directly or open a guest-room WebSocket.

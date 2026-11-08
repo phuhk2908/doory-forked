@@ -14,13 +14,14 @@ class DrawingAdmin(admin.ModelAdmin):
 
 @admin.register(DrawingRoom)
 class DrawingRoomAdmin(admin.ModelAdmin):
-    list_display = ("title", "id", "revision", "closed_at", "expires_at", "updated_at")
-    list_filter = ("closed_at", "expires_at")
-    search_fields = ("title", "id")
+    list_display = ("title", "id", "account_owner", "revision", "closed_at", "expires_at", "updated_at")
+    list_filter = ("account_owner", "closed_at", "expires_at")
+    search_fields = ("title", "id", "account_owner__email")
     readonly_fields = (
         "id",
         "created_at",
         "updated_at",
+        "account_owner",
         "room_key_hash",
         "owner_key_hash",
         "view_key_hash",

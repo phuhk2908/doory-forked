@@ -1,12 +1,14 @@
 # Whiteboard MCP interface
 
-Status: account-owned P2 interface implemented. Guest-room management remains intentionally out of scope until an
-account-bound room model exists.
+Status: account-owned P2 interface and room-ownership seam implemented. Guest-room MCP management remains
+intentionally out of scope until the browser link handoff contract is complete.
 
 ## Scope
 
-The first whiteboard integration covers `Drawing` records owned by the authenticated Doory user. It does not cover
-anonymous `DrawingRoom` records.
+The first whiteboard integration covers `Drawing` records owned by the authenticated Doory user. It does not expose
+anonymous `DrawingRoom` records as MCP resources or tools. The room domain now has a nullable account-owner
+relationship for a future account-bound room flow; existing rooms remain guest rooms until explicitly created through
+that flow.
 
 An MCP personal access token and a guest-room capability are different credentials:
 
@@ -15,8 +17,9 @@ An MCP personal access token and a guest-room capability are different credentia
 - MCP tools must never accept, return or log guest-room keys;
 - MCP must not open a guest-room WebSocket or use a room key as a bearer token.
 
-Room creation, closing and link rotation require a separate account-bound ownership model. They are out of this
-interface until that model exists.
+Room creation, closing and link rotation require the account-bound model described in
+[whiteboard-room-management.md](whiteboard-room-management.md). The domain seam exists, but these operations remain
+out of this MCP interface until browser link handoff can be kept separate from MCP credentials.
 
 ## Authentication and scopes
 
@@ -140,5 +143,6 @@ presence, fan-out and client reconnect behavior to the realtime module.
    events remain in the drawing domain.
 3. [x] Register the snapshot resource and six account-owned tools with ownership, revision, annotations and error tests.
 4. [x] Document the new scopes and account-owned whiteboard tools in self-hosting guidance.
-5. [ ] Design room management separately, with an account-owned room record and explicit lifecycle permissions. Only
-   then consider guest-room tools; guest capability keys remain outside MCP.
+5. [x] Define the nullable account-owned room record and explicit lifecycle service permissions in
+   [whiteboard-room-management.md](whiteboard-room-management.md). Guest capability keys remain outside MCP; room
+   tools still require a separate browser link handoff contract.
