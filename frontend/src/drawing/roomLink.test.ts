@@ -11,7 +11,7 @@ describe("drawing room links", () => {
       key,
       mode: "edit",
     });
-    expect(parseDrawingRoomHash(drawingRoomHash(id, key, "view"))).toEqual({
+    expect(parseDrawingRoomHash("#room=" + id + "," + key + ",view")).toEqual({
       id,
       key,
       mode: "view",

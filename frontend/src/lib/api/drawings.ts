@@ -49,12 +49,16 @@ export const drawingRoomsApi = {
   manage: (
     id: string,
     ownerKey: string,
-    action: "close" | "rotate" | "rename",
-    title?: string,
+    action: "access" | "close" | "rotate" | "rename",
+    value?: string,
   ) =>
     http.post<DrawingRoom>("/drawing-rooms/" + id + "/manage/", {
       headers: { "X-Drawing-Room-Owner-Key": ownerKey },
-      json: { action, ...(title ? { title } : {}) },
+      json: {
+        action,
+        ...(action === "rename" && value ? { title: value } : {}),
+        ...(action === "access" && value ? { mode: value } : {}),
+      },
     }),
   listCollaborators: (id: string) =>
     http.get<DrawingRoomCollaborator[]>(

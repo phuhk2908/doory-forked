@@ -18,17 +18,9 @@ export function parseDrawingRoomHash(hash: string): DrawingRoomLink | null {
     : null;
 }
 
-export function drawingRoomHash(
-  id: string,
-  key: string,
-  mode: "edit" | "view" = "edit",
-): string {
-  return "#room=" + id + "," + key + (mode === "view" ? ",view" : "");
+export function drawingRoomHash(id: string, key: string): string {
+  return "#room=" + id + "," + key;
 }
 
 export const drawingRoomOwnerStorageKey = (id: string): string =>
   "doory:drawing-room-owner:" + id;
-export const drawingRoomEditStorageKey = (id: string): string =>
-  "doory:drawing-room-edit:" + id;
-export const drawingRoomViewStorageKey = (id: string): string =>
-  "doory:drawing-room-view:" + id;

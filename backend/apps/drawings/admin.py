@@ -18,6 +18,7 @@ class DrawingRoomAdmin(admin.ModelAdmin):
         "title",
         "id",
         "account_owner",
+        "link_mode",
         "revision",
         "spam_score",
         "spam_flagged_at",
@@ -25,7 +26,7 @@ class DrawingRoomAdmin(admin.ModelAdmin):
         "expires_at",
         "updated_at",
     )
-    list_filter = ("account_owner", "closed_at", "expires_at", "spam_flagged_at")
+    list_filter = ("account_owner", "link_mode", "closed_at", "expires_at", "spam_flagged_at")
     search_fields = ("title", "id", "account_owner__email")
     readonly_fields = (
         "id",

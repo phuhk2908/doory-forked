@@ -56,7 +56,7 @@
   display: flex;
   align-items: center;
   max-width: calc(100% - 32px);
-  gap: 5px;
+  gap: 4px;
   padding: 6px;
   overflow: visible;
   background: var(--color-surface-raised);
@@ -302,6 +302,10 @@
   cursor: crosshair;
 }
 
+.canvas[data-select-mode="true"] {
+  cursor: default;
+}
+
 .canvas:focus {
   box-shadow: inset 0 0 0 2px var(--selection-color);
 }
@@ -336,27 +340,36 @@
 }
 
 .remoteCursor {
-  width: 12px;
-  height: 16px;
-  border-width: 0 0 2px 2px;
-  border-style: solid;
-  transform: rotate(-35deg);
+  width: 20px;
+  height: 20px;
   z-index: 2;
+  filter: drop-shadow(0 1px 1px rgb(15 23 42 / 24%));
+  transform: translate(-4px, -4px);
+}
+
+.remoteCursor svg {
+  display: block;
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+  stroke: var(--color-surface);
+  stroke-width: 2.25;
+  paint-order: stroke fill;
 }
 
 .remoteCursor span {
   position: absolute;
-  top: 12px;
-  left: 6px;
-  padding: 2px 5px;
+  top: 15px;
+  left: 14px;
+  padding: 3px 7px;
   color: currentColor;
   background: var(--color-surface);
   border: 1px solid currentColor;
-  border-radius: 4px;
+  border-radius: var(--radius-full);
   font-size: 10px;
   line-height: 1;
   white-space: nowrap;
-  transform: rotate(35deg);
+  box-shadow: var(--shadow-sm);
 }
 
 .floatingZoom {

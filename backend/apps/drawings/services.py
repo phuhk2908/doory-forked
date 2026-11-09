@@ -93,7 +93,8 @@ def _room_access(room: DrawingRoom, key: str | None) -> str | None:
         return None
     digest = _room_key_hash(key)
     if secrets.compare_digest(room.room_key_hash, digest):
-        return "edit"
+        return room.link_mode
+    # Legacy view links remain readable until their room's share key is rotated.
     if room.view_key_hash and secrets.compare_digest(room.view_key_hash, digest):
         return "view"
     return None
@@ -113,20 +114,16 @@ def _normalise_element(element: dict) -> dict:
     return {**element, "version": version, "versionNonce": nonce}
 
 
-def _create_drawing_room(
-    *, account_owner=None, title: str, document: dict
-) -> tuple[DrawingRoom, str, str, str]:
+def _create_drawing_room(*, account_owner=None, title: str, document: dict) -> tuple[DrawingRoom, str, str]:
     validate_drawing_document(document, max_bytes=settings.MAX_DRAWING_DOCUMENT_BYTES)
     spam_score, spam_reasons = score_drawing_document(document)
-    edit_key = secrets.token_urlsafe(32)
-    view_key = secrets.token_urlsafe(32)
+    room_key = secrets.token_urlsafe(32)
     owner_key = secrets.token_urlsafe(32)
     room = DrawingRoom(
         account_owner=account_owner,
         title=clean_title(title),
         document=document,
-        room_key_hash=_room_key_hash(edit_key),
-        view_key_hash=_room_key_hash(view_key),
+        room_key_hash=_room_key_hash(room_key),
         owner_key_hash=_room_key_hash(owner_key),
         spam_score=spam_score,
         spam_flagged_at=(
@@ -143,10 +140,10 @@ def _create_drawing_room(
             spam_score=spam_score,
             metadata={"revision": room.revision, "reasons": list(spam_reasons)},
         )
-    return room, edit_key, view_key, owner_key
+    return room, room_key, owner_key
 
 
-def create_drawing_room(*, title: str, document: dict) -> tuple[DrawingRoom, str, str, str]:
+def create_drawing_room(*, title: str, document: dict) -> tuple[DrawingRoom, str, str]:
     """Create an anonymous room managed only through its browser owner capability."""
     return _create_drawing_room(title=title, document=document)
 
@@ -154,8 +151,8 @@ def create_drawing_room(*, title: str, document: dict) -> tuple[DrawingRoom, str
 def create_account_drawing_room(account_owner, *, title: str, document: dict):
     """Create a room bound to an account while retaining separate browser capabilities.
 
-    The returned keys are for a trusted browser-facing adapter.  MCP must not expose them as
-    credentials or use them in place of ``account_owner``.
+    The returned share and owner keys are for a trusted browser-facing adapter. MCP must not expose
+    them as credentials or use them in place of ``account_owner``.
     """
     return _create_drawing_room(account_owner=account_owner, title=title, document=document)
 
@@ -201,8 +198,8 @@ def rename_account_drawing_room(room_id, account_owner, title: str) -> DrawingRo
     return room
 
 
-def rotate_account_drawing_room_keys(room_id, account_owner) -> tuple[DrawingRoom, str, str] | None:
-    """Rotate browser edit/view capabilities using account identity.
+def rotate_account_drawing_room_keys(room_id, account_owner) -> tuple[DrawingRoom, str] | None:
+    """Rotate the browser share capability using account identity.
 
     The account owner relation remains the management authority.  Callers must keep the returned
     keys inside a trusted browser adapter; they are not MCP credentials.
@@ -211,13 +208,12 @@ def rotate_account_drawing_room_keys(room_id, account_owner) -> tuple[DrawingRoo
         room = _lock_account_drawing_room(room_id, account_owner)
         if room is None or room.is_closed or room.is_expired:
             return None
-        edit_key = secrets.token_urlsafe(32)
-        view_key = secrets.token_urlsafe(32)
-        room.room_key_hash = _room_key_hash(edit_key)
-        room.view_key_hash = _room_key_hash(view_key)
+        room_key = secrets.token_urlsafe(32)
+        room.room_key_hash = _room_key_hash(room_key)
+        room.view_key_hash = ""
         room.save(update_fields=["room_key_hash", "view_key_hash", "updated_at"])
         record_drawing_room_event(room.id, "keys_rotated", actor=account_owner)
-    return room, edit_key, view_key
+    return room, room_key
 
 
 def add_drawing_room_collaborator(room_id, account_owner, email: str, role: str):
@@ -361,7 +357,7 @@ def get_drawing_room_access(room_id, key: str | None) -> tuple[DrawingRoom, str]
     return None if access is None else (room, access)
 
 
-def rotate_drawing_room_keys(room_id, owner_key: str) -> tuple[DrawingRoom, str, str] | None:
+def rotate_drawing_room_keys(room_id, owner_key: str) -> tuple[DrawingRoom, str] | None:
     if not _valid_room_key(owner_key):
         return None
     with transaction.atomic():
@@ -370,13 +366,29 @@ def rotate_drawing_room_keys(room_id, owner_key: str) -> tuple[DrawingRoom, str,
             return None
         if not secrets.compare_digest(room.owner_key_hash, _room_key_hash(owner_key)):
             return None
-        edit_key = secrets.token_urlsafe(32)
-        view_key = secrets.token_urlsafe(32)
-        room.room_key_hash = _room_key_hash(edit_key)
-        room.view_key_hash = _room_key_hash(view_key)
+        room_key = secrets.token_urlsafe(32)
+        room.room_key_hash = _room_key_hash(room_key)
+        room.view_key_hash = ""
         room.save(update_fields=["room_key_hash", "view_key_hash", "updated_at"])
         record_drawing_room_event(room.id, "keys_rotated")
-    return room, edit_key, view_key
+    return room, room_key
+
+
+def set_drawing_room_access(room_id, owner_key: str, mode: str) -> DrawingRoom | None:
+    """Change the permission attached to the room's single share capability."""
+    if not _valid_room_key(owner_key) or mode not in DrawingRoom.LinkMode.values:
+        return None
+    with transaction.atomic():
+        room = DrawingRoom.objects.select_for_update().filter(pk=room_id).first()
+        if room is None or room.is_closed or room.is_expired or not room.owner_key_hash:
+            return None
+        if not secrets.compare_digest(room.owner_key_hash, _room_key_hash(owner_key)):
+            return None
+        if room.link_mode != mode:
+            room.link_mode = mode
+            room.save(update_fields=["link_mode", "updated_at"])
+            record_drawing_room_event(room.id, "link_access_changed", metadata={"mode": mode})
+    return room
 
 
 def close_drawing_room(room_id, owner_key: str) -> DrawingRoom | None:

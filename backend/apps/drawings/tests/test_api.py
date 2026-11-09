@@ -154,8 +154,8 @@ def test_guest_room_uses_the_fragment_key_as_access_control(db):
     room_id = created.data["id"]
     key = created.data["key"]
     assert len(key) >= 32
-    assert created.data["view_key"] != key
     assert created.data["owner_key"] != key
+    assert "view_key" not in created.data
 
     assert client.get(f"/api/v1/drawing-rooms/{room_id}/").status_code == 404
     opened = client.get(
@@ -166,9 +166,17 @@ def test_guest_room_uses_the_fragment_key_as_access_control(db):
     assert opened.data["title"] == "Planning room"
     assert opened.data["mode"] == "edit"
     assert "key" not in opened.data
+    changed = client.post(
+        f"/api/v1/drawing-rooms/{room_id}/manage/",
+        {"action": "access", "mode": "view"},
+        format="json",
+        HTTP_X_DRAWING_ROOM_OWNER_KEY=created.data["owner_key"],
+        **csrf_headers(client),
+    )
+    assert changed.status_code == 200 and changed.data["mode"] == "view"
     view = client.get(
         f"/api/v1/drawing-rooms/{room_id}/",
-        HTTP_X_DRAWING_ROOM_KEY=created.data["view_key"],
+        HTTP_X_DRAWING_ROOM_KEY=key,
     )
     assert view.status_code == 200
     assert view.data["mode"] == "view"
@@ -230,7 +238,7 @@ def test_signed_in_room_has_named_collaborator_and_transfer_endpoints(db):
 
 
 def test_guest_room_merges_independent_element_versions(db):
-    room, key, view_key, _ = services.create_drawing_room(title="Room", document=drawing_document())
+    room, key, owner_key = services.create_drawing_room(title="Room", document=drawing_document())
     first = {
         **drawing_document(),
         "elements": [
@@ -265,7 +273,9 @@ def test_guest_room_merges_independent_element_versions(db):
             }
         ],
     }
-    assert services.save_drawing_room_update(room.id, view_key, first) is None
+    assert services.set_drawing_room_access(room.id, owner_key, "view") is not None
+    assert services.save_drawing_room_update(room.id, key, first) is None
+    assert services.set_drawing_room_access(room.id, owner_key, "edit") is not None
     services.save_drawing_room_update(room.id, key, first)
     services.save_drawing_room_update(room.id, key, second)
 
@@ -275,7 +285,7 @@ def test_guest_room_merges_independent_element_versions(db):
 
 
 def test_guest_room_delta_update_uses_the_same_revisioned_mutation_seam(db):
-    room, key, _, _ = services.create_drawing_room(title="Room", document=drawing_document())
+    room, key, _owner_key = services.create_drawing_room(title="Room", document=drawing_document())
     first = {
         **drawing_document(),
         "elements": [
@@ -320,7 +330,7 @@ def test_guest_room_delta_update_uses_the_same_revisioned_mutation_seam(db):
 
 
 def test_guest_room_expiry_blocks_access_and_is_cleaned_up(db):
-    room, key, _, _ = services.create_drawing_room(title="Room", document=drawing_document())
+    room, key, _owner_key = services.create_drawing_room(title="Room", document=drawing_document())
     room.expires_at = timezone.now() - timedelta(minutes=1)
     room.save(update_fields=["expires_at"])
 
@@ -360,6 +370,7 @@ def test_guest_room_owner_can_rotate_and_close_links(db):
     )
     assert rotated.status_code == 200
     assert rotated.data["key"] != old_edit
+    assert "view_key" not in rotated.data
     assert (
         client.get(f"/api/v1/drawing-rooms/{room_id}/", HTTP_X_DRAWING_ROOM_KEY=old_edit).status_code == 404
     )

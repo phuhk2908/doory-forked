@@ -7,10 +7,8 @@ import {
 import type { DrawingDocument } from "@/drawing/model";
 import { drawingLocalRepository, type LocalDrawing } from "@/drawing/local";
 import {
-  drawingRoomEditStorageKey,
   drawingRoomHash,
   drawingRoomOwnerStorageKey,
-  drawingRoomViewStorageKey,
 } from "@/drawing/roomLink";
 import { drawingRoomsApi, drawingsApi, isApiError } from "@/lib/api";
 import { useAuth } from "@/features/auth/AuthProvider";
@@ -203,14 +201,12 @@ export default function LocalDrawingPage() {
         title: load.drawing.title,
         document: editorRef.current?.getDocument() ?? load.drawing.document,
       });
-      if (!room.key || !room.owner_key || !room.view_key)
+      if (!room.key || !room.owner_key)
         throw new Error("missing_room_credentials");
-      sessionStorage.setItem(drawingRoomEditStorageKey(room.id), room.key);
       sessionStorage.setItem(
         drawingRoomOwnerStorageKey(room.id),
         room.owner_key,
       );
-      sessionStorage.setItem(drawingRoomViewStorageKey(room.id), room.view_key);
       navigate("/drawings/room" + drawingRoomHash(room.id, room.key), {
         replace: true,
       });
@@ -317,7 +313,8 @@ export default function LocalDrawingPage() {
             <li>
               <strong>You stay in control</strong>
               <span>
-                Rotate links or end the room at any time from the room controls.
+                Rotate the link or end the room at any time from the room
+                controls.
               </span>
             </li>
           </ul>

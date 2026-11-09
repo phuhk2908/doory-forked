@@ -48,10 +48,21 @@ class DrawingRoom(BaseModel):
         on_delete=models.SET_NULL,
         related_name="drawing_rooms",
     )
+
+    class LinkMode(models.TextChoices):
+        VIEW = "view", "Can view"
+        EDIT = "edit", "Can edit"
+
     title = models.CharField(max_length=200, default="Untitled whiteboard")
     document = models.JSONField(default=dict)
     room_key_hash = models.CharField(max_length=64, editable=False)
+    link_mode = models.CharField(
+        max_length=4,
+        choices=LinkMode.choices,
+        default=LinkMode.EDIT,
+    )
     owner_key_hash = models.CharField(max_length=64, editable=False, blank=True, default="")
+    # Kept only so rooms created before canonical links can still be opened.
     view_key_hash = models.CharField(max_length=64, editable=False, blank=True, default="")
     revision = models.PositiveIntegerField(default=1)
     spam_score = models.PositiveSmallIntegerField(default=0)

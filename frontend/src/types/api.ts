@@ -198,7 +198,6 @@ export interface DrawingRoom {
   created_at: string;
   updated_at: string;
   key?: string;
-  view_key?: string;
   owner_key?: string;
   mode?: "edit" | "view";
   closed_at: string | null;

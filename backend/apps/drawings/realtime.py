@@ -582,6 +582,18 @@ class DrawingRoomConsumer(AsyncJsonWebsocketConsumer):
     async def drawing_room_renamed(self, event: dict[str, Any]) -> None:
         await self.send_json({"type": "room_title", "title": event.get("title", "Untitled whiteboard")})
 
+    async def drawing_room_access_changed(self, event: dict[str, Any]) -> None:
+        access = await database_sync_to_async(get_drawing_room_access)(self.room_id, self.key)
+        if access is None:
+            await self._close_room("closed_or_expired")
+            return
+        _room, mode = access
+        self.room_mode = mode
+        presence = _room_presence.get(self.group, {}).get(self.peer_id)
+        if presence is not None:
+            presence["mode"] = mode
+        await self.send_json({"type": "access", "mode": mode, "can_edit": mode == "edit"})
+
     async def _close_room(self, reason: str) -> None:
         await self.send_json({"type": "closed", "reason": reason})
         await self.close(code=4403)

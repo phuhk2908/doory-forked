@@ -75,6 +75,21 @@
   gap: 10px;
 }
 
+.linkAccessSection {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 150px;
+  align-items: end;
+  gap: 16px;
+  padding: 14px 0 2px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.linkAccessSection h3 {
+  margin: 0;
+  color: #1f2937;
+  font-size: 14px;
+}
+
 .shareActions {
   display: flex;
   justify-content: flex-end;
@@ -207,14 +222,27 @@
   font-size: 12px;
 }
 
+@media (max-width: 960px) {
+  .accountBar {
+    top: 68px;
+  }
+
+  .error {
+    top: 124px;
+  }
+}
+
 @media (max-width: 680px) {
   .accountBar {
-    top: 52px;
     right: 8px;
     max-width: calc(100vw - 16px);
   }
 
   .shareRow {
+    grid-template-columns: 1fr;
+  }
+
+  .linkAccessSection {
     grid-template-columns: 1fr;
   }
 

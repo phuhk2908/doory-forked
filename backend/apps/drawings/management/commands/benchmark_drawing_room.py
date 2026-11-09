@@ -66,7 +66,7 @@ async def _receive_type(socket: WebsocketCommunicator, expected: str, timeout: f
 
 
 async def _run_case(application: Any, size: int, rounds: int) -> dict[str, Any]:
-    room, edit_key, _, _ = await database_sync_to_async(create_drawing_room)(
+    room, room_key, _ = await database_sync_to_async(create_drawing_room)(
         title=f"benchmark-{size}", document=blank_document()
     )
     sockets = [
@@ -89,7 +89,7 @@ async def _run_case(application: Any, size: int, rounds: int) -> dict[str, Any]:
             await socket.send_json_to(
                 {
                     "type": "auth",
-                    "key": edit_key,
+                    "key": room_key,
                     "client_id": f"benchmark-{size}-{index}",
                     "protocol": 2,
                 }

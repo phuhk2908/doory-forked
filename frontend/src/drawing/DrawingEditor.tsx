@@ -6,6 +6,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useLayoutEffect,
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
@@ -398,7 +399,7 @@ export const DrawingEditor = forwardRef<
     ],
   );
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const node = textRef.current;
     if (node) {
       node.focus();
@@ -716,6 +717,7 @@ export const DrawingEditor = forwardRef<
     }
     if (tool === "text") {
       if (readOnly) return;
+      event.preventDefault();
       const text = createText(start.x, start.y);
       markChange(
         {
@@ -731,6 +733,7 @@ export const DrawingEditor = forwardRef<
     }
     if (tool === "note") {
       if (readOnly) return;
+      event.preventDefault();
       const note = createNote(start.x, start.y);
       markChange(
         {
@@ -747,21 +750,18 @@ export const DrawingEditor = forwardRef<
     if (tool === "eraser") {
       if (readOnly) return;
       const hit = hitTestScene(documentRef.current, start, 10 / viewport.zoom);
-      if (hit) {
-        const ids = new Set([hit.id]);
-        interactionRef.current = {
-          kind: "erase",
-          pointerId: event.pointerId,
-          document: documentRef.current,
-          ids,
-        };
-        setSelection(new Set());
-        setEraserTargets(ids);
+      const ids = new Set<string>();
+      if (hit) ids.add(hit.id);
+      interactionRef.current = {
+        kind: "erase",
+        pointerId: event.pointerId,
+        document: documentRef.current,
+        ids,
+      };
+      setSelection(new Set());
+      setEraserTargets(ids);
+      if (ids.size > 0) {
         setPreviewDocument(deleteElements(documentRef.current, ids));
-      } else {
-        setEraserTargets((current) =>
-          current.size === 0 ? current : new Set(),
-        );
       }
       return;
     }
@@ -1314,6 +1314,7 @@ export const DrawingEditor = forwardRef<
           aria-label="Whiteboard canvas"
           data-pan-mode={tool === "hand" || spacePressed ? "true" : "false"}
           data-pan-active={isPanning ? "true" : "false"}
+          data-select-mode={tool === "select" ? "true" : "false"}
           data-eraser-mode={tool === "eraser" ? "true" : "false"}
           onPointerDown={pointerDown}
           onPointerMove={pointerMove}
@@ -1332,12 +1333,13 @@ export const DrawingEditor = forwardRef<
             <div
               key={overlay.key}
               className={styles.remoteCursor}
+              data-testid="remote-cursor"
               style={{
                 ...overlay.style,
                 color: overlay.color,
-                borderColor: overlay.color,
               }}
             >
+              <MousePointer2 size={20} strokeWidth={2.25} aria-hidden="true" />
               <span>{overlay.label}</span>
             </div>
           ),

@@ -100,12 +100,15 @@ class DrawingRoomCreateSerializer(serializers.Serializer):
 
 
 class DrawingRoomManageSerializer(serializers.Serializer):
-    action = serializers.ChoiceField(choices=("close", "rotate", "rename"))
+    action = serializers.ChoiceField(choices=("access", "close", "rotate", "rename"))
     title = TitleField(required=False, allow_blank=True)
+    mode = serializers.ChoiceField(choices=DrawingRoom.LinkMode.choices, required=False)
 
     def validate(self, attrs):
         if attrs["action"] == "rename" and not attrs.get("title", "").strip():
             raise serializers.ValidationError({"title": ["A room name is required."]})
+        if attrs["action"] == "access" and "mode" not in attrs:
+            raise serializers.ValidationError({"mode": ["Choose view or edit access."]})
         return attrs
 
 

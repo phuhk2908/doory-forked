@@ -357,6 +357,12 @@ export class DrawingRoomRealtime {
         this.callbacks.onTitle?.(value.title);
       return;
     }
+    if (value.type === "access") {
+      const mode = value.mode === "view" ? "view" : "edit";
+      this.canEdit = value.can_edit !== false && mode === "edit";
+      this.callbacks.onAccess?.(mode, this.canEdit);
+      return;
+    }
     if (value.type === "saved") {
       const clientId = value.client_id;
       if (

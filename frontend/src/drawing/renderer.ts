@@ -309,38 +309,6 @@ function drawDots(
   ctx.restore();
 }
 
-function drawEraserTargets(
-  ctx: CanvasRenderingContext2D,
-  document: DrawingDocument,
-  ids: ReadonlySet<string>,
-  viewport: DrawingViewport,
-): void {
-  for (const element of document.elements) {
-    if (!ids.has(element.id)) continue;
-    const bounds = elementBounds(element);
-    const topLeft = worldToScreen({ x: bounds.x, y: bounds.y }, viewport);
-    const bottomRight = worldToScreen(
-      { x: bounds.x + bounds.width, y: bounds.y + bounds.height },
-      viewport,
-    );
-    const width = Math.max(12, bottomRight.x - topLeft.x);
-    const height = Math.max(12, bottomRight.y - topLeft.y);
-    const padding = 5;
-    const x = (topLeft.x + bottomRight.x) / 2 - width / 2 - padding;
-    const y = (topLeft.y + bottomRight.y) / 2 - height / 2 - padding;
-    ctx.save();
-    ctx.fillStyle = "#fee2e2";
-    ctx.globalAlpha = 0.45;
-    ctx.fillRect(x, y, width + padding * 2, height + padding * 2);
-    ctx.strokeStyle = "#b91c1c";
-    ctx.globalAlpha = 0.95;
-    ctx.lineWidth = 1.5;
-    ctx.setLineDash([5, 4]);
-    ctx.strokeRect(x, y, width + padding * 2, height + padding * 2);
-    ctx.restore();
-  }
-}
-
 export function renderDrawing(
   canvas: HTMLCanvasElement,
   document: DrawingDocument,
@@ -376,15 +344,26 @@ export function renderDrawing(
     height: height / viewport.zoom,
   };
   for (const element of document.elements) {
+    const erasing = options.eraserTargets?.has(element.id) === true;
     if (
-      !element.isDeleted &&
+      (erasing || !element.isDeleted) &&
       elementBounds(element).x < visible.x + visible.width + 100 &&
       elementBounds(element).x + elementBounds(element).width >
         visible.x - 100 &&
       elementBounds(element).y < visible.y + visible.height + 100 &&
       elementBounds(element).y + elementBounds(element).height > visible.y - 100
     )
-      drawElement(ctx, roughCanvas, element);
+      drawElement(
+        ctx,
+        roughCanvas,
+        erasing
+          ? {
+              ...element,
+              isDeleted: false,
+              style: { ...element.style, opacity: element.style.opacity * 0.3 },
+            }
+          : element,
+      );
   }
   if (options.draft) drawElement(ctx, roughCanvas, options.draft);
   ctx.restore();
@@ -412,8 +391,6 @@ export function renderDrawing(
       ctx.setLineDash([]);
     }
   }
-  if (options.eraserTargets && options.eraserTargets.size > 0)
-    drawEraserTargets(ctx, document, options.eraserTargets, viewport);
 }
 
 function escapeXml(value: string): string {

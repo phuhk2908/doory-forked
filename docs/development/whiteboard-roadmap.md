@@ -16,8 +16,8 @@ The guest room MVP is live. The next work is split by room safety first, then ed
 ## P0: room controls
 
 1. [x] End a live room. The owner can close it; existing sockets receive a close event and new API/WebSocket access is rejected.
-2. [x] Revoke and rotate links. Rotation invalidates the previous edit and view capabilities while leaving the owner capability intact.
-3. [x] Create a view-only link. The view capability can load the board and receive updates, but the server rejects document writes and the editor disables editing.
+2. [x] Revoke and rotate the room link. Rotation invalidates the previous share capability while leaving the owner capability intact.
+3. [x] Let the owner switch the single room link between edit and view access. The same URL reflects the new permission after refresh; the server rejects document writes in view mode.
 4. [x] Keep room ownership separate from share links. The owner capability is returned once at creation and stored in the browser session; it is never placed in a share URL.
 5. [x] Expire and clean up rooms. New rooms expire after `DRAWING_ROOM_TTL_DAYS` (30 days by default). `collab_maintenance` deletes expired rows.
 
@@ -28,7 +28,7 @@ The guest room MVP is live. The next work is split by room safety first, then ed
 3. [x] Use a non-passive native wheel listener. `Ctrl`/`Command` + wheel zooms the board without browser zoom; plain wheel pans the board.
 4. [x] Relay volatile cursor and selection presence separately from the document. Presence is throttled at 33ms, bounded, and never persisted.
 5. [x] Show collaborator presence in the room: peer count, remote cursors, and selection outlines with reconnect-safe cleanup.
-6. [x] Add a share dialog with edit and view-only links, copy actions, link rotation, and end-room control for the owner.
+6. [x] Add a share dialog with one canonical room link, owner-controlled edit/view access, copy, link rotation, and end-room controls.
 7. [x] Let a guest save the current room snapshot to an account after signing in. This creates an owned drawing and keeps the room alive until the owner closes or it expires.
 8. [x] Explain the edit/view access model before a guest starts a room, show progress while the local snapshot is saved, and land them in the live room with its controls ready.
 9. [x] Move the tool palette into a centered floating toolbar. Keep the rectangle tool as the default shape action, group ellipse and diamond behind a shape dropdown, and add Eraser plus Note tools to the palette.
@@ -43,7 +43,7 @@ The guest room MVP is live. The next work is split by room safety first, then ed
     - Export SVG.
     - Export JSON/source file.
     - Save to account when the board is still local and the visitor is a guest.
-    - Keep Share, Rotate links, and End room in the collaboration controls because they change access for other people.
+    - Keep Share, Rotate link, and End room in the collaboration controls because they change access for other people.
 14. [x] Add consistent tooltips for every tool and action on hover and keyboard focus, including the action name and its shortcut when one exists. Cover the shape dropdown, More menu, zoom pill, Eraser, and Note.
 
 ## P1: creation entry UX
@@ -78,7 +78,7 @@ The guest room MVP is live. The next work is split by room safety first, then ed
     tools/resources for list, read, create, rename, edit and trash; add restore only when the REST domain supports it.
 - [x] **P2.21** Define the account-bound room-management model before exposing guest-room creation, close or link
     rotation to MCP. The nullable account-owner relationship and service seam are documented in
-    [whiteboard-room-management.md](whiteboard-room-management.md); edit, view and owner link keys remain outside
+    [whiteboard-room-management.md](whiteboard-room-management.md); share and owner capabilities remain outside
     MCP.
 - [x] **P2.22** Implement the drawing-service mutation seam and post-commit realtime event described in
     [the MCP interface](mcp-whiteboards.md), with revision/conflict handling and tool tests; do not let MCP write raw

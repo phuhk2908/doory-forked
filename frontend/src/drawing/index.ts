@@ -27,10 +27,8 @@ export type {
   DrawingRoomRealtimeStatus,
 } from "./roomRealtime";
 export {
-  drawingRoomEditStorageKey,
   drawingRoomHash,
   drawingRoomOwnerStorageKey,
-  drawingRoomViewStorageKey,
   parseDrawingRoomHash,
 } from "./roomLink";
 export type { DrawingRoomLink } from "./roomLink";

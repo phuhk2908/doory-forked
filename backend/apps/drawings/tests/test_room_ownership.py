@@ -10,7 +10,7 @@ def drawing_document():
 def test_account_owned_room_uses_user_identity_for_management(db):
     owner = User.objects.create_user("owner@example.com", "password-123456")
     stranger = User.objects.create_user("stranger@example.com", "password-123456")
-    room, edit_key, view_key, _owner_key = services.create_account_drawing_room(
+    room, room_key, owner_key = services.create_account_drawing_room(
         owner,
         title="Account room",
         document=drawing_document(),
@@ -19,22 +19,26 @@ def test_account_owned_room_uses_user_identity_for_management(db):
     assert room.account_owner_id == owner.pk
     assert list(services.list_account_drawing_rooms(owner)) == [room]
     assert not services.list_account_drawing_rooms(stranger).exists()
-    assert services.get_drawing_room(room.pk, edit_key) is not None
-    assert services.get_drawing_room(room.pk, view_key) is not None
+    assert services.get_drawing_room(room.pk, room_key) is not None
+    assert services.get_drawing_room_access(room.pk, room_key)[1] == "edit"
 
     assert services.rename_account_drawing_room(room.pk, stranger, "No access") is None
     renamed = services.rename_account_drawing_room(room.pk, owner, "Renamed")
     assert renamed is not None and renamed.title == "Renamed"
 
+    changed = services.set_drawing_room_access(room.pk, owner_key, "view")
+    assert changed is not None
+    assert services.get_drawing_room_access(room.pk, room_key)[1] == "view"
+    changed = services.set_drawing_room_access(room.pk, owner_key, "edit")
+    assert changed is not None
+
     rotated = services.rotate_account_drawing_room_keys(room.pk, stranger)
     assert rotated is None
     rotated = services.rotate_account_drawing_room_keys(room.pk, owner)
     assert rotated is not None
-    rotated_room, new_edit_key, new_view_key = rotated
-    assert services.get_drawing_room(room.pk, edit_key) is None
-    assert services.get_drawing_room(room.pk, view_key) is None
-    assert services.get_drawing_room(rotated_room.pk, new_edit_key) is not None
-    assert services.get_drawing_room(rotated_room.pk, new_view_key) is not None
+    rotated_room, new_room_key = rotated
+    assert services.get_drawing_room(room.pk, room_key) is None
+    assert services.get_drawing_room(rotated_room.pk, new_room_key) is not None
 
     assert services.close_account_drawing_room(room.pk, stranger) is None
     closed = services.close_account_drawing_room(room.pk, owner)
@@ -42,7 +46,7 @@ def test_account_owned_room_uses_user_identity_for_management(db):
 
 
 def test_existing_guest_room_has_no_account_owner(db):
-    room, _edit_key, _view_key, _owner_key = services.create_drawing_room(
+    room, _room_key, _owner_key = services.create_drawing_room(
         title="Guest room",
         document=drawing_document(),
     )
@@ -54,7 +58,7 @@ def test_existing_guest_room_has_no_account_owner(db):
 
 def test_deleting_account_unbinds_room_without_removing_guest_access(db):
     owner = User.objects.create_user("owner@example.com", "password-123456")
-    room, edit_key, _view_key, _owner_key = services.create_account_drawing_room(
+    room, room_key, _owner_key = services.create_account_drawing_room(
         owner,
         title="Account room",
         document=drawing_document(),
@@ -64,7 +68,7 @@ def test_deleting_account_unbinds_room_without_removing_guest_access(db):
 
     room.refresh_from_db()
     assert room.account_owner_id is None
-    assert services.get_drawing_room(room.pk, edit_key) is not None
+    assert services.get_drawing_room(room.pk, room_key) is not None
 
 
 def test_named_collaborators_are_account_scoped_and_visible_in_presence(db):
@@ -73,7 +77,7 @@ def test_named_collaborators_are_account_scoped_and_visible_in_presence(db):
         "COLLABORATOR@example.com", "password-123456", display_name="Teammate"
     )
     stranger = User.objects.create_user("stranger@example.com", "password-123456")
-    room, _edit_key, _view_key, _owner_key = services.create_account_drawing_room(
+    room, _room_key, _owner_key = services.create_account_drawing_room(
         owner,
         title="Account room",
         document=drawing_document(),
@@ -99,7 +103,7 @@ def test_named_collaborators_are_account_scoped_and_visible_in_presence(db):
 def test_transfer_moves_account_ownership_and_revokes_old_owner_capability(db):
     owner = User.objects.create_user("owner@example.com", "password-123456")
     target = User.objects.create_user("target@example.com", "password-123456")
-    room, _edit_key, _view_key, owner_key = services.create_account_drawing_room(
+    room, _room_key, owner_key = services.create_account_drawing_room(
         owner,
         title="Account room",
         document=drawing_document(),

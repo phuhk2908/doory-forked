@@ -4,12 +4,11 @@ import {
   DrawingEditor,
   type DrawingEditorHandle,
 } from "@/drawing/DrawingEditor";
+import { colorCollaborators } from "@/drawing/collaboratorColors";
 import { mergeDrawingDocuments, type DrawingDocument } from "@/drawing/model";
 import {
-  drawingRoomEditStorageKey,
   drawingRoomHash,
   drawingRoomOwnerStorageKey,
-  drawingRoomViewStorageKey,
   parseDrawingRoomHash,
 } from "@/drawing/roomLink";
 import {
@@ -31,6 +30,7 @@ import styles from "./DrawingPage.module.css";
 
 type LoadedRoom = DrawingRoom & { key: string };
 type CollaboratorRole = "view" | "edit";
+type RoomLinkMode = "view" | "edit";
 type Load =
   | { kind: "loading" }
   | { kind: "ready"; room: LoadedRoom }
@@ -56,10 +56,8 @@ function readSession(key: string): string | null {
   }
 }
 
-function roomUrl(id: string, key: string, mode: "edit" | "view"): string {
-  return (
-    window.location.origin + "/drawings/room" + drawingRoomHash(id, key, mode)
-  );
+function roomUrl(id: string, key: string): string {
+  return window.location.origin + "/drawings/room" + drawingRoomHash(id, key);
 }
 
 export default function DrawingRoomPage() {
@@ -88,7 +86,9 @@ export default function DrawingRoomPage() {
   const [savingAccount, setSavingAccount] = useState(false);
   const [ended, setEnded] = useState(false);
   const [canEdit, setCanEdit] = useState(false);
+  const [linkMode, setLinkMode] = useState<RoomLinkMode>("edit");
   const [peers, setPeers] = useState<DrawingRoomPeer[]>([]);
+  const peerColorsRef = useRef(new Map<string, string>());
   const [accountOwned, setAccountOwned] = useState<boolean | null>(null);
   const [collaborators, setCollaborators] = useState<DrawingRoomCollaborator[]>(
     [],
@@ -102,16 +102,16 @@ export default function DrawingRoomPage() {
   );
   const [transferEmail, setTransferEmail] = useState("");
   const [transferConfirm, setTransferConfirm] = useState(false);
+  const peerColors = useMemo(
+    () =>
+      colorCollaborators(
+        peers.map((peer) => peer.id),
+        peerColorsRef.current,
+      ),
+    [peers],
+  );
   const ownerKey = useMemo(
     () => (link ? readSession(drawingRoomOwnerStorageKey(link.id)) : null),
-    [link],
-  );
-  const storedEditKey = useMemo(
-    () => (link ? readSession(drawingRoomEditStorageKey(link.id)) : null),
-    [link],
-  );
-  const storedViewKey = useMemo(
-    () => (link ? readSession(drawingRoomViewStorageKey(link.id)) : null),
     [link],
   );
   useUnsavedGuard(dirty && canEdit && !ended);
@@ -124,7 +124,9 @@ export default function DrawingRoomPage() {
       .then((room) => {
         if (!active) return;
         revisionRef.current = room.revision;
-        setCanEdit(room.mode === "edit");
+        const mode = room.mode === "view" ? "view" : "edit";
+        setLinkMode(mode);
+        setCanEdit(mode === "edit");
         setLoad({ kind: "ready", room: { ...room, key: link.key } });
       })
       .catch((cause) => {
@@ -206,6 +208,7 @@ export default function DrawingRoomPage() {
       );
     },
     onAccess: (mode, editable) => {
+      setLinkMode(mode);
       setCanEdit(editable && mode === "edit");
     },
     onClosed: () => {
@@ -231,8 +234,8 @@ export default function DrawingRoomPage() {
   }
 
   async function manageRoom(
-    action: "close" | "rotate" | "rename",
-    title?: string,
+    action: "access" | "close" | "rotate" | "rename",
+    value?: string,
   ): Promise<void> {
     if (!link || !ownerKey) return;
     setManageBusy(true);
@@ -242,7 +245,7 @@ export default function DrawingRoomPage() {
         link.id,
         ownerKey,
         action,
-        title,
+        value,
       );
       if (action === "close") {
         setEnded(true);
@@ -259,15 +262,15 @@ export default function DrawingRoomPage() {
         );
         return;
       }
-      if (!result.key || !result.view_key)
-        throw new Error("missing_rotated_keys");
-      sessionStorage.setItem(drawingRoomEditStorageKey(link.id), result.key);
-      sessionStorage.setItem(
-        drawingRoomViewStorageKey(link.id),
-        result.view_key,
-      );
+      if (action === "access") {
+        const mode = result.mode === "view" ? "view" : "edit";
+        setLinkMode(mode);
+        setCanEdit(mode === "edit");
+        return;
+      }
+      if (!result.key) throw new Error("missing_rotated_keys");
       window.location.assign(
-        "/drawings/room" + drawingRoomHash(link.id, result.key, "edit"),
+        "/drawings/room" + drawingRoomHash(link.id, result.key),
       );
     } catch (cause) {
       setError(
@@ -433,11 +436,7 @@ export default function DrawingRoomPage() {
     );
   if (load.kind !== "ready" || !link) return null;
 
-  const editKey = link.mode === "edit" ? link.key : storedEditKey;
-  const viewKey = storedViewKey ?? (link.mode === "view" ? link.key : null);
-  const currentLink = window.location.href;
-  const editLink = editKey ? roomUrl(load.room.id, editKey, "edit") : null;
-  const viewLink = viewKey ? roomUrl(load.room.id, viewKey, "view") : null;
+  const currentLink = roomUrl(load.room.id, link.key);
   const isReadOnly = ended || !canEdit;
   const statusLabel =
     ended || realtime.status === "closed"
@@ -497,9 +496,9 @@ export default function DrawingRoomPage() {
           ownerKey ? (title) => manageRoom("rename", title) : undefined
         }
         readOnly={isReadOnly}
-        remotePeers={peers.map((peer, index) => ({
+        remotePeers={peers.map((peer) => ({
           ...peer,
-          color: ["#f97316", "#8b5cf6", "#0891b2", "#16a34a"][index % 4],
+          color: peerColors.get(peer.id),
         }))}
         onPresenceChange={(presence) => realtime.publishPresence(presence)}
         onDocumentChange={(document) => {
@@ -518,7 +517,7 @@ export default function DrawingRoomPage() {
         title="Share this room"
         description={
           ownerKey
-            ? "Choose whether people can edit or view this board."
+            ? "Anyone with this link can edit or view this board."
             : "Anyone with this link can open the room."
         }
         size="lg"
@@ -531,7 +530,7 @@ export default function DrawingRoomPage() {
         <div className={styles.shareDialog}>
           <div className={styles.shareRow}>
             <Input
-              label="Current link"
+              label="Room link"
               value={currentLink}
               readOnly
               inputSize="sm"
@@ -544,40 +543,31 @@ export default function DrawingRoomPage() {
               {copied === "current-dialog" ? "Copied" : "Copy"}
             </Button>
           </div>
-          {editLink ? (
-            <div className={styles.shareRow}>
-              <Input
-                label="Can edit"
-                value={editLink}
-                readOnly
-                inputSize="sm"
-              />
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => void copyText(editLink, "edit")}
-              >
-                {copied === "edit" ? "Copied" : "Copy"}
-              </Button>
+          <section className={styles.linkAccessSection}>
+            <div>
+              <h3>Link access</h3>
+              <p className={styles.collaboratorHint}>
+                This link is currently{" "}
+                {linkMode === "edit" ? "editable" : "view only"}. Changing it
+                updates the same link for everyone after they refresh.
+              </p>
             </div>
-          ) : null}
-          {viewLink ? (
-            <div className={styles.shareRow}>
-              <Input
-                label="View only"
-                value={viewLink}
-                readOnly
-                inputSize="sm"
+            {ownerKey ? (
+              <Select
+                label="Permission"
+                value={linkMode}
+                onChange={(event) =>
+                  void manageRoom("access", event.target.value)
+                }
+                options={[
+                  { value: "edit", label: "Can edit" },
+                  { value: "view", label: "Can view" },
+                ]}
+                selectSize="sm"
+                disabled={manageBusy}
               />
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => void copyText(viewLink, "view")}
-              >
-                {copied === "view" ? "Copied" : "Copy"}
-              </Button>
-            </div>
-          ) : null}
+            ) : null}
+          </section>
           {status === "authenticated" && accountOwned ? (
             <section className={styles.collaboratorSection}>
               <div>
@@ -700,7 +690,7 @@ export default function DrawingRoomPage() {
                 loading={manageBusy}
                 onClick={() => void manageRoom("rotate")}
               >
-                Rotate links
+                Rotate link
               </Button>
               <Button
                 size="sm"
@@ -719,7 +709,7 @@ export default function DrawingRoomPage() {
         onCancel={() => setConfirmEnd(false)}
         onConfirm={() => manageRoom("close")}
         title="End this room?"
-        description="Everyone with the current links will lose access. The room cannot be reopened."
+        description="Everyone with the current link will lose access. The room cannot be reopened."
         confirmLabel="End room"
         cancelLabel="Keep room open"
         tone="danger"

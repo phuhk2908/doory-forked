@@ -141,9 +141,13 @@ describe("drawing room realtime", () => {
       },
     });
     socket.receive({ type: "room_title", title: "Renamed board" });
+    socket.receive({ type: "access", mode: "edit", can_edit: true });
     socket.receive({ type: "closed", reason: "revoked" });
 
-    expect(access).toEqual([{ mode: "view", canEdit: false }]);
+    expect(access).toEqual([
+      { mode: "view", canEdit: false },
+      { mode: "edit", canEdit: true },
+    ]);
     expect(peers.at(-1)).toEqual([
       { id: "peer-1", mode: "edit", cursor: null, selection: [] },
     ]);

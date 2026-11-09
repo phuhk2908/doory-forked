@@ -152,11 +152,11 @@ class DrawingRoomCreateView(CsrfProtectedMixin, APIView):
             "title": body.validated_data.get("title", services.DEFAULT_TITLE),
             "document": body.validated_data.get("document") or services.blank_document(),
         }
-        room, edit_key, view_key, owner_key = (
+        room, room_key, owner_key = (
             create(request.user, **arguments) if request.user.is_authenticated else create(**arguments)
         )
         data = DrawingRoomSerializer(room).data
-        data.update({"key": edit_key, "view_key": view_key, "owner_key": owner_key, "mode": "edit"})
+        data.update({"key": room_key, "owner_key": owner_key, "mode": room.link_mode})
         return Response(data, status=status.HTTP_201_CREATED)
 
 
@@ -187,6 +187,14 @@ class DrawingRoomManageView(CsrfProtectedMixin, APIView):
         body.is_valid(raise_exception=True)
         owner_key = request.headers.get("X-Drawing-Room-Owner-Key")
         action = body.validated_data["action"]
+        if action == "access":
+            room = services.set_drawing_room_access(pk, owner_key or "", body.validated_data["mode"])
+            if room is None:
+                return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+            notify_drawing_room(pk, "access_changed", mode=room.link_mode)
+            data = DrawingRoomSerializer(room).data
+            data["mode"] = room.link_mode
+            return Response(data)
         if action == "close":
             room = services.close_drawing_room(pk, owner_key or "")
             if room is None:
@@ -208,10 +216,10 @@ class DrawingRoomManageView(CsrfProtectedMixin, APIView):
         rotated = services.rotate_drawing_room_keys(pk, owner_key or "")
         if rotated is None:
             return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
-        room, edit_key, view_key = rotated
+        room, room_key = rotated
         notify_drawing_room(pk, "revoked")
         data = DrawingRoomSerializer(room).data
-        data.update({"key": edit_key, "view_key": view_key, "mode": "edit"})
+        data.update({"key": room_key, "mode": room.link_mode})
         return Response(data)
 
 
@@ -291,16 +299,23 @@ class DrawingRoomTransferOwnershipView(CsrfProtectedMixin, APIView):
         return Response(DrawingRoomSerializer(room).data)
 
 
-def notify_drawing_room(room_id, reason: str, *, title: str | None = None) -> None:
+def notify_drawing_room(
+    room_id,
+    reason: str,
+    *,
+    title: str | None = None,
+    mode: str | None = None,
+) -> None:
     layer = get_channel_layer()
     if layer is None:
         return
     try:
-        event = (
-            {"type": "drawing.room_renamed", "title": title}
-            if reason == "renamed"
-            else {"type": "drawing.room_closed", "reason": reason}
-        )
+        if reason == "renamed":
+            event = {"type": "drawing.room_renamed", "title": title}
+        elif reason == "access_changed":
+            event = {"type": "drawing.room_access_changed", "mode": mode}
+        else:
+            event = {"type": "drawing.room_closed", "reason": reason}
         async_to_sync(layer.group_send)(
             f"doory.drawing-room.{room_id}",
             event,
