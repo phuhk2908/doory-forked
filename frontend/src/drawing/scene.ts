@@ -5,6 +5,7 @@ import {
   type DrawingElement,
   type DrawingPoint,
   newElementId,
+  DRAWING_NOTE_DEFAULT_TEXT,
   type LinearElement,
   type TextElement,
   updateElement,
@@ -204,13 +205,13 @@ export function createNote(x: number, y: number): TextElement {
     y,
     width: 240,
     height: 128,
-    text: "",
+    text: DRAWING_NOTE_DEFAULT_TEXT,
     style: styleWith({
       fill: "#fff3a3",
       stroke: "#5f4b00",
       fontSize: 18,
       roundness: 8,
     }),
-    customData: { variant: "note" },
+    customData: { variant: "note", createdAt: Date.now() },
   }) as TextElement;
 }

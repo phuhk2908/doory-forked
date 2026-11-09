@@ -290,20 +290,65 @@
   cursor: crosshair;
 }
 
+.canvas[data-tool="select"] {
+  cursor: default;
+}
+
+.canvas[data-tool="hand"] {
+  cursor: grab;
+}
+
+.canvas[data-tool="text"] {
+  cursor: text;
+}
+
+.canvas[data-tool="line"] {
+  cursor:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M4 20 20 4' fill='none' stroke='%231f2937' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E")
+      12 12,
+    crosshair;
+}
+
+.canvas[data-tool="arrow"] {
+  cursor:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M4 12h15m-6-6 6 6-6 6' fill='none' stroke='%231f2937' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+      12 12,
+    crosshair;
+}
+
+.canvas[data-tool="freedraw"] {
+  cursor:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='m4 20 3.2-1 10.9-10.9a2.1 2.1 0 0 0-3-3L4.2 16.9 4 20Zm9.4-13.4 4 4' fill='none' stroke='%231f2937' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+      3 21,
+    crosshair;
+}
+
+.canvas[data-tool="note"] {
+  cursor:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M5 3h10l4 4v14H5zM15 3v5h4' fill='none' stroke='%231f2937' stroke-width='2' stroke-linejoin='round'/%3E%3C/svg%3E")
+      5 5,
+    crosshair;
+}
+
+.canvas[data-tool="eraser"] {
+  cursor:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='m7 20 10.8-10.8a2.8 2.8 0 0 0-4-4L3 16l4 4Zm-2-2h12' fill='none' stroke='%231f2937' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+      4 20,
+    crosshair;
+}
+
+.canvas[data-tool="rectangle"],
+.canvas[data-tool="ellipse"],
+.canvas[data-tool="diamond"] {
+  cursor: crosshair;
+}
+
 .canvas[data-pan-mode="true"] {
   cursor: grab;
 }
 
 .canvas[data-pan-active="true"] {
   cursor: grabbing;
-}
-
-.canvas[data-eraser-mode="true"] {
-  cursor: crosshair;
-}
-
-.canvas[data-select-mode="true"] {
-  cursor: default;
 }
 
 .canvas:focus {
@@ -318,15 +363,23 @@
 }
 
 .textEditor {
+  box-sizing: border-box;
   position: absolute;
   z-index: 3;
   resize: both;
-  padding: 3px;
+  min-width: 120px;
+  padding: 4px 6px;
   color: var(--color-text);
   background: color-mix(in srgb, var(--color-surface) 85%, transparent);
   border: 1px solid var(--selection-color);
   border-radius: var(--radius-sm);
   outline: none;
+}
+
+.textEditor[data-note="true"] {
+  padding: 3px 4px;
+  border-radius: 7px;
+  box-shadow: 0 4px 12px rgb(15 23 42 / 12%);
 }
 
 .remoteSelection,

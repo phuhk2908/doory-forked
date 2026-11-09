@@ -4,6 +4,7 @@ import type {
   DrawingPoint,
   DrawingViewport,
   LinearElement,
+  TextElement,
 } from "./model";
 
 export interface Point {
@@ -20,6 +21,46 @@ export interface Rect {
 
 export const rectRight = (rect: Rect): number => rect.x + rect.width;
 export const rectBottom = (rect: Rect): number => rect.y + rect.height;
+
+let textMeasureContext: CanvasRenderingContext2D | null | undefined;
+
+function measureTextLine(element: TextElement, text: string): number {
+  if (textMeasureContext === undefined) {
+    try {
+      textMeasureContext =
+        typeof globalThis.document === "undefined"
+          ? null
+          : globalThis.document.createElement("canvas").getContext("2d");
+    } catch {
+      textMeasureContext = null;
+    }
+  }
+  if (textMeasureContext) {
+    textMeasureContext.font = `${element.style.fontSize}px ${element.style.fontFamily}`;
+    return Math.max(1, textMeasureContext.measureText(text).width);
+  }
+  return Math.max(1, text.length * element.style.fontSize * 0.6);
+}
+
+export function textBounds(element: TextElement): Rect {
+  if (element.customData?.variant === "note")
+    return {
+      x: element.x,
+      y: element.y,
+      width: element.width,
+      height: element.height,
+    };
+  const lines = element.text.split("\n");
+  return {
+    x: element.x,
+    y: element.y,
+    width: Math.max(...lines.map((line) => measureTextLine(element, line)), 1),
+    height: Math.max(
+      element.style.fontSize * element.style.lineHeight,
+      lines.length * element.style.fontSize * element.style.lineHeight,
+    ),
+  };
+}
 
 export function normalizeRect(a: Point, b: Point): Rect {
   return {
@@ -78,6 +119,7 @@ export function rotatePoint(point: Point, centre: Point, angle: number): Point {
 }
 
 export function elementBounds(element: DrawingElement): Rect {
+  if (element.type === "text") return textBounds(element);
   if ("points" in element && element.points.length > 0) {
     const xs = element.points.map((point) => point.x);
     const ys = element.points.map((point) => point.y);
@@ -128,39 +170,39 @@ export function distanceToSegment(point: Point, a: Point, b: Point): number {
   return Math.hypot(point.x - (a.x + t * dx), point.y - (a.y + t * dy));
 }
 
-function localPoint(point: Point, element: DrawingElement): Point {
-  const centre = {
-    x: element.x + element.width / 2,
-    y: element.y + element.height / 2,
-  };
-  return rotatePoint(point, centre, -element.angle);
-}
-
 function insideShape(point: Point, element: DrawingElement): boolean {
-  const local = localPoint(point, element);
+  const bounds = element.type === "text" ? textBounds(element) : element;
+  const local = rotatePoint(
+    point,
+    {
+      x: bounds.x + bounds.width / 2,
+      y: bounds.y + bounds.height / 2,
+    },
+    -element.angle,
+  );
   if (element.type === "ellipse") {
-    const rx = Math.max(element.width / 2, 0.001);
-    const ry = Math.max(element.height / 2, 0.001);
+    const rx = Math.max(bounds.width / 2, 0.001);
+    const ry = Math.max(bounds.height / 2, 0.001);
     return (
-      ((local.x - (element.x + rx)) / rx) ** 2 +
-        ((local.y - (element.y + ry)) / ry) ** 2 <=
+      ((local.x - (bounds.x + rx)) / rx) ** 2 +
+        ((local.y - (bounds.y + ry)) / ry) ** 2 <=
       1
     );
   }
   if (element.type === "diamond") {
-    const cx = element.x + element.width / 2;
-    const cy = element.y + element.height / 2;
+    const cx = bounds.x + bounds.width / 2;
+    const cy = bounds.y + bounds.height / 2;
     return (
-      Math.abs(local.x - cx) / Math.max(element.width / 2, 0.001) +
-        Math.abs(local.y - cy) / Math.max(element.height / 2, 0.001) <=
+      Math.abs(local.x - cx) / Math.max(bounds.width / 2, 0.001) +
+        Math.abs(local.y - cy) / Math.max(bounds.height / 2, 0.001) <=
       1
     );
   }
   return (
-    local.x >= element.x &&
-    local.x <= rectRight(element) &&
-    local.y >= element.y &&
-    local.y <= rectBottom(element)
+    local.x >= bounds.x &&
+    local.x <= rectRight(bounds) &&
+    local.y >= bounds.y &&
+    local.y <= rectBottom(bounds)
   );
 }
 
@@ -175,15 +217,17 @@ export function hitTest(
     element.type === "rectangle" ||
     element.type === "ellipse" ||
     element.type === "diamond"
-  )
+  ) {
+    const bounds = element.type === "text" ? textBounds(element) : element;
     return (
       insideShape(point, element) ||
       distanceToSegment(
         point,
-        { x: element.x, y: element.y },
-        { x: rectRight(element), y: element.y },
+        { x: bounds.x, y: bounds.y },
+        { x: rectRight(bounds), y: bounds.y },
       ) <= tolerance
     );
+  }
   if (
     element.type !== "line" &&
     element.type !== "arrow" &&
@@ -211,6 +255,41 @@ export function hitTestScene(
     if (element && hitTest(element, point, tolerance)) return element;
   }
   return null;
+}
+
+export function elementsHitBySegment(
+  document: DrawingDocument,
+  from: Point,
+  to: Point,
+  tolerance = 8,
+): string[] {
+  const sweep = {
+    x: Math.min(from.x, to.x) - tolerance,
+    y: Math.min(from.y, to.y) - tolerance,
+    width: Math.abs(to.x - from.x) + tolerance * 2,
+    height: Math.abs(to.y - from.y) + tolerance * 2,
+  };
+  const candidates = document.elements.filter(
+    (element) =>
+      !element.isDeleted && rectsIntersect(elementBounds(element), sweep),
+  );
+  const steps = Math.max(
+    1,
+    Math.ceil(
+      Math.hypot(to.x - from.x, to.y - from.y) / Math.max(4, tolerance),
+    ),
+  );
+  const ids = new Set<string>();
+  for (let step = 0; step <= steps; step += 1) {
+    const progress = step / steps;
+    const point = {
+      x: from.x + (to.x - from.x) * progress,
+      y: from.y + (to.y - from.y) * progress,
+    };
+    for (const element of candidates)
+      if (hitTest(element, point, tolerance)) ids.add(element.id);
+  }
+  return [...ids];
 }
 
 export function selectionBounds(

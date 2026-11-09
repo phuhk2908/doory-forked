@@ -41,12 +41,28 @@ describe("DrawingEditor", () => {
       name: "Whiteboard canvas",
     });
     expect(canvas).toHaveAttribute("data-select-mode", "true");
+    expect(canvas).toHaveAttribute("data-tool", "select");
 
     await userEvent.click(screen.getByRole("button", { name: /Eraser/ }));
     expect(canvas).toHaveAttribute("data-select-mode", "false");
+    expect(canvas).toHaveAttribute("data-tool", "eraser");
 
     await userEvent.click(screen.getByRole("button", { name: /Select/ }));
     expect(canvas).toHaveAttribute("data-select-mode", "true");
+    expect(canvas).toHaveAttribute("data-tool", "select");
+  });
+
+  it("shows the hand cursor state while Space is held", () => {
+    render(<DrawingEditor initialDocument={blankDrawing()} />);
+
+    const canvas = screen.getByRole("application", {
+      name: "Whiteboard canvas",
+    });
+    fireEvent.keyDown(window, { code: "Space", key: " " });
+    expect(canvas).toHaveAttribute("data-pan-mode", "true");
+
+    fireEvent.keyUp(window, { code: "Space", key: " " });
+    expect(canvas).toHaveAttribute("data-pan-mode", "false");
   });
 
   it("renders collaborator cursors as labeled pointer icons", () => {
@@ -111,7 +127,9 @@ describe("DrawingEditor", () => {
     );
     expect(screen.getByRole("textbox", { name: "Edit text" })).toHaveFocus();
     expect(pointerDown.defaultPrevented).toBe(true);
-    expect(screen.getByRole("textbox", { name: "Edit text" })).toHaveValue("");
+    expect(screen.getByRole("textbox", { name: "Edit text" })).toHaveValue(
+      "New note",
+    );
     expect(setPointerCapture).toHaveBeenCalledWith(1);
 
     fireEvent.change(screen.getByRole("textbox", { name: "Edit text" }), {
@@ -201,6 +219,84 @@ describe("DrawingEditor", () => {
         ]),
       ),
     );
+  });
+
+  it("opens an existing text element for editing on double click", async () => {
+    const text = createElement("text", {
+      id: "existing-text",
+      x: 300,
+      y: 220,
+      width: 240,
+      height: 40,
+      text: "Existing text",
+    });
+    render(
+      <DrawingEditor
+        initialDocument={{ ...blankDrawing(), elements: [text] }}
+      />,
+    );
+
+    const canvas = screen.getByRole("application", {
+      name: "Whiteboard canvas",
+    });
+    Object.defineProperty(canvas, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({
+        left: 0,
+        top: 0,
+        width: 800,
+        height: 600,
+        right: 800,
+        bottom: 600,
+      }),
+    });
+    fireEvent.doubleClick(canvas, { clientX: 420, clientY: 300 });
+
+    expect(
+      await screen.findByRole("textbox", { name: "Edit text" }),
+    ).toHaveValue("Existing text");
+  });
+
+  it("cancels an edit without deleting the existing text", async () => {
+    const text = createElement("text", {
+      id: "existing-text",
+      x: 300,
+      y: 220,
+      width: 240,
+      height: 40,
+      text: "Existing text",
+    });
+    const changes: DrawingDocument[] = [];
+    render(
+      <DrawingEditor
+        initialDocument={{ ...blankDrawing(), elements: [text] }}
+        onDocumentChange={(document) => changes.push(document)}
+      />,
+    );
+
+    const canvas = screen.getByRole("application", {
+      name: "Whiteboard canvas",
+    });
+    Object.defineProperty(canvas, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({
+        left: 0,
+        top: 0,
+        width: 800,
+        height: 600,
+        right: 800,
+        bottom: 600,
+      }),
+    });
+    fireEvent.doubleClick(canvas, { clientX: 420, clientY: 300 });
+    const textbox = await screen.findByRole("textbox", { name: "Edit text" });
+    fireEvent.change(textbox, { target: { value: "Changed text" } });
+    fireEvent.keyDown(textbox, { key: "Escape" });
+
+    await waitFor(() => expect(screen.queryByRole("textbox")).toBeNull());
+    expect(changes.at(-1)?.elements).toEqual([
+      expect.objectContaining({ id: "existing-text", text: "Existing text" }),
+    ]);
   });
 
   it("erases every element crossed by a drag that starts on blank canvas", async () => {

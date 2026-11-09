@@ -3,9 +3,11 @@ import {
   documentBounds,
   elementBounds,
   selectionBounds,
+  textBounds,
   worldToScreen,
   type Point,
 } from "./geometry";
+import { DRAWING_NOTE_DATE_FONT_SIZE, DRAWING_NOTE_PADDING } from "./model";
 import type {
   DrawingDocument,
   DrawingElement,
@@ -20,6 +22,7 @@ export interface RenderOptions {
   dpr?: number;
   selection?: ReadonlySet<string>;
   eraserTargets?: ReadonlySet<string>;
+  eraserTrail?: readonly Point[];
   draft?: DrawingElement | null;
   showGrid?: boolean;
   showDots?: boolean;
@@ -83,65 +86,86 @@ function drawArrowhead(
 }
 
 function drawText(ctx: CanvasRenderingContext2D, element: TextElement): void {
+  const isNote = element.customData?.variant === "note";
+  const padding = isNote ? DRAWING_NOTE_PADDING : 0;
+  const contentWidth = isNote
+    ? Math.max(40, element.width - padding * 2)
+    : textBounds(element).width;
   ctx.save();
-  if (element.customData?.variant === "note") {
+  ctx.translate(element.x, element.y);
+  ctx.rotate((element.angle * Math.PI) / 180);
+  if (isNote) {
     ctx.fillStyle = element.style.fill;
     ctx.strokeStyle = element.style.stroke;
     ctx.lineWidth = element.style.strokeWidth;
     ctx.globalAlpha = element.style.opacity;
+    ctx.shadowColor = "rgba(15, 23, 42, 0.12)";
+    ctx.shadowBlur = 8;
+    ctx.shadowOffsetY = 3;
     ctx.beginPath();
-    ctx.roundRect(
-      element.x,
-      element.y,
-      element.width,
-      element.height,
-      element.style.roundness,
-    );
+    ctx.roundRect(0, 0, element.width, element.height, element.style.roundness);
     ctx.fill();
     ctx.stroke();
+    ctx.shadowColor = "transparent";
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
   }
-  ctx.translate(element.x, element.y);
-  ctx.rotate((element.angle * Math.PI) / 180);
   ctx.font = `${element.style.fontSize}px ${element.style.fontFamily}`;
   ctx.fillStyle = element.style.stroke;
   ctx.globalAlpha = element.style.opacity;
   ctx.textAlign = element.style.textAlign;
   ctx.textBaseline = "top";
-  const lines = element.text.split("\n");
+  const lines: string[] = [];
   const lineHeight = element.style.fontSize * element.style.lineHeight;
-  const maxWidth = Math.max(40, element.width);
-  let lineIndex = 0;
-  for (const source of lines) {
+  for (const source of element.text.split("\n")) {
+    if (!isNote) {
+      lines.push(source);
+      continue;
+    }
     const words = source.split(" ");
     let line = "";
     for (const word of words) {
       const next = line ? `${line} ${word}` : word;
-      if (line && ctx.measureText(next).width > maxWidth) {
-        ctx.fillText(
-          line,
-          element.style.textAlign === "left"
-            ? 0
-            : element.style.textAlign === "center"
-              ? element.width / 2
-              : element.width,
-          lineIndex * lineHeight,
-        );
-        lineIndex += 1;
+      if (line && ctx.measureText(next).width > contentWidth) {
+        lines.push(line);
         line = word;
       } else {
         line = next;
       }
     }
-    ctx.fillText(
-      line,
-      element.style.textAlign === "left"
-        ? 0
-        : element.style.textAlign === "center"
-          ? element.width / 2
-          : element.width,
-      lineIndex * lineHeight,
-    );
-    lineIndex += 1;
+    lines.push(line);
+  }
+  const textX = (): number =>
+    element.style.textAlign === "left"
+      ? padding
+      : element.style.textAlign === "center"
+        ? padding + contentWidth / 2
+        : padding + contentWidth;
+  lines.forEach((line, lineIndex) => {
+    ctx.fillText(line, textX(), padding + lineIndex * lineHeight);
+  });
+  if (isNote) {
+    const createdAt = element.customData?.createdAt;
+    if (typeof createdAt === "number" && Number.isFinite(createdAt)) {
+      const date = new Date(createdAt);
+      if (!Number.isNaN(date.getTime())) {
+        ctx.save();
+        ctx.font = `${DRAWING_NOTE_DATE_FONT_SIZE}px ${element.style.fontFamily}`;
+        ctx.textAlign = "right";
+        ctx.textBaseline = "bottom";
+        ctx.globalAlpha = element.style.opacity * 0.68;
+        ctx.fillText(
+          `Added ${new Intl.DateTimeFormat(undefined, {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+          }).format(date)}`,
+          element.width - padding,
+          element.height - padding,
+        );
+        ctx.restore();
+      }
+    }
   }
   ctx.restore();
   ctx.globalAlpha = 1;
@@ -309,6 +333,34 @@ function drawDots(
   ctx.restore();
 }
 
+function drawEraserTrail(
+  ctx: CanvasRenderingContext2D,
+  points: readonly Point[],
+  zoom: number,
+): void {
+  if (points.length === 0) return;
+  const last = points[points.length - 1];
+  ctx.save();
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.strokeStyle = "#6a52d9";
+  ctx.globalAlpha = 0.16;
+  ctx.lineWidth = 14 / zoom;
+  ctx.beginPath();
+  ctx.moveTo(points[0].x, points[0].y);
+  for (const point of points.slice(1)) ctx.lineTo(point.x, point.y);
+  ctx.stroke();
+  ctx.fillStyle = "#6a52d9";
+  ctx.globalAlpha = 0.2;
+  ctx.beginPath();
+  ctx.arc(last.x, last.y, 9 / zoom, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 0.7;
+  ctx.lineWidth = 1.5 / zoom;
+  ctx.stroke();
+  ctx.restore();
+}
+
 export function renderDrawing(
   canvas: HTMLCanvasElement,
   document: DrawingDocument,
@@ -366,6 +418,8 @@ export function renderDrawing(
       );
   }
   if (options.draft) drawElement(ctx, roughCanvas, options.draft);
+  if (options.eraserTrail)
+    drawEraserTrail(ctx, options.eraserTrail, viewport.zoom);
   ctx.restore();
   const selection = options.selection;
   if (selection && selection.size > 0) {
@@ -417,11 +471,23 @@ function svgElement(element: DrawingElement): string {
   if (element.type === "diamond")
     return `<polygon points="${element.x + element.width / 2},${element.y} ${element.x + element.width},${element.y + element.height / 2} ${element.x + element.width / 2},${element.y + element.height} ${element.x},${element.y + element.height / 2}" transform="${transform}" style="${style}"/>`;
   if (element.type === "text") {
-    const noteBackground =
-      element.customData?.variant === "note"
-        ? `<rect x="${element.x}" y="${element.y}" width="${element.width}" height="${element.height}" rx="${element.style.roundness}" style="${style}"/>`
+    const isNote = element.customData?.variant === "note";
+    const padding = isNote ? DRAWING_NOTE_PADDING : 0;
+    const noteBackground = isNote
+      ? `<rect x="${element.x}" y="${element.y}" width="${element.width}" height="${element.height}" rx="${element.style.roundness}" style="${style}"/>`
+      : "";
+    const textY = element.y + padding + element.style.fontSize;
+    const date =
+      isNote &&
+      typeof element.customData?.createdAt === "number" &&
+      Number.isFinite(element.customData.createdAt)
+        ? new Date(element.customData.createdAt)
+        : null;
+    const dateLabel =
+      date && !Number.isNaN(date.getTime())
+        ? `<text x="${element.x + element.width - padding}" y="${element.y + element.height - padding}" text-anchor="end" font-family="${escapeXml(element.style.fontFamily)}" font-size="${DRAWING_NOTE_DATE_FONT_SIZE}" fill="${escapeXml(element.style.stroke)}" opacity="${element.style.opacity * 0.68}">Added ${escapeXml(new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" }).format(date))}</text>`
         : "";
-    return `${noteBackground}<text x="${element.x}" y="${element.y + element.style.fontSize}" font-family="${escapeXml(element.style.fontFamily)}" font-size="${element.style.fontSize}" fill="${escapeXml(element.style.stroke)}" opacity="${element.style.opacity}">${escapeXml(element.text)}</text>`;
+    return `${noteBackground}<text x="${element.x + padding}" y="${textY}" font-family="${escapeXml(element.style.fontFamily)}" font-size="${element.style.fontSize}" fill="${escapeXml(element.style.stroke)}" opacity="${element.style.opacity}">${escapeXml(element.text)}</text>${dateLabel}`;
   }
   if (
     element.type !== "line" &&

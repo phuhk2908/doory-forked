@@ -7,9 +7,11 @@ import {
 import { colorCollaborators } from "@/drawing/collaboratorColors";
 import { mergeDrawingDocuments, type DrawingDocument } from "@/drawing/model";
 import {
+  drawingRoomDisplayName,
   drawingRoomHash,
   drawingRoomOwnerStorageKey,
   parseDrawingRoomHash,
+  type DrawingRoomLink,
 } from "@/drawing/roomLink";
 import {
   useDrawingRoomRealtime,
@@ -60,13 +62,19 @@ function roomUrl(id: string, key: string): string {
   return window.location.origin + "/drawings/room" + drawingRoomHash(id, key);
 }
 
+function replaceRoomHash(hash: string): void {
+  window.history.replaceState(
+    null,
+    "",
+    window.location.pathname + window.location.search + hash,
+  );
+}
+
 export default function DrawingRoomPage() {
-  const link = useMemo(
-    () =>
-      parseDrawingRoomHash(
-        typeof window === "undefined" ? "" : window.location.hash,
-      ),
-    [],
+  const [link, setLink] = useState<DrawingRoomLink | null>(() =>
+    parseDrawingRoomHash(
+      typeof window === "undefined" ? "" : window.location.hash,
+    ),
   );
   const navigate = useNavigate();
   const { status } = useAuth();
@@ -102,6 +110,11 @@ export default function DrawingRoomPage() {
   );
   const [transferEmail, setTransferEmail] = useState("");
   const [transferConfirm, setTransferConfirm] = useState(false);
+  const [ownerKey, setOwnerKey] = useState<string | null>(() =>
+    link ? readSession(drawingRoomOwnerStorageKey(link.id)) : null,
+  );
+  const activeRoomKeyRef = useRef(link?.key ?? null);
+  const rotationPendingRef = useRef(false);
   const peerColors = useMemo(
     () =>
       colorCollaborators(
@@ -109,10 +122,6 @@ export default function DrawingRoomPage() {
         peerColorsRef.current,
       ),
     [peers],
-  );
-  const ownerKey = useMemo(
-    () => (link ? readSession(drawingRoomOwnerStorageKey(link.id)) : null),
-    [link],
   );
   useUnsavedGuard(dirty && canEdit && !ended);
 
@@ -168,7 +177,10 @@ export default function DrawingRoomPage() {
   }, [link, shareOpen, status]);
 
   usePageMeta({
-    title: load.kind === "ready" ? load.room.title : "Whiteboard",
+    title:
+      load.kind === "ready"
+        ? drawingRoomDisplayName(load.room.title)
+        : "Whiteboard",
     noindex: true,
   });
 
@@ -211,9 +223,16 @@ export default function DrawingRoomPage() {
       setLinkMode(mode);
       setCanEdit(editable && mode === "edit");
     },
-    onClosed: () => {
+    onClosed: (reason, closedKey) => {
+      if (closedKey !== activeRoomKeyRef.current) return;
+      if (reason === "revoked" && rotationPendingRef.current) return;
       setEnded(true);
       setCanEdit(false);
+      setOwnerKey(null);
+      if (link) {
+        sessionStorage.removeItem(drawingRoomOwnerStorageKey(link.id));
+      }
+      replaceRoomHash("");
       setError(
         "This room has ended. You can still export the board or save a copy to your account.",
       );
@@ -237,7 +256,8 @@ export default function DrawingRoomPage() {
     action: "access" | "close" | "rotate" | "rename",
     value?: string,
   ): Promise<void> {
-    if (!link || !ownerKey) return;
+    if (!link || !ownerKey || manageBusy) return;
+    if (action === "rotate") rotationPendingRef.current = true;
     setManageBusy(true);
     setError(null);
     try {
@@ -250,6 +270,9 @@ export default function DrawingRoomPage() {
       if (action === "close") {
         setEnded(true);
         setCanEdit(false);
+        setOwnerKey(null);
+        sessionStorage.removeItem(drawingRoomOwnerStorageKey(link.id));
+        replaceRoomHash("");
         setShareOpen(false);
         setConfirmEnd(false);
         return;
@@ -269,10 +292,26 @@ export default function DrawingRoomPage() {
         return;
       }
       if (!result.key) throw new Error("missing_rotated_keys");
-      window.location.assign(
-        "/drawings/room" + drawingRoomHash(link.id, result.key),
+      const rotatedKey = result.key;
+      const nextLink: DrawingRoomLink = {
+        ...link,
+        key: rotatedKey,
+        mode: result.mode === "view" ? "view" : "edit",
+      };
+      activeRoomKeyRef.current = nextLink.key;
+      rotationPendingRef.current = false;
+      setLink(nextLink);
+      setEnded(false);
+      setLinkMode(nextLink.mode);
+      setCanEdit(nextLink.mode === "edit");
+      setLoad((value) =>
+        value.kind === "ready"
+          ? { ...value, room: { ...value.room, ...result, key: rotatedKey } }
+          : value,
       );
+      replaceRoomHash(drawingRoomHash(nextLink.id, rotatedKey));
     } catch (cause) {
+      if (action === "rotate") rotationPendingRef.current = false;
       setError(
         isApiError(cause) ? cause.message : "Could not update this room yet.",
       );
@@ -364,11 +403,10 @@ export default function DrawingRoomPage() {
     setCollaboratorError(null);
     try {
       await drawingRoomsApi.transferOwnership(link.id, transferEmail.trim());
-      if (ownerKey) {
-        sessionStorage.removeItem(drawingRoomOwnerStorageKey(link.id));
-      }
+      sessionStorage.removeItem(drawingRoomOwnerStorageKey(link.id));
+      setOwnerKey(null);
       setTransferConfirm(false);
-      window.location.reload();
+      setShareOpen(false);
     } catch (cause) {
       setCollaboratorError(
         isApiError(cause) ? cause.message : "Could not transfer ownership yet.",
@@ -436,6 +474,7 @@ export default function DrawingRoomPage() {
     );
   if (load.kind !== "ready" || !link) return null;
 
+  const roomName = drawingRoomDisplayName(load.room.title);
   const currentLink = roomUrl(load.room.id, link.key);
   const isReadOnly = ended || !canEdit;
   const statusLabel =
@@ -466,20 +505,24 @@ export default function DrawingRoomPage() {
         {!canEdit && !ended ? (
           <span className={styles.roomBadge}>View only</span>
         ) : null}
-        <Button
-          size="sm"
-          variant="secondary"
-          onClick={() => void copyText(currentLink, "current")}
-        >
-          {copied === "current" ? "Copied" : "Copy link"}
-        </Button>
-        <Button
-          size="sm"
-          variant="secondary"
-          onClick={() => setShareOpen(true)}
-        >
-          Share
-        </Button>
+        {!ended ? (
+          <>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => void copyText(currentLink, "current")}
+            >
+              {copied === "current" ? "Copied" : "Copy link"}
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => setShareOpen(true)}
+            >
+              Share
+            </Button>
+          </>
+        ) : null}
         <Button
           size="sm"
           loading={savingAccount}
@@ -514,7 +557,7 @@ export default function DrawingRoomPage() {
           setShareOpen(false);
           setCollaboratorError(null);
         }}
-        title="Share this room"
+        title={`Share “${roomName}”`}
         description={
           ownerKey
             ? "Anyone with this link can edit or view this board."

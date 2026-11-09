@@ -4,6 +4,9 @@ export const DRAWING_SCHEMA_VERSION = 1 as const;
 export const MAX_DRAWING_ELEMENTS = 10_000;
 export const MAX_FREEHAND_POINTS = 20_000;
 export const MAX_DRAWING_TEXT = 100_000;
+export const DRAWING_NOTE_DEFAULT_TEXT = "New note";
+export const DRAWING_NOTE_PADDING = 16;
+export const DRAWING_NOTE_DATE_FONT_SIZE = 11;
 
 export type DrawingTool =
   | "select"

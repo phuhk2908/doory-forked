@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { drawingRoomHash, parseDrawingRoomHash } from "./roomLink";
+import {
+  drawingRoomDisplayName,
+  drawingRoomHash,
+  parseDrawingRoomHash,
+} from "./roomLink";
 
 describe("drawing room links", () => {
   it("keeps the room key in the URL fragment", () => {
@@ -27,5 +31,13 @@ describe("drawing room links", () => {
         "?room=123e4567-e89b-12d3-a456-426614174000," + "k".repeat(43),
       ),
     ).toBeNull();
+  });
+
+  it("normalises a stable display name without using it as room identity", () => {
+    expect(drawingRoomDisplayName("  Product   planning  ")).toBe(
+      "Product planning",
+    );
+    expect(drawingRoomDisplayName(" ")).toBe("Untitled whiteboard");
+    expect(drawingRoomDisplayName(undefined)).toBe("Untitled whiteboard");
   });
 });

@@ -4,10 +4,11 @@ import {
   hitTest,
   normalizeRect,
   screenToWorld,
+  textBounds,
   viewportAtPoint,
   worldToScreen,
 } from "./geometry";
-import { createElement } from "./model";
+import { createElement, type TextElement } from "./model";
 
 describe("drawing geometry", () => {
   it("round-trips world and screen coordinates", () => {
@@ -49,5 +50,19 @@ describe("drawing geometry", () => {
       width: 100,
       height: 50,
     });
+  });
+
+  it("sizes text bounds from the rendered content", () => {
+    const text = createElement("text", {
+      x: 20,
+      y: 30,
+      width: 240,
+      height: 40,
+      text: "Hi",
+    }) as TextElement;
+    const bounds = textBounds(text);
+
+    expect(bounds.width).toBeLessThan(240);
+    expect(bounds.height).toBeGreaterThan(0);
   });
 });

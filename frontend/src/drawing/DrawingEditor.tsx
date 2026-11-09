@@ -8,6 +8,7 @@ import {
   useState,
   useLayoutEffect,
   type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import {
@@ -35,11 +36,14 @@ import {
 import { Button, Dialog, Input } from "@/ui";
 import {
   documentBounds,
+  elementBounds,
+  elementsHitBySegment,
   elementsInRect,
   hitTestScene,
   normalizeRect,
   screenToWorld,
   selectionBounds,
+  textBounds,
   translateElement,
   viewportAtPoint,
   worldToScreen,
@@ -60,6 +64,8 @@ import {
 } from "./scene";
 import { exportDrawing, renderDrawing } from "./renderer";
 import {
+  DRAWING_NOTE_DEFAULT_TEXT,
+  DRAWING_NOTE_PADDING,
   restoreDrawing,
   versionNonce,
   type DrawingDocument,
@@ -108,6 +114,13 @@ type DrawTool = Extract<
   DrawingTool,
   "rectangle" | "ellipse" | "diamond" | "line" | "arrow" | "freedraw"
 >;
+type TextEditing = {
+  id: string;
+  value: string;
+  isNew: boolean;
+  wasDirty: boolean;
+  changed: boolean;
+};
 type Interaction =
   | { kind: "pan"; pointerId: number; last: Point }
   | { kind: "lasso"; pointerId: number; start: Point; current: Point }
@@ -124,6 +137,7 @@ type Interaction =
       pointerId: number;
       document: DrawingDocument;
       ids: Set<string>;
+      points: Point[];
     }
   | {
       kind: "draw";
@@ -194,7 +208,7 @@ function translateDocument(
 }
 
 function movement(
-  event: ReactPointerEvent<HTMLCanvasElement>,
+  event: Pick<ReactPointerEvent<HTMLCanvasElement>, "clientX" | "clientY">,
   rect: DOMRect,
   viewport: DrawingViewport,
 ): Point {
@@ -206,6 +220,13 @@ function movement(
 
 function keyFor(event: KeyboardEvent): string {
   return event.key.toLowerCase();
+}
+
+function updateTextElement(element: TextElement, text: string): TextElement {
+  const next = { ...element, text };
+  if (element.customData?.variant === "note") return next;
+  const bounds = textBounds(next);
+  return { ...next, width: bounds.width, height: bounds.height };
 }
 
 export const DrawingEditor = forwardRef<
@@ -222,7 +243,7 @@ export const DrawingEditor = forwardRef<
     onSaveNow,
     onSaveToAccount,
     onTitleChange,
-    title = "Untitled drawing",
+    title = "Untitled whiteboard",
   },
   ref,
 ) {
@@ -238,6 +259,7 @@ export const DrawingEditor = forwardRef<
   const [eraserTargets, setEraserTargets] = useState<ReadonlySet<string>>(
     new Set(),
   );
+  const [eraserTrail, setEraserTrail] = useState<readonly Point[]>([]);
   const [viewport, setViewport] = useState<DrawingViewport>({
     zoom: 1,
     scrollX: -120,
@@ -246,9 +268,7 @@ export const DrawingEditor = forwardRef<
   const [preview, setPreview] = useState<DrawingDocument | null>(null);
   const [draft, setDraft] = useState<DrawingElement | null>(null);
   const [lasso, setLasso] = useState<Rect | null>(null);
-  const [editing, setEditing] = useState<{ id: string; value: string } | null>(
-    null,
-  );
+  const [editing, setEditing] = useState<TextEditing | null>(null);
   const [showGrid, setShowGrid] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [shapeMenuOpen, setShapeMenuOpen] = useState(false);
@@ -328,6 +348,7 @@ export const DrawingEditor = forwardRef<
       setEditing(null);
       setSelection(new Set());
       setEraserTargets(new Set());
+      setEraserTrail([]);
       setDirty(false);
       onSaveStateChange?.(false);
     },
@@ -345,6 +366,7 @@ export const DrawingEditor = forwardRef<
       setLasso(null);
       setSelection(new Set());
       setEraserTargets(new Set());
+      setEraserTrail([]);
       setDirty(false);
       onSaveStateChange?.(false);
     },
@@ -415,6 +437,7 @@ export const DrawingEditor = forwardRef<
       renderDrawing(canvas, shown, viewport, {
         selection,
         eraserTargets,
+        eraserTrail,
         draft,
         showGrid,
       });
@@ -422,12 +445,34 @@ export const DrawingEditor = forwardRef<
     observer.observe(shell);
     draw();
     return () => observer.disconnect();
-  }, [shown, viewport, selection, eraserTargets, draft, showGrid]);
+  }, [shown, viewport, selection, eraserTargets, eraserTrail, draft, showGrid]);
 
   useEffect(() => {
-    if (tool !== "eraser")
+    if (tool !== "eraser") {
       setEraserTargets((current) => (current.size === 0 ? current : new Set()));
+      setEraserTrail((current) => (current.length === 0 ? current : []));
+    }
   }, [tool]);
+
+  const beginTextEditing = useCallback(
+    (element: TextElement): void => {
+      if (readOnly) return;
+      setSelection(new Set([element.id]));
+      setEditing({
+        id: element.id,
+        value:
+          element.text ||
+          (element.customData?.variant === "note"
+            ? DRAWING_NOTE_DEFAULT_TEXT
+            : ""),
+        isNew: false,
+        wasDirty: dirty,
+        changed: false,
+      });
+      setTool("select");
+    },
+    [dirty, readOnly],
+  );
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -441,6 +486,17 @@ export const DrawingEditor = forwardRef<
         return;
       }
       const key = keyFor(event);
+      if (event.key === "Enter" && selection.size === 1 && !readOnly) {
+        const selected = documentRef.current.elements.find(
+          (element): element is TextElement =>
+            selection.has(element.id) && element.type === "text",
+        );
+        if (selected) {
+          event.preventDefault();
+          beginTextEditing(selected);
+          return;
+        }
+      }
       if ((event.metaKey || event.ctrlKey) && key === "z") {
         if (readOnly) return;
         event.preventDefault();
@@ -503,6 +559,7 @@ export const DrawingEditor = forwardRef<
       if (key === "escape") {
         setSelection(new Set());
         setEraserTargets(new Set());
+        setEraserTrail([]);
         setDraft(null);
         setLasso(null);
         interactionRef.current = null;
@@ -559,7 +616,17 @@ export const DrawingEditor = forwardRef<
       window.removeEventListener("keyup", releaseSpace);
       window.removeEventListener("blur", releaseSpace);
     };
-  }, [editing, exportAs, markChange, readOnly, redo, saveNow, selection, undo]);
+  }, [
+    beginTextEditing,
+    editing,
+    exportAs,
+    markChange,
+    readOnly,
+    redo,
+    saveNow,
+    selection,
+    undo,
+  ]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -638,7 +705,31 @@ export const DrawingEditor = forwardRef<
       setEditing(null);
       return;
     }
-    if (!commit || editing.value.trim() === "") {
+    const value =
+      editing.value.trim() === "" && current.customData?.variant === "note"
+        ? current.text.trim() || DRAWING_NOTE_DEFAULT_TEXT
+        : editing.value;
+    if (!commit) {
+      if (editing.isNew) {
+        markChange(
+          deleteElements(documentRef.current, new Set([editing.id])),
+          "Cancel text",
+        );
+      } else if (editing.changed) {
+        const restored = historyRef.current.undo();
+        if (restored) {
+          documentRef.current = restored;
+          setDocument(restored);
+          setPreview(null);
+          setDirty(editing.wasDirty);
+          onSaveStateChange?.(editing.wasDirty);
+          onDocumentChange?.(restored, "Cancel text edit");
+        }
+      }
+      setEditing(null);
+      return;
+    }
+    if (value.trim() === "") {
       markChange(
         deleteElements(documentRef.current, new Set([editing.id])),
         "Delete empty text",
@@ -650,14 +741,7 @@ export const DrawingEditor = forwardRef<
         (element) =>
           element.type === "text"
             ? {
-                ...element,
-                text: editing.value,
-                height: Math.max(
-                  element.customData?.variant === "note" ? 128 : 40,
-                  editing.value.split("\n").length *
-                    element.style.fontSize *
-                    element.style.lineHeight,
-                ),
+                ...updateTextElement(element, value),
                 version: element.version + 1,
                 versionNonce: element.versionNonce + 1,
               }
@@ -727,7 +811,13 @@ export const DrawingEditor = forwardRef<
         "Add text",
       );
       setSelection(new Set([text.id]));
-      setEditing({ id: text.id, value: "" });
+      setEditing({
+        id: text.id,
+        value: "",
+        isNew: true,
+        wasDirty: true,
+        changed: false,
+      });
       setTool("select");
       return;
     }
@@ -743,23 +833,36 @@ export const DrawingEditor = forwardRef<
         "Add note",
       );
       setSelection(new Set([note.id]));
-      setEditing({ id: note.id, value: "" });
+      setEditing({
+        id: note.id,
+        value: note.text,
+        isNew: true,
+        wasDirty: true,
+        changed: false,
+      });
       setTool("select");
       return;
     }
     if (tool === "eraser") {
       if (readOnly) return;
-      const hit = hitTestScene(documentRef.current, start, 10 / viewport.zoom);
-      const ids = new Set<string>();
-      if (hit) ids.add(hit.id);
+      const ids = new Set(
+        elementsHitBySegment(
+          documentRef.current,
+          start,
+          start,
+          10 / viewport.zoom,
+        ),
+      );
       interactionRef.current = {
         kind: "erase",
         pointerId: event.pointerId,
         document: documentRef.current,
         ids,
+        points: [start],
       };
       setSelection(new Set());
       setEraserTargets(ids);
+      setEraserTrail([start]);
       if (ids.size > 0) {
         setPreviewDocument(deleteElements(documentRef.current, ids));
       }
@@ -790,13 +893,14 @@ export const DrawingEditor = forwardRef<
     const interaction = interactionRef.current;
     if (!interaction) {
       if (tool === "eraser") {
-        const hit = hitTestScene(
+        const ids = elementsHitBySegment(
           documentRef.current,
+          current,
           current,
           10 / viewport.zoom,
         );
         setEraserTargets((previous) => {
-          const next = hit ? new Set([hit.id]) : new Set<string>();
+          const next = new Set(ids);
           if (
             previous.size === next.size &&
             [...next].every((id) => previous.has(id))
@@ -834,13 +938,19 @@ export const DrawingEditor = forwardRef<
         ),
       );
     } else if (interaction.kind === "erase") {
-      const hit = hitTestScene(
+      const previous =
+        interaction.points[interaction.points.length - 1] ?? current;
+      interaction.points.push(current);
+      setEraserTrail([...interaction.points]);
+      const ids = elementsHitBySegment(
         interaction.document,
+        previous,
         current,
         10 / viewport.zoom,
       );
-      if (hit && !interaction.ids.has(hit.id)) {
-        interaction.ids.add(hit.id);
+      const before = interaction.ids.size;
+      for (const id of ids) interaction.ids.add(id);
+      if (interaction.ids.size !== before) {
         setEraserTargets(new Set(interaction.ids));
         setPreviewDocument(
           deleteElements(interaction.document, interaction.ids),
@@ -863,6 +973,7 @@ export const DrawingEditor = forwardRef<
       if (canvas?.hasPointerCapture(event.pointerId))
         canvas.releasePointerCapture(event.pointerId);
       setEraserTargets((current) => (current.size === 0 ? current : new Set()));
+      setEraserTrail((current) => (current.length === 0 ? current : []));
       return;
     }
     if (canvas.hasPointerCapture(event.pointerId))
@@ -897,6 +1008,7 @@ export const DrawingEditor = forwardRef<
       }
       setPreview(null);
       setEraserTargets(new Set());
+      setEraserTrail([]);
     } else if (interaction.kind === "draw") {
       const current = draft;
       setDraft(null);
@@ -924,8 +1036,24 @@ export const DrawingEditor = forwardRef<
 
   function pointerLeave(): void {
     onPresenceChange?.({ cursor: null, selection: [...selection] });
-    if (interactionRef.current?.kind !== "erase")
+    if (interactionRef.current?.kind !== "erase") {
       setEraserTargets((current) => (current.size === 0 ? current : new Set()));
+      setEraserTrail((current) => (current.length === 0 ? current : []));
+    }
+  }
+
+  function doubleClick(event: ReactMouseEvent<HTMLCanvasElement>): void {
+    if (tool !== "select" || readOnly || editing) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const hit = hitTestScene(
+      documentRef.current,
+      movement(event, canvas.getBoundingClientRect(), viewport),
+      10 / viewport.zoom,
+    );
+    if (hit?.type !== "text") return;
+    event.preventDefault();
+    beginTextEditing(hit);
   }
 
   function zoomToContent(): void {
@@ -954,21 +1082,18 @@ export const DrawingEditor = forwardRef<
   function editText(event: React.ChangeEvent<HTMLTextAreaElement>): void {
     if (!editing) return;
     const currentEditing = editing;
-    setEditing({ ...currentEditing, value: event.target.value });
+    setEditing({
+      ...currentEditing,
+      value: event.target.value,
+      changed: true,
+    });
     const next = updateElements(
       documentRef.current,
       new Set([currentEditing.id]),
       (element) =>
         element.type === "text"
           ? {
-              ...element,
-              text: event.target.value,
-              height: Math.max(
-                element.customData?.variant === "note" ? 128 : 40,
-                event.target.value.split("\n").length *
-                  element.style.fontSize *
-                  element.style.lineHeight,
-              ),
+              ...updateTextElement(element, event.target.value),
               version: element.version + 1,
               versionNonce: versionNonce(),
             }
@@ -995,9 +1120,36 @@ export const DrawingEditor = forwardRef<
           element.id === editing.id && element.type === "text",
       )
     : null;
+  const editingBounds = editingElement ? elementBounds(editingElement) : null;
+  const editingPadding =
+    editingElement?.customData?.variant === "note" ? DRAWING_NOTE_PADDING : 0;
   const editingPosition = editingElement
-    ? worldToScreen({ x: editingElement.x, y: editingElement.y }, viewport)
+    ? worldToScreen(
+        {
+          x: editingElement.x + editingPadding,
+          y: editingElement.y + editingPadding,
+        },
+        viewport,
+      )
     : null;
+  const editingWidth = editingBounds
+    ? Math.max(
+        120,
+        editingBounds.width -
+          (editingElement?.customData?.variant === "note"
+            ? editingPadding * 2
+            : 0),
+      )
+    : 120;
+  const editingHeight = editingBounds
+    ? Math.max(
+        40,
+        editingBounds.height -
+          (editingElement?.customData?.variant === "note"
+            ? editingPadding * 2
+            : 0),
+      )
+    : 40;
   const editingValue = editing?.value ?? "";
   const remoteOverlays = remotePeers.flatMap((peer) => {
     const color = peer.color ?? "#f97316";
@@ -1316,11 +1468,13 @@ export const DrawingEditor = forwardRef<
           data-pan-active={isPanning ? "true" : "false"}
           data-select-mode={tool === "select" ? "true" : "false"}
           data-eraser-mode={tool === "eraser" ? "true" : "false"}
+          data-tool={tool}
           onPointerDown={pointerDown}
           onPointerMove={pointerMove}
           onPointerLeave={pointerLeave}
           onPointerUp={pointerUp}
           onPointerCancel={pointerUp}
+          onDoubleClick={doubleClick}
         />
         {remoteOverlays.map((overlay) =>
           overlay.kind === "selection" ? (
@@ -1378,8 +1532,8 @@ export const DrawingEditor = forwardRef<
             style={{
               left: editingPosition.x,
               top: editingPosition.y,
-              width: Math.max(120, editingElement.width * viewport.zoom),
-              minHeight: Math.max(40, editingElement.height * viewport.zoom),
+              width: editingWidth * viewport.zoom,
+              minHeight: editingHeight * viewport.zoom,
               fontFamily: editingElement.style.fontFamily,
               fontSize: editingElement.style.fontSize * viewport.zoom,
               lineHeight: editingElement.style.lineHeight,
@@ -1392,6 +1546,9 @@ export const DrawingEditor = forwardRef<
                   ? editingElement.style.stroke
                   : undefined,
             }}
+            data-note={
+              editingElement.customData?.variant === "note" ? "true" : "false"
+            }
             aria-label="Edit text"
           />
         ) : null}

@@ -7,6 +7,7 @@ import {
 import type { DrawingDocument } from "@/drawing/model";
 import { drawingLocalRepository, type LocalDrawing } from "@/drawing/local";
 import {
+  drawingRoomDisplayName,
   drawingRoomHash,
   drawingRoomOwnerStorageKey,
 } from "@/drawing/roomLink";
@@ -61,7 +62,10 @@ export default function LocalDrawingPage() {
   }, [attempt, localId]);
 
   usePageMeta({
-    title: load.kind === "ready" ? load.drawing.title : "Whiteboard",
+    title:
+      load.kind === "ready"
+        ? drawingRoomDisplayName(load.drawing.title)
+        : "Whiteboard",
     noindex: true,
   });
 
@@ -198,7 +202,7 @@ export default function LocalDrawingPage() {
     try {
       await editorRef.current?.saveNow();
       const room = await drawingRoomsApi.create({
-        title: load.drawing.title,
+        title: drawingRoomDisplayName(load.drawing.title),
         document: editorRef.current?.getDocument() ?? load.drawing.document,
       });
       if (!room.key || !room.owner_key)
@@ -271,7 +275,11 @@ export default function LocalDrawingPage() {
       />
       <Dialog
         open={collaborationOpen}
-        onClose={() => setCollaborationOpen(false)}
+        onClose={() => {
+          if (saving) return;
+          setError(null);
+          setCollaborationOpen(false);
+        }}
         title="Start a live room"
         description="Invite people to draw with you in real time. No sign-in is required to join."
         size="sm"
@@ -299,15 +307,17 @@ export default function LocalDrawingPage() {
           ) : null}
           <ul className={styles.collaborationOptions}>
             <li>
-              <strong>Edit link</strong>
+              <strong>One room link</strong>
               <span>
-                People with this link can draw and make changes together.
+                The same link stays valid while you choose whether guests can
+                edit or view the board.
               </span>
             </li>
             <li>
-              <strong>View-only link</strong>
+              <strong>Change access anytime</strong>
               <span>
-                Share a read-only link when someone only needs to follow along.
+                Switch the room between Can edit and Can view without creating a
+                new link.
               </span>
             </li>
             <li>

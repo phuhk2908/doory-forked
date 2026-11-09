@@ -631,7 +631,7 @@ export function useDrawingRoomRealtime({
   onTitle?: (title: string) => void;
   onAccess?: (mode: "edit" | "view", canEdit: boolean) => void;
   onPeers?: (peers: DrawingRoomPeer[]) => void;
-  onClosed?: (reason: string) => void;
+  onClosed?: (reason: string, key: string) => void;
 }): DrawingRoomRealtimeState & {
   publish(document: DrawingDocument): void;
   publishPresence(presence: {
@@ -699,7 +699,7 @@ export function useDrawingRoomRealtime({
           setState((value) => ({ ...value, peers }));
           latestCallbacks.get().onPeers?.(peers);
         },
-        onClosed: (reason) => latestCallbacks.get().onClosed?.(reason),
+        onClosed: (reason) => latestCallbacks.get().onClosed?.(reason, key),
       },
       undefined,
       roomId,
