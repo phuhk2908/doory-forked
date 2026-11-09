@@ -65,3 +65,51 @@ def test_deleting_account_unbinds_room_without_removing_guest_access(db):
     room.refresh_from_db()
     assert room.account_owner_id is None
     assert services.get_drawing_room(room.pk, edit_key) is not None
+
+
+def test_named_collaborators_are_account_scoped_and_visible_in_presence(db):
+    owner = User.objects.create_user("owner@example.com", "password-123456", display_name="Owner")
+    collaborator = User.objects.create_user(
+        "COLLABORATOR@example.com", "password-123456", display_name="Teammate"
+    )
+    stranger = User.objects.create_user("stranger@example.com", "password-123456")
+    room, _edit_key, _view_key, _owner_key = services.create_account_drawing_room(
+        owner,
+        title="Account room",
+        document=drawing_document(),
+    )
+
+    added = services.add_drawing_room_collaborator(room.pk, owner, "collaborator@example.com", "view")
+    assert added is not None and added.user_id == collaborator.pk and added.role == "view"
+    assert services.add_drawing_room_collaborator(room.pk, owner, owner.email, "edit") is False
+    assert services.list_drawing_room_collaborators(room.pk, stranger) is None
+    assert services.drawing_room_member_profile(room.pk, collaborator) == {
+        "user_id": str(collaborator.pk),
+        "name": "Teammate",
+        "avatar_url": None,
+        "role": "view",
+    }
+
+    updated = services.update_drawing_room_collaborator(room.pk, owner, collaborator.pk, "edit")
+    assert updated is not None and updated.role == "edit"
+    assert services.remove_drawing_room_collaborator(room.pk, owner, collaborator.pk)
+    assert services.drawing_room_member_profile(room.pk, collaborator) is None
+
+
+def test_transfer_moves_account_ownership_and_revokes_old_owner_capability(db):
+    owner = User.objects.create_user("owner@example.com", "password-123456")
+    target = User.objects.create_user("target@example.com", "password-123456")
+    room, _edit_key, _view_key, owner_key = services.create_account_drawing_room(
+        owner,
+        title="Account room",
+        document=drawing_document(),
+    )
+
+    transferred = services.transfer_drawing_room_ownership(room.pk, owner, "TARGET@example.com")
+
+    assert transferred is not None and transferred.account_owner_id == target.pk
+    assert services.close_drawing_room(room.pk, owner_key) is None
+    assert services.drawing_room_member_profile(room.pk, owner)["role"] == "edit"
+    assert services.drawing_room_member_profile(room.pk, target)["role"] == "owner"
+    assert services.list_drawing_room_collaborators(room.pk, owner) is None
+    assert services.list_drawing_room_collaborators(room.pk, target).count() == 2

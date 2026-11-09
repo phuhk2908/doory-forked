@@ -29,6 +29,7 @@ from .exceptions import RevisionConflict
 from .metrics import guest_room_metrics
 from .models import Drawing
 from .services import (
+    drawing_room_member_profile,
     get_drawing_room_access,
     record_drawing_room_event,
     save_drawing_room_update,
@@ -266,6 +267,8 @@ class DrawingRoomConsumer(AsyncJsonWebsocketConsumer):
         self.peer_id = secrets.token_urlsafe(6)
         self.room_mode: str | None = None
         self.client_id: str | None = None
+        self.user = self.scope.get("user")
+        self.member_profile: dict[str, Any] | None = None
         self.protocol_version = 1
         self.bucket = TokenBucket.guest_room_from_settings()
         self.client_ip = guest_room_client_ip(self.scope)
@@ -287,6 +290,13 @@ class DrawingRoomConsumer(AsyncJsonWebsocketConsumer):
             timer.cancel()
         if getattr(self, "state", None) != "active":
             return
+        await database_sync_to_async(record_drawing_room_event)(
+            self.room_id,
+            "left",
+            actor=self.user,
+            client_ip=self.client_ip,
+            metadata={"code": code},
+        )
         await self.channel_layer.group_discard(self.group, self.channel_name)
         if self.member_slot:
             await database_sync_to_async(release_guest_room_slot)(self.room_id)
@@ -364,6 +374,7 @@ class DrawingRoomConsumer(AsyncJsonWebsocketConsumer):
                     "peer_id": self.peer_id,
                     "mode": self.room_mode,
                     "count": len(_room_members.get(self.group, set())),
+                    **(self.member_profile or {}),
                 }
                 _room_presence[self.group][self.peer_id] = state
                 await self._fanout(
@@ -476,16 +487,22 @@ class DrawingRoomConsumer(AsyncJsonWebsocketConsumer):
         members.add(self.channel_name)
         self.member_slot = True
         self.room_mode = snapshot["mode"]
+        self.member_profile = await database_sync_to_async(drawing_room_member_profile)(
+            self.room_id, self.user
+        )
+        presence_profile = self.member_profile or {}
         _room_presence[self.group][self.peer_id] = {
             "peer_id": self.peer_id,
             "mode": self.room_mode,
             "cursor": None,
             "selection": [],
+            **presence_profile,
         }
         self.state = "active"
         await database_sync_to_async(record_drawing_room_event)(
             self.room_id,
             "joined",
+            actor=self.user,
             client_ip=self.client_ip,
         )
         guest_room_metrics.open_connection(self.room_id, self.client_id)
@@ -503,6 +520,7 @@ class DrawingRoomConsumer(AsyncJsonWebsocketConsumer):
                 "mode": self.room_mode,
                 "can_edit": self.room_mode == "edit",
                 "expires_at": snapshot["expires_at"],
+                "user": presence_profile or None,
                 "presence": [
                     value for key, value in _room_presence[self.group].items() if key != self.peer_id
                 ],
@@ -519,6 +537,7 @@ class DrawingRoomConsumer(AsyncJsonWebsocketConsumer):
                     "cursor": None,
                     "selection": [],
                     "count": len(members),
+                    **presence_profile,
                 },
             },
             len(members) - 1,
@@ -615,6 +634,7 @@ class DrawingRoomConsumer(AsyncJsonWebsocketConsumer):
             self.key or "",
             document=document,
             delta=delta,
+            actor=self.user,
         )
         if mutation is None:
             return None

@@ -4,6 +4,7 @@ import type {
   DrawingPatchInput,
   DrawingQuery,
   DrawingRoom,
+  DrawingRoomCollaborator,
   DrawingRoomCreateInput,
   DrawingSummary,
   Page,
@@ -54,5 +55,29 @@ export const drawingRoomsApi = {
     http.post<DrawingRoom>("/drawing-rooms/" + id + "/manage/", {
       headers: { "X-Drawing-Room-Owner-Key": ownerKey },
       json: { action, ...(title ? { title } : {}) },
+    }),
+  listCollaborators: (id: string) =>
+    http.get<DrawingRoomCollaborator[]>(
+      "/drawing-rooms/" + id + "/collaborators/",
+    ),
+  addCollaborator: (id: string, email: string, role: "view" | "edit") =>
+    http.post<DrawingRoomCollaborator>(
+      "/drawing-rooms/" + id + "/collaborators/",
+      {
+        json: { email, role },
+      },
+    ),
+  updateCollaborator: (id: string, userId: string, role: "view" | "edit") =>
+    http.patch<DrawingRoomCollaborator>(
+      "/drawing-rooms/" + id + "/collaborators/" + userId + "/",
+      { json: { role } },
+    ),
+  removeCollaborator: (id: string, userId: string) =>
+    http.delete<void>(
+      "/drawing-rooms/" + id + "/collaborators/" + userId + "/",
+    ),
+  transferOwnership: (id: string, email: string) =>
+    http.post<DrawingRoom>("/drawing-rooms/" + id + "/transfer-ownership/", {
+      json: { email },
     }),
 };

@@ -5,6 +5,7 @@ import logging
 import secrets
 from collections.abc import Mapping
 from dataclasses import dataclass
+from datetime import timedelta
 from functools import partial
 from io import BytesIO
 
@@ -22,7 +23,8 @@ from apps.core.images import ImageError, make_thumbnail, process_image_upload
 
 from .events import publish_drawing_update
 from .exceptions import RevisionConflict
-from .models import Drawing, DrawingRoom, DrawingRoomEvent
+from .models import Drawing, DrawingRoom, DrawingRoomCollaborator, DrawingRoomEvent
+from .moderation import score_drawing_document
 from .validators import validate_drawing_delta, validate_drawing_document
 
 DEFAULT_TITLE = "Untitled whiteboard"
@@ -61,17 +63,25 @@ def record_drawing_room_event(
     room_id,
     kind: str,
     *,
+    actor=None,
     client_ip: str | None = None,
+    spam_score: int = 0,
     metadata: Mapping[str, object] | None = None,
 ) -> None:
-    """Keep a small room audit trail without retaining keys, documents or raw client addresses."""
+    """Keep a room audit trail without retaining keys, documents or raw client addresses."""
     try:
         with transaction.atomic():
             DrawingRoomEvent.objects.create(
                 room_id=room_id,
                 room_identifier=room_id,
+                actor_id=(
+                    actor.pk
+                    if getattr(actor, "is_authenticated", False) and getattr(actor, "pk", None) is not None
+                    else None
+                ),
                 kind=kind[:40],
                 client_ip_hash=(hashlib.sha256(client_ip.encode("utf-8")).hexdigest() if client_ip else ""),
+                spam_score=max(0, min(100, int(spam_score))),
                 metadata=dict(metadata or {}),
             )
     except (DatabaseError, TypeError, ValueError):
@@ -107,6 +117,7 @@ def _create_drawing_room(
     *, account_owner=None, title: str, document: dict
 ) -> tuple[DrawingRoom, str, str, str]:
     validate_drawing_document(document, max_bytes=settings.MAX_DRAWING_DOCUMENT_BYTES)
+    spam_score, spam_reasons = score_drawing_document(document)
     edit_key = secrets.token_urlsafe(32)
     view_key = secrets.token_urlsafe(32)
     owner_key = secrets.token_urlsafe(32)
@@ -117,9 +128,21 @@ def _create_drawing_room(
         room_key_hash=_room_key_hash(edit_key),
         view_key_hash=_room_key_hash(view_key),
         owner_key_hash=_room_key_hash(owner_key),
+        spam_score=spam_score,
+        spam_flagged_at=(
+            timezone.now() if spam_score >= settings.DRAWING_ROOM_SPAM_SCORE_THRESHOLD else None
+        ),
     )
     room.save()
-    record_drawing_room_event(room.id, "created")
+    record_drawing_room_event(room.id, "created", actor=account_owner)
+    if room.spam_flagged_at is not None:
+        record_drawing_room_event(
+            room.id,
+            "spam_flagged",
+            actor=account_owner,
+            spam_score=spam_score,
+            metadata={"revision": room.revision, "reasons": list(spam_reasons)},
+        )
     return room, edit_key, view_key, owner_key
 
 
@@ -142,6 +165,13 @@ def list_account_drawing_rooms(account_owner):
     return DrawingRoom.objects.filter(account_owner=account_owner)
 
 
+def list_drawing_room_collaborators(room_id, account_owner):
+    room = DrawingRoom.objects.filter(pk=room_id, account_owner=account_owner).first()
+    if room is None:
+        return None
+    return DrawingRoomCollaborator.objects.filter(room=room).select_related("user")
+
+
 def _lock_account_drawing_room(room_id, account_owner) -> DrawingRoom | None:
     return DrawingRoom.objects.select_for_update().filter(pk=room_id, account_owner=account_owner).first()
 
@@ -155,7 +185,7 @@ def close_account_drawing_room(room_id, account_owner) -> DrawingRoom | None:
         if room.closed_at is None:
             room.closed_at = timezone.now()
             room.save(update_fields=["closed_at", "updated_at"])
-            record_drawing_room_event(room.id, "closed")
+            record_drawing_room_event(room.id, "closed", actor=account_owner)
     return room
 
 
@@ -167,7 +197,7 @@ def rename_account_drawing_room(room_id, account_owner, title: str) -> DrawingRo
             return None
         room.title = clean_title(title)
         room.save(update_fields=["title", "updated_at"])
-        record_drawing_room_event(room.id, "renamed")
+        record_drawing_room_event(room.id, "renamed", actor=account_owner)
     return room
 
 
@@ -186,8 +216,136 @@ def rotate_account_drawing_room_keys(room_id, account_owner) -> tuple[DrawingRoo
         room.room_key_hash = _room_key_hash(edit_key)
         room.view_key_hash = _room_key_hash(view_key)
         room.save(update_fields=["room_key_hash", "view_key_hash", "updated_at"])
-        record_drawing_room_event(room.id, "keys_rotated")
+        record_drawing_room_event(room.id, "keys_rotated", actor=account_owner)
     return room, edit_key, view_key
+
+
+def add_drawing_room_collaborator(room_id, account_owner, email: str, role: str):
+    with transaction.atomic():
+        room = _lock_account_drawing_room(room_id, account_owner)
+        if room is None or room.is_closed or room.is_expired:
+            return None
+        user = get_user_model().objects.filter(email__iexact=email.strip(), is_active=True).first()
+        if user is None or user.pk == account_owner.pk:
+            return False
+        collaborator, created = DrawingRoomCollaborator.objects.get_or_create(
+            room=room,
+            user=user,
+            defaults={"role": role, "invited_by": account_owner},
+        )
+        if not created and collaborator.role != role:
+            collaborator.role = role
+            collaborator.invited_by = account_owner
+            collaborator.save(update_fields=["role", "invited_by", "updated_at"])
+            kind = "collaborator_role_changed"
+        else:
+            kind = "collaborator_added" if created else None
+        if kind:
+            record_drawing_room_event(
+                room.id,
+                kind,
+                actor=account_owner,
+                metadata={"user_id": str(user.pk), "role": role},
+            )
+    return collaborator
+
+
+def update_drawing_room_collaborator(room_id, account_owner, user_id, role: str):
+    with transaction.atomic():
+        room = _lock_account_drawing_room(room_id, account_owner)
+        if room is None or room.is_closed or room.is_expired:
+            return None
+        collaborator = (
+            DrawingRoomCollaborator.objects.select_for_update()
+            .filter(room=room, user_id=user_id)
+            .select_related("user")
+            .first()
+        )
+        if collaborator is None:
+            return False
+        if collaborator.role != role:
+            collaborator.role = role
+            collaborator.save(update_fields=["role", "updated_at"])
+            record_drawing_room_event(
+                room.id,
+                "collaborator_role_changed",
+                actor=account_owner,
+                metadata={"user_id": str(collaborator.user_id), "role": role},
+            )
+    return collaborator
+
+
+def remove_drawing_room_collaborator(room_id, account_owner, user_id) -> bool | None:
+    with transaction.atomic():
+        room = _lock_account_drawing_room(room_id, account_owner)
+        if room is None or room.is_closed or room.is_expired:
+            return None
+        collaborator = DrawingRoomCollaborator.objects.filter(room=room, user_id=user_id).first()
+        if collaborator is None:
+            return False
+        collaborator.delete()
+        record_drawing_room_event(
+            room.id,
+            "collaborator_removed",
+            actor=account_owner,
+            metadata={"user_id": str(user_id)},
+        )
+    return True
+
+
+def transfer_drawing_room_ownership(room_id, account_owner, email: str):
+    with transaction.atomic():
+        room = _lock_account_drawing_room(room_id, account_owner)
+        if room is None or room.is_closed or room.is_expired:
+            return None
+        target = get_user_model().objects.filter(email__iexact=email.strip(), is_active=True).first()
+        if target is None:
+            return False
+        if target.pk == account_owner.pk:
+            return room
+        DrawingRoomCollaborator.objects.update_or_create(
+            room=room,
+            user=account_owner,
+            defaults={"role": DrawingRoomCollaborator.Role.EDIT, "invited_by": account_owner},
+        )
+        DrawingRoomCollaborator.objects.update_or_create(
+            room=room,
+            user=target,
+            defaults={"role": DrawingRoomCollaborator.Role.EDIT, "invited_by": account_owner},
+        )
+        room.account_owner = target
+        room.owner_key_hash = ""
+        room.save(update_fields=["account_owner", "owner_key_hash", "updated_at"])
+        record_drawing_room_event(
+            room.id,
+            "ownership_transferred",
+            actor=account_owner,
+            metadata={"from_user_id": str(account_owner.pk), "to_user_id": str(target.pk)},
+        )
+    return room
+
+
+def drawing_room_member_profile(room_id, user):
+    if not getattr(user, "is_authenticated", False):
+        return None
+    room = DrawingRoom.objects.filter(pk=room_id).only("account_owner_id").first()
+    if room is None:
+        return None
+    role = "owner" if room.account_owner_id == user.pk else None
+    if role is None:
+        role = (
+            DrawingRoomCollaborator.objects.filter(room_id=room_id, user_id=user.pk)
+            .values_list("role", flat=True)
+            .first()
+        )
+    if role is None:
+        return None
+    return {
+        "user_id": str(user.pk),
+        "name": user.name,
+        "avatar_url": user.avatar.url if user.avatar else None,
+        "role": role,
+    }
 
 
 def get_drawing_room(room_id, key: str | None) -> DrawingRoom | None:
@@ -252,7 +410,7 @@ def rename_drawing_room(room_id, owner_key: str, title: str) -> DrawingRoom | No
     return room
 
 
-def moderate_close_drawing_room(room_id, *, actor_id: object | None = None) -> bool:
+def moderate_close_drawing_room(room_id, *, actor_id: object | None = None, actor=None) -> bool:
     with transaction.atomic():
         room = DrawingRoom.objects.select_for_update().filter(pk=room_id).first()
         if room is None or room.closed_at is not None:
@@ -262,6 +420,7 @@ def moderate_close_drawing_room(room_id, *, actor_id: object | None = None) -> b
         record_drawing_room_event(
             room.id,
             "moderated_close",
+            actor=actor,
             metadata={"actor_id": str(actor_id)} if actor_id is not None else None,
         )
     return True
@@ -272,6 +431,13 @@ def purge_expired_drawing_rooms() -> int:
     count = expired.count()
     expired.delete()
     return count
+
+
+def purge_expired_drawing_room_events(*, now=None) -> int:
+    now = now or timezone.now()
+    cutoff = now - timedelta(days=settings.DRAWING_ROOM_AUDIT_RETENTION_DAYS)
+    deleted, _ = DrawingRoomEvent.objects.filter(created_at__lt=cutoff).delete()
+    return deleted
 
 
 def merge_drawing_documents(current: dict, incoming: dict) -> dict:
@@ -350,6 +516,7 @@ def save_drawing_room_update(
     document: dict | None = None,
     *,
     delta: dict | None = None,
+    actor=None,
 ) -> DrawingRoomMutation | None:
     if not _valid_room_key(key):
         return None
@@ -368,10 +535,38 @@ def save_drawing_room_update(
         previous = room.document
         changed = merged != previous
         if changed:
+            spam_score, spam_reasons = score_drawing_document(merged)
+            newly_flagged = (
+                spam_score >= settings.DRAWING_ROOM_SPAM_SCORE_THRESHOLD and room.spam_flagged_at is None
+            )
             room.document = merged
             room.revision += 1
-            room.save(update_fields=["document", "revision", "updated_at"])
-            record_drawing_room_event(room.id, "updated", metadata={"revision": room.revision})
+            room.spam_score = spam_score
+            update_fields = ["document", "revision", "spam_score", "updated_at"]
+            if newly_flagged:
+                room.spam_flagged_at = timezone.now()
+                update_fields.append("spam_flagged_at")
+            room.save(update_fields=update_fields)
+            metadata = {
+                "revision": room.revision,
+                "element_count": len(merged.get("elements", [])),
+                "spam_reasons": list(spam_reasons),
+            }
+            record_drawing_room_event(
+                room.id,
+                "updated",
+                actor=actor,
+                spam_score=spam_score,
+                metadata=metadata,
+            )
+            if newly_flagged:
+                record_drawing_room_event(
+                    room.id,
+                    "spam_flagged",
+                    actor=actor,
+                    spam_score=spam_score,
+                    metadata={"revision": room.revision, "reasons": list(spam_reasons)},
+                )
         return DrawingRoomMutation(
             room=room,
             document=room.document,

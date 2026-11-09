@@ -19,9 +19,13 @@ from .parsers import DrawingJSONParser
 from .serializers import (
     DrawingCreateSerializer,
     DrawingQuerySerializer,
+    DrawingRoomCollaboratorRoleSerializer,
+    DrawingRoomCollaboratorSerializer,
+    DrawingRoomCollaboratorWriteSerializer,
     DrawingRoomCreateSerializer,
     DrawingRoomManageSerializer,
     DrawingRoomSerializer,
+    DrawingRoomTransferSerializer,
     DrawingSerializer,
     DrawingSummarySerializer,
     DrawingUpdateSerializer,
@@ -132,7 +136,6 @@ class DrawingViewSet(viewsets.GenericViewSet):
 class DrawingRoomCreateView(CsrfProtectedMixin, APIView):
     """Public room bootstrap protected by a high-entropy key from the URL fragment."""
 
-    authentication_classes: list = []
     permission_classes = [permissions.AllowAny]
     throttle_classes = [GuestRoomCreateThrottle]
 
@@ -140,9 +143,17 @@ class DrawingRoomCreateView(CsrfProtectedMixin, APIView):
     def post(self, request):
         body = DrawingRoomCreateSerializer(data=request.data)
         body.is_valid(raise_exception=True)
-        room, edit_key, view_key, owner_key = services.create_drawing_room(
-            title=body.validated_data.get("title", services.DEFAULT_TITLE),
-            document=body.validated_data.get("document") or services.blank_document(),
+        create = (
+            services.create_account_drawing_room
+            if request.user.is_authenticated
+            else services.create_drawing_room
+        )
+        arguments = {
+            "title": body.validated_data.get("title", services.DEFAULT_TITLE),
+            "document": body.validated_data.get("document") or services.blank_document(),
+        }
+        room, edit_key, view_key, owner_key = (
+            create(request.user, **arguments) if request.user.is_authenticated else create(**arguments)
         )
         data = DrawingRoomSerializer(room).data
         data.update({"key": edit_key, "view_key": view_key, "owner_key": owner_key, "mode": "edit"})
@@ -202,6 +213,82 @@ class DrawingRoomManageView(CsrfProtectedMixin, APIView):
         data = DrawingRoomSerializer(room).data
         data.update({"key": edit_key, "view_key": view_key, "mode": "edit"})
         return Response(data)
+
+
+class DrawingRoomCollaboratorListView(CsrfProtectedMixin, APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(responses=DrawingRoomCollaboratorSerializer(many=True), tags=["drawings"])
+    def get(self, request, pk):
+        collaborators = services.list_drawing_room_collaborators(pk, request.user)
+        if collaborators is None:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        return Response(DrawingRoomCollaboratorSerializer(collaborators, many=True).data)
+
+    @extend_schema(
+        request=DrawingRoomCollaboratorWriteSerializer,
+        responses={200: DrawingRoomCollaboratorSerializer, 404: None},
+        tags=["drawings"],
+    )
+    def post(self, request, pk):
+        body = DrawingRoomCollaboratorWriteSerializer(data=request.data)
+        body.is_valid(raise_exception=True)
+        collaborator = services.add_drawing_room_collaborator(
+            pk,
+            request.user,
+            body.validated_data["email"],
+            body.validated_data["role"],
+        )
+        if collaborator is None:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        if collaborator is False:
+            raise serializers.ValidationError({"email": ["That account could not be added."]})
+        return Response(DrawingRoomCollaboratorSerializer(collaborator).data)
+
+
+class DrawingRoomCollaboratorDetailView(CsrfProtectedMixin, APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(
+        request=DrawingRoomCollaboratorRoleSerializer,
+        responses={200: DrawingRoomCollaboratorSerializer, 404: None},
+        tags=["drawings"],
+    )
+    def patch(self, request, pk, user_id):
+        body = DrawingRoomCollaboratorRoleSerializer(data=request.data)
+        body.is_valid(raise_exception=True)
+        collaborator = services.update_drawing_room_collaborator(
+            pk, request.user, user_id, body.validated_data["role"]
+        )
+        if collaborator is None or collaborator is False:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        return Response(DrawingRoomCollaboratorSerializer(collaborator).data)
+
+    @extend_schema(responses={204: None, 404: None}, tags=["drawings"])
+    def delete(self, request, pk, user_id):
+        removed = services.remove_drawing_room_collaborator(pk, request.user, user_id)
+        if removed is not True:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class DrawingRoomTransferOwnershipView(CsrfProtectedMixin, APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(
+        request=DrawingRoomTransferSerializer,
+        responses={200: DrawingRoomSerializer, 404: None},
+        tags=["drawings"],
+    )
+    def post(self, request, pk):
+        body = DrawingRoomTransferSerializer(data=request.data)
+        body.is_valid(raise_exception=True)
+        room = services.transfer_drawing_room_ownership(pk, request.user, body.validated_data["email"])
+        if room is None:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        if room is False:
+            raise serializers.ValidationError({"email": ["That account could not own this room."]})
+        return Response(DrawingRoomSerializer(room).data)
 
 
 def notify_drawing_room(room_id, reason: str, *, title: str | None = None) -> None:

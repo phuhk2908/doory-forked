@@ -1,6 +1,7 @@
 import hashlib
 from datetime import timedelta
 
+from django.test import override_settings
 from django.utils import timezone
 
 from apps.drawings import services
@@ -56,3 +57,63 @@ def test_expired_room_cleanup_keeps_its_audit_events(db):
     assert services.purge_expired_drawing_rooms() == 1
     event = DrawingRoomEvent.objects.get(room_identifier=room.id, kind="created")
     assert event.room_id is None
+
+
+def spam_document():
+    return {
+        "schemaVersion": 1,
+        "elements": [
+            {
+                "id": "spam-text",
+                "type": "text",
+                "x": 0,
+                "y": 0,
+                "width": 100,
+                "height": 20,
+                "angle": 0,
+                "style": {},
+                "text": "https://one.example https://two.example https://three.example",
+            }
+        ],
+        "background": "#ffffff",
+    }
+
+
+def test_content_score_flags_initial_and_updated_room_documents(db):
+    with override_settings(DRAWING_ROOM_SPAM_SCORE_THRESHOLD=12):
+        room, edit_key, _view_key, _owner_key = services.create_drawing_room(
+            title="Room", document=spam_document()
+        )
+
+    room.refresh_from_db()
+    assert room.spam_score == 15
+    assert room.spam_flagged_at is not None
+    event = DrawingRoomEvent.objects.get(room=room, kind="spam_flagged")
+    assert event.spam_score == 15
+    assert event.metadata == {"revision": 1, "reasons": ["many_links"]}
+    assert "one.example" not in str(event.metadata)
+
+    with override_settings(DRAWING_ROOM_SPAM_SCORE_THRESHOLD=12):
+        mutation = services.save_drawing_room_update(
+            room.pk,
+            edit_key,
+            {"schemaVersion": 1, "elements": [], "background": "#ffffff"},
+        )
+    assert mutation is not None and mutation.changed
+    assert DrawingRoomEvent.objects.filter(room=room, kind="spam_flagged").count() == 1
+
+
+def test_room_audit_retention_removes_only_old_events(db):
+    room, _edit_key, _view_key, _owner_key = services.create_drawing_room(
+        title="Room", document=drawing_document()
+    )
+    old_event = DrawingRoomEvent.objects.create(room=room, room_identifier=room.id, kind="old")
+    fresh_event = DrawingRoomEvent.objects.create(room=room, room_identifier=room.id, kind="fresh")
+    old_time = timezone.now() - timedelta(days=8)
+    DrawingRoomEvent.objects.filter(pk=old_event.pk).update(created_at=old_time)
+
+    with override_settings(DRAWING_ROOM_AUDIT_RETENTION_DAYS=7):
+        assert services.purge_expired_drawing_room_events(now=timezone.now()) == 1
+
+    assert not DrawingRoomEvent.objects.filter(pk=old_event.pk).exists()
+    assert DrawingRoomEvent.objects.filter(pk=fresh_event.pk).exists()

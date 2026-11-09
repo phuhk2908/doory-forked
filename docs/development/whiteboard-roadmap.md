@@ -65,9 +65,12 @@ The guest room MVP is live. The next work is split by room safety first, then ed
 
 - [x] **P2.17** Add guest-room-specific rate limits for room creation, joins, updates, and fan-out, plus a configurable maximum collaborator count per room.
 - [x] **P2.18** Add baseline moderation and abuse controls: IP and shared-cache rate limits block room spam, staff can
-    inspect/close/delete rooms in admin, and `DrawingRoomEvent` retains a basic room activity audit. Content-based
-    spam scoring and configurable audit retention remain optional follow-up work.
+    inspect/close/delete rooms in admin, and `DrawingRoomEvent` retains room activity audit records.
 - [x] **P2.19** Add observability for active rooms/connections, update latency, payload size, reconnect rate, and dropped or invalid updates.
+- [x] **P2.23** Add named account collaborators, role changes, removal, presence labels, and ownership transfer with
+    browser-owner capability revocation.
+- [x] **P2.24** Extend room audit history across lifecycle, membership, updates, moderation, ownership and content-risk
+    events, with bounded spam scoring and configurable retention.
 
 ## P2: MCP and automation
 
@@ -83,8 +86,9 @@ The guest room MVP is live. The next work is split by room safety first, then ed
 
 ## Later, after P2
 
-- Add named collaborators and account ownership transfer if product requirements need them.
-- Extend basic room activity audit into a full room-level history if operations need it.
+The remaining work is product-specific hardening rather than a missing room-management primitive: a dedicated audit
+viewer, invitation emails, and stricter per-user enforcement for rooms that should not accept bearer links can be
+added when those policies are defined.
 
 ## Known issues and verification gaps
 

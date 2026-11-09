@@ -91,6 +91,7 @@ export interface DrawingEditorProps {
   }) => void;
   remotePeers?: ReadonlyArray<{
     id: string;
+    name?: string;
     cursor: Point | null;
     selection: string[];
     color?: string;
@@ -1032,7 +1033,7 @@ export const DrawingEditor = forwardRef<
         kind: "cursor",
         key: peer.id + "-cursor",
         color,
-        label: peer.id.slice(0, 6),
+        label: peer.name || peer.id.slice(0, 6),
         style: { left: cursor.x, top: cursor.y },
       });
     }

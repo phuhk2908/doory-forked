@@ -83,6 +83,82 @@
   border-top: 1px solid #e5e7eb;
 }
 
+.collaboratorSection {
+  display: grid;
+  gap: 12px;
+  padding-top: 4px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.collaboratorSection h3,
+.transferSection h3 {
+  margin: 0;
+  color: #1f2937;
+  font-size: 14px;
+}
+
+.collaboratorHint {
+  margin: 4px 0 0;
+  color: #697386;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.collaboratorForm {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 140px auto;
+  align-items: end;
+  gap: 10px;
+}
+
+.collaboratorList {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.collaboratorList li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 140px auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.collaboratorIdentity {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.collaboratorIdentity strong {
+  overflow: hidden;
+  color: #1f2937;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.collaboratorIdentity span {
+  overflow: hidden;
+  color: #697386;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.transferSection {
+  display: grid;
+  gap: 10px;
+  padding-top: 8px;
+  border-top: 1px solid #e5e7eb;
+}
+
 .collaborationDialog {
   display: grid;
   gap: 16px;
@@ -139,6 +215,11 @@
   }
 
   .shareRow {
+    grid-template-columns: 1fr;
+  }
+
+  .collaboratorForm,
+  .collaboratorList li {
     grid-template-columns: 1fr;
   }
 }

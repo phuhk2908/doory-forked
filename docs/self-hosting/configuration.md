@@ -310,6 +310,8 @@ See [realtime.md](realtime.md). The defaults suit most sites.
 | `DRAWING_ROOM_RATE_BYTES_BURST` | `2097152` | Inbound guest-room byte burst per connection |
 | `DRAWING_ROOM_FANOUT_PER_SECOND` | `200` | Outbound guest-room deliveries per room per second |
 | `DRAWING_ROOM_MEMBER_TTL_SECONDS` | `3600` | Shared-cache lease for active guest-room collaborator slots |
+| `DRAWING_ROOM_AUDIT_RETENTION_DAYS` | `90` | How long room audit events remain in the database; `collab_maintenance` removes older events |
+| `DRAWING_ROOM_SPAM_SCORE_THRESHOLD` | `12` | Content-risk score at which a room is marked for staff review; scores are recorded without retaining drawing text |
 
 ## MCP server
 

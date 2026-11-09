@@ -17,6 +17,9 @@ export type DrawingRoomRealtimeStatus =
 
 export interface DrawingRoomPeer {
   id: string;
+  userId?: string;
+  name?: string;
+  avatarUrl?: string | null;
   mode: "edit" | "view";
   cursor: { x: number; y: number } | null;
   selection: string[];
@@ -575,7 +578,7 @@ export class DrawingRoomRealtime {
           .filter((id): id is string => typeof id === "string")
           .slice(0, 100)
       : [];
-    this.peers.set(item.peer_id, {
+    const peer: DrawingRoomPeer = {
       id: item.peer_id,
       mode: item.mode === "view" ? "view" : "edit",
       cursor:
@@ -586,7 +589,11 @@ export class DrawingRoomRealtime {
           ? { x, y }
           : null,
       selection,
-    });
+    };
+    if (typeof item.user_id === "string") peer.userId = item.user_id;
+    if (typeof item.name === "string") peer.name = item.name;
+    if (typeof item.avatar_url === "string") peer.avatarUrl = item.avatar_url;
+    this.peers.set(item.peer_id, peer);
     this.callbacks.onPeers?.([...this.peers.values()]);
   }
 }

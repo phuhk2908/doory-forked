@@ -6,13 +6,14 @@ from django.conf import settings
 from django.core.management.base import BaseCommand
 
 from apps.collab import crdt, engine, store
-from apps.drawings.services import purge_expired_drawing_rooms
+from apps.drawings.services import purge_expired_drawing_room_events, purge_expired_drawing_rooms
 
 
 class Command(BaseCommand):
     help = (
         "Save designs whose real-time state is ahead of their document (after a crash), fold long update "
-        "logs into their snapshot and remove presence rows of processes that are gone."
+        "logs into their snapshot, remove stale presence rows, and purge expired drawing rooms "
+        "and audit events."
     )
 
     def handle(self, *args, **options) -> None:
@@ -37,9 +38,11 @@ class Command(BaseCommand):
             merged = merge.result()
             compacted += store.apply_compaction(design_id, source, merged)
         expired_rooms = purge_expired_drawing_rooms()
+        expired_events = purge_expired_drawing_room_events()
         self.stdout.write(
             f"saved {saved}, skipped {skipped}, failed {failed}; compacted {compacted}; "
-            f"removed {removed} stale connection rows; deleted {expired_rooms} expired drawing rooms"
+            f"removed {removed} stale connection rows; deleted {expired_rooms} expired drawing rooms; "
+            f"deleted {expired_events} expired drawing room events"
         )
 
     def save(self, design_id) -> str:

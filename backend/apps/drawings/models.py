@@ -54,6 +54,8 @@ class DrawingRoom(BaseModel):
     owner_key_hash = models.CharField(max_length=64, editable=False, blank=True, default="")
     view_key_hash = models.CharField(max_length=64, editable=False, blank=True, default="")
     revision = models.PositiveIntegerField(default=1)
+    spam_score = models.PositiveSmallIntegerField(default=0)
+    spam_flagged_at = models.DateTimeField(null=True, blank=True, db_index=True)
     closed_at = models.DateTimeField(null=True, blank=True, db_index=True)
     expires_at = models.DateTimeField(default=drawing_room_expiry, db_index=True)
 
@@ -72,8 +74,38 @@ class DrawingRoom(BaseModel):
         return self.expires_at <= timezone.now()
 
 
+class DrawingRoomCollaborator(BaseModel):
+    class Role(models.TextChoices):
+        VIEW = "view", "Can view"
+        EDIT = "edit", "Can edit"
+
+    room = models.ForeignKey(DrawingRoom, on_delete=models.CASCADE, related_name="collaborators")
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="drawing_room_collaborations",
+    )
+    role = models.CharField(max_length=4, choices=Role.choices, default=Role.EDIT)
+    invited_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="drawing_room_invitations",
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["room", "user"], name="drawings_room_collaborator_unique"),
+        ]
+        indexes = [models.Index(fields=["user", "room"])]
+
+    def __str__(self):
+        return f"{self.user} in {self.room}"
+
+
 class DrawingRoomEvent(BaseModel):
-    """Small audit records for room lifecycle and update activity; keys and documents are never stored."""
+    """Room audit records; keys, documents and raw client IP addresses are never stored."""
 
     room = models.ForeignKey(
         DrawingRoom,
@@ -83,8 +115,16 @@ class DrawingRoomEvent(BaseModel):
         related_name="events",
     )
     room_identifier = models.UUIDField(db_index=True)
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        blank=True,
+        null=True,
+        on_delete=models.SET_NULL,
+        related_name="drawing_room_events",
+    )
     kind = models.CharField(max_length=40)
     client_ip_hash = models.CharField(max_length=64, blank=True)
+    spam_score = models.PositiveSmallIntegerField(default=0)
     metadata = models.JSONField(default=dict)
 
     class Meta:

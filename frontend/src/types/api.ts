@@ -205,6 +205,16 @@ export interface DrawingRoom {
   expires_at: string;
 }
 
+export interface DrawingRoomCollaborator {
+  user_id: string;
+  email: string;
+  name: string;
+  avatar_url: string | null;
+  role: "view" | "edit";
+  created_at: string;
+  updated_at: string;
+}
+
 export interface DrawingRoomCreateInput {
   title?: string;
   document?: DrawingDocument;

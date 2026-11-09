@@ -6,7 +6,7 @@ from rest_framework import serializers
 
 from apps.assets.uploads import strip_unsafe_chars
 
-from .models import Drawing, DrawingRoom
+from .models import Drawing, DrawingRoom, DrawingRoomCollaborator
 from .validators import validate_drawing_document
 
 TITLE_MAX_LENGTH = 200
@@ -107,6 +107,40 @@ class DrawingRoomManageSerializer(serializers.Serializer):
         if attrs["action"] == "rename" and not attrs.get("title", "").strip():
             raise serializers.ValidationError({"title": ["A room name is required."]})
         return attrs
+
+
+class DrawingRoomCollaboratorWriteSerializer(serializers.Serializer):
+    email = serializers.EmailField(max_length=254)
+    role = serializers.ChoiceField(choices=DrawingRoomCollaborator.Role.choices, default="edit")
+
+    def validate_email(self, value):
+        return value.strip().lower()
+
+
+class DrawingRoomCollaboratorRoleSerializer(serializers.Serializer):
+    role = serializers.ChoiceField(choices=DrawingRoomCollaborator.Role.choices)
+
+
+class DrawingRoomCollaboratorSerializer(serializers.ModelSerializer):
+    user_id = serializers.UUIDField(source="user.id", read_only=True)
+    email = serializers.EmailField(source="user.email", read_only=True)
+    name = serializers.CharField(source="user.name", read_only=True)
+    avatar_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = DrawingRoomCollaborator
+        fields = ("user_id", "email", "name", "avatar_url", "role", "created_at", "updated_at")
+        read_only_fields = fields
+
+    def get_avatar_url(self, obj):
+        return obj.user.avatar.url if obj.user.avatar else None
+
+
+class DrawingRoomTransferSerializer(serializers.Serializer):
+    email = serializers.EmailField(max_length=254)
+
+    def validate_email(self, value):
+        return value.strip().lower()
 
 
 class DrawingRoomSerializer(serializers.ModelSerializer):

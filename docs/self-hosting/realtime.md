@@ -15,8 +15,9 @@ The same realtime service also serves the whiteboard module, using a separate pr
 co-editing:
 
 - `/ws/drawings/{id}/` is for an account-owned whiteboard and uses the signed-in session.
-- `/ws/drawing-rooms/{id}/` is for an anonymous guest room. The socket authenticates with a key in its first frame;
-  the key is never placed in the WebSocket URL.
+- `/ws/drawing-rooms/{id}/` is for a guest room. The socket authenticates with a key in its first frame; the key is
+  never placed in the WebSocket URL. When a signed-in account has been added as a named collaborator, its display
+  name and role are included in presence without changing the bearer-link access model.
 
 Guest room updates are validated JSON snapshots that are coalesced by the browser and merged by element version on
 the server. Cursor and selection presence are volatile. The room's edit/view/owner keys remain separate from the
@@ -35,10 +36,13 @@ updates, update latency percentiles, and dropped or invalid message counters. Ea
 snapshot through the shared `CollabInstance` heartbeat; stale worker snapshots disappear with the normal heartbeat
 window.
 
-Room lifecycle and update activity is retained in the `DrawingRoomEvent` audit table without storing room keys,
-documents, or raw client IP addresses. Staff can inspect, close, or delete selected rooms in Django admin; the
-creation throttle and shared-cache room budgets are the baseline spam controls. Content-based spam scoring and a
-configurable audit-retention policy are intentionally left for a later operations pass.
+Room lifecycle, membership, ownership, update, and moderation activity is retained in the `DrawingRoomEvent` audit
+table without storing room keys, documents, or raw client IP addresses. Signed-in room owners can manage named
+collaborators and transfer ownership through the room Share dialog or the authenticated drawings API. Transfer
+revokes the previous browser owner capability; existing edit/view links remain bearer links until rotated or closed.
+Content scoring stores only a bounded score and reason codes. Rooms at or above `DRAWING_ROOM_SPAM_SCORE_THRESHOLD`
+are marked for staff review in Django admin. `collab_maintenance` also removes events older than
+`DRAWING_ROOM_AUDIT_RETENTION_DAYS`.
 
 ## Turn it on or off
 
@@ -67,11 +71,12 @@ The connection and rate limits are listed under
 
 ## Maintenance
 
-`manage.py collab_maintenance` does three things:
+`manage.py collab_maintenance` does four things:
 
 - saves designs whose live state got ahead of the saved document, e.g. after a crash;
 - folds long update logs into a snapshot;
 - removes presence entries left by processes that are gone.
+- removes expired drawing rooms and room-audit events past the configured retention period.
 
 It's safe to run at any time. Schedule it as described in [Scheduled tasks](README.md#scheduled-tasks).
 

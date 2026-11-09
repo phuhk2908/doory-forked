@@ -174,6 +174,61 @@ def test_guest_room_uses_the_fragment_key_as_access_control(db):
     assert view.data["mode"] == "view"
 
 
+def test_signed_in_room_has_named_collaborator_and_transfer_endpoints(db):
+    owner = User.objects.create_user("owner@example.com", "password-123456")
+    collaborator = User.objects.create_user(
+        "collaborator@example.com", "password-123456", display_name="Teammate"
+    )
+    target = User.objects.create_user("target@example.com", "password-123456")
+    owner_client = APIClient()
+    owner_client.force_authenticate(user=owner)
+
+    created = owner_client.post(
+        "/api/v1/drawing-rooms/",
+        {"title": "Account room", "document": drawing_document()},
+        format="json",
+        **csrf_headers(owner_client),
+    )
+    assert created.status_code == 201
+    room_id = created.data["id"]
+    assert DrawingRoom.objects.get(pk=room_id).account_owner_id == owner.pk
+
+    added = owner_client.post(
+        f"/api/v1/drawing-rooms/{room_id}/collaborators/",
+        {"email": collaborator.email, "role": "view"},
+        format="json",
+        **csrf_headers(owner_client),
+    )
+    assert added.status_code == 200
+    assert added.data["name"] == "Teammate"
+    assert added.data["role"] == "view"
+
+    listed = owner_client.get(f"/api/v1/drawing-rooms/{room_id}/collaborators/")
+    assert listed.status_code == 200 and listed.data[0]["email"] == collaborator.email
+
+    updated = owner_client.patch(
+        f"/api/v1/drawing-rooms/{room_id}/collaborators/{collaborator.pk}/",
+        {"role": "edit"},
+        format="json",
+        **csrf_headers(owner_client),
+    )
+    assert updated.status_code == 200 and updated.data["role"] == "edit"
+
+    transferred = owner_client.post(
+        f"/api/v1/drawing-rooms/{room_id}/transfer-ownership/",
+        {"email": target.email},
+        format="json",
+        **csrf_headers(owner_client),
+    )
+    assert transferred.status_code == 200
+    assert DrawingRoom.objects.get(pk=room_id).account_owner_id == target.pk
+
+    assert owner_client.get(f"/api/v1/drawing-rooms/{room_id}/collaborators/").status_code == 404
+    target_client = APIClient()
+    target_client.force_authenticate(user=target)
+    assert target_client.get(f"/api/v1/drawing-rooms/{room_id}/collaborators/").status_code == 200
+
+
 def test_guest_room_merges_independent_element_versions(db):
     room, key, view_key, _ = services.create_drawing_room(title="Room", document=drawing_document())
     first = {

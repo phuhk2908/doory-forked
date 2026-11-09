@@ -1,7 +1,7 @@
 # Whiteboard room management
 
-Status: the account-bound ownership seam is implemented in the drawings domain, but no room-management MCP tools
-are exposed yet.
+Status: account-bound room ownership and named collaborator management are implemented in the drawings domain and
+authenticated REST UI. No room-management MCP tools are exposed yet.
 
 ## Decision
 
@@ -32,6 +32,12 @@ authenticated identity used by account-facing services. Neither credential is co
   capability. The room becomes ownerless and is handled as a guest room until it closes or expires.
 - MCP room tools remain disabled until their response contract can manage a room without accepting, returning, or
   logging guest capability keys.
+- A named collaborator is an existing active account identified by email. The owner may grant `view` or `edit`,
+  change the role, or remove the collaborator. The role is reflected in authenticated presence; bearer edit/view
+  links remain valid independently of the collaborator rows.
+- Ownership transfer requires an active account, records both account IDs in audit metadata, makes the target the
+  account owner, retains the previous owner as an `edit` collaborator, and clears the previous browser owner
+  capability. The target manages the room through account identity after the transfer.
 
 ## Domain seam
 
@@ -44,6 +50,14 @@ The `apps.drawings.services` module now provides account-bound primitives for a 
   account identity and preserve the existing lifecycle event behavior.
 - `rotate_account_drawing_room_keys(room_id, account_owner)` rotates browser edit/view capabilities by account
   identity. Its returned keys are for a trusted browser adapter, not MCP credentials.
+- `list_drawing_room_collaborators(...)`, `add_drawing_room_collaborator(...)`,
+  `update_drawing_room_collaborator(...)`, and `remove_drawing_room_collaborator(...)` manage named accounts.
+- `transfer_drawing_room_ownership(...)` performs the ownership handoff under a room row lock and revokes the old
+  owner capability.
+
+The REST endpoints are `/drawing-rooms/{id}/collaborators/`, `/drawing-rooms/{id}/collaborators/{user_id}/`, and
+`/drawing-rooms/{id}/transfer-ownership/`. They require the current authenticated account owner; they do not accept
+room keys.
 
 The public guest functions remain key-based for compatibility with `/drawings/room#room=...` and the room
 WebSocket. Keeping the two sets of functions separate makes it harder for an adapter to accidentally treat a guest
@@ -63,8 +77,8 @@ it must satisfy all of these rules:
 5. It uses the domain services so lifecycle events, row locking, expiry, and close semantics remain consistent with
    REST and admin paths.
 
-Room membership, named collaborators, ownership transfer, and claiming a historical guest room are separate product
-decisions. They are not inferred from the nullable account-owner relationship.
+Claiming a historical guest room remains a separate product decision and is not inferred from the nullable
+account-owner relationship.
 
 ## Migration and verification
 
