@@ -4,6 +4,7 @@ import { uuid } from "../lib/uuid";
 import {
   applyDrawingDelta,
   computeDrawingDelta,
+  mergeDrawingDocuments,
   type DrawingDelta,
   type DrawingDocument,
 } from "./model";
@@ -52,7 +53,7 @@ export interface DrawingRoomRealtimeCallbacks {
 }
 
 const OPEN = 1;
-const UPDATE_INTERVAL_MS = 120;
+const DURABLE_SAVE_DELAY_MS = 250;
 const PRESENCE_INTERVAL_MS = 33;
 const RETRY_BASE_MS = 1_000;
 const RETRY_MAX_MS = 30_000;
@@ -60,6 +61,15 @@ const PING_MS = 5_000;
 const SNAPSHOT_EVERY_UPDATES = 20;
 const SNAPSHOT_EVERY_MS = 10_000;
 const DELTA_MAX_PAYLOAD_RATIO = 0.75;
+const RECOVERY_STORAGE_PREFIX = "doory:drawing-room-recovery:";
+
+interface RecoverySnapshot {
+  document: DrawingDocument;
+  baseRevision: number;
+}
+
+export const drawingRoomRecoveryStorageKey = (roomId: string): string =>
+  RECOVERY_STORAGE_PREFIX + roomId;
 
 export function drawingRoomRealtimeAddress(
   roomId: string,
@@ -81,6 +91,50 @@ function validRevision(value: unknown): value is number {
 
 function validDocument(value: unknown): value is DrawingDocument {
   return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function validRecoverySnapshot(value: unknown): value is RecoverySnapshot {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const snapshot = value as Record<string, unknown>;
+  return (
+    validRevision(snapshot.baseRevision) &&
+    validDocument(snapshot.document) &&
+    Array.isArray(snapshot.document.elements)
+  );
+}
+
+function readRecoverySnapshot(key: string): RecoverySnapshot | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(key);
+    if (!raw) return null;
+    const value: unknown = JSON.parse(raw);
+    if (!validRecoverySnapshot(value)) {
+      window.sessionStorage.removeItem(key);
+      return null;
+    }
+    return value;
+  } catch {
+    return null;
+  }
+}
+
+function writeRecoverySnapshot(key: string, snapshot: RecoverySnapshot): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(key, JSON.stringify(snapshot));
+  } catch {
+    // Storage can be unavailable or full; the live room remains the durable source of truth.
+  }
+}
+
+function clearRecoverySnapshot(key: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.removeItem(key);
+  } catch {
+    // Private browsing can reject storage access; there is nothing else to clear.
+  }
 }
 
 function validDelta(value: unknown): value is DrawingDelta {
@@ -125,6 +179,7 @@ export class DrawingRoomRealtime {
   private canEdit = true;
   private peerId: string | null = null;
   private peers = new Map<string, DrawingRoomPeer>();
+  private readonly recoveryStorageKey: string;
 
   constructor(
     private readonly url: string,
@@ -133,7 +188,10 @@ export class DrawingRoomRealtime {
     private readonly createSocket: (url: string) => DrawingRoomSocket = (
       address,
     ) => new WebSocket(address) as unknown as DrawingRoomSocket,
-  ) {}
+    recoveryId = url,
+  ) {
+    this.recoveryStorageKey = drawingRoomRecoveryStorageKey(recoveryId);
+  }
 
   private readonly clientId = uuid();
 
@@ -144,6 +202,17 @@ export class DrawingRoomRealtime {
   }
 
   stop(): void {
+    if (this.pending) {
+      writeRecoverySnapshot(this.recoveryStorageKey, {
+        document: this.pending.document,
+        baseRevision: this.serverRevision,
+      });
+    } else if (this.inFlight) {
+      writeRecoverySnapshot(this.recoveryStorageKey, {
+        document: this.inFlight.document,
+        baseRevision: this.serverRevision,
+      });
+    }
     this.stopped = true;
     this.authenticated = false;
     this.clearRetry();
@@ -248,6 +317,8 @@ export class DrawingRoomRealtime {
         this.updatesSinceSnapshot = 0;
         this.lastSnapshotAt = Date.now();
         this.callbacks.onDocument(value.document, value.revision);
+        if (!this.pending && !this.inFlight)
+          this.restoreRecovery(value.document, value.revision);
       }
       if (validRevision(value.peers)) this.callbacks.onPresence(value.peers);
       this.replacePeers(value.presence);
@@ -307,6 +378,7 @@ export class DrawingRoomRealtime {
           this.serverRevision,
           clientId,
         );
+        if (!this.pending) clearRecoverySnapshot(this.recoveryStorageKey);
         this.flushPending();
       }
       return;
@@ -322,6 +394,7 @@ export class DrawingRoomRealtime {
       return;
     }
     if (value.type === "closed") {
+      clearRecoverySnapshot(this.recoveryStorageKey);
       this.stopped = true;
       this.authenticated = false;
       this.clearRetry();
@@ -351,12 +424,33 @@ export class DrawingRoomRealtime {
     this.socket.send(JSON.stringify(message));
   }
 
+  private restoreRecovery(
+    serverDocument: DrawingDocument,
+    serverRevision: number,
+  ): void {
+    const recovery = readRecoverySnapshot(this.recoveryStorageKey);
+    if (!recovery) return;
+    try {
+      const document =
+        recovery.baseRevision >= serverRevision
+          ? recovery.document
+          : mergeDrawingDocuments(serverDocument, recovery.document);
+      if (JSON.stringify(document) === JSON.stringify(serverDocument)) {
+        clearRecoverySnapshot(this.recoveryStorageKey);
+        return;
+      }
+      this.pending = { document, clientId: ++this.nextClientId };
+    } catch {
+      clearRecoverySnapshot(this.recoveryStorageKey);
+    }
+  }
+
   private scheduleFlush(): void {
     if (this.flushTimer !== null) return;
     this.flushTimer = setTimeout(() => {
       this.flushTimer = null;
       this.flushPending();
-    }, UPDATE_INTERVAL_MS);
+    }, DURABLE_SAVE_DELAY_MS);
   }
 
   private flushPending(): void {
@@ -387,6 +481,10 @@ export class DrawingRoomRealtime {
       payloadSize(delta) >=
         payloadSize(pending.document) * DELTA_MAX_PAYLOAD_RATIO;
     this.inFlight = { ...pending, snapshot: sendSnapshot };
+    writeRecoverySnapshot(this.recoveryStorageKey, {
+      document: pending.document,
+      baseRevision: this.serverRevision,
+    });
     this.updatesSinceSnapshot = sendSnapshot
       ? 0
       : this.updatesSinceSnapshot + 1;
@@ -590,6 +688,8 @@ export function useDrawingRoomRealtime({
         },
         onClosed: (reason) => latestCallbacks.get().onClosed?.(reason),
       },
+      undefined,
+      roomId,
     );
     realtimeRef.current = realtime;
     realtime.start();

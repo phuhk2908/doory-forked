@@ -53,8 +53,10 @@ Guest-room metrics retain update latency buckets, inbound/outbound bytes, fan-ou
 messages. They additionally distinguish `delta_updates` and `snapshot_updates`, so the payload reduction can be
 observed without assuming that every room or browser has the same scene shape.
 
-The client queue coalesces local changes before sending. This is not durable-save debouncing: each accepted room mutation
-still persists under the row lock. A separate recovery-snapshot/persistence pass remains a future optimization.
+The client queue coalesces local changes behind a 250ms durable-save quiet period. While a save is in flight, the
+latest document is also kept as a session-scoped recovery snapshot without the room key; a reconnect merges and
+resubmits it before clearing the recovery entry. Each accepted room mutation still persists under the row lock, but
+rapid pointer changes no longer create a durable write for every local snapshot.
 
 ## Verification boundary
 
@@ -67,6 +69,16 @@ DJANGO_SETTINGS_MODULE=doory.settings.dev python manage.py benchmark_drawing_roo
 ```
 
 It reports p50/p95/max update latency, sent/received bytes, server payload counters, delta/snapshot counts and expected
-fan-out for 2, 5, 20 and the configured maximum collaborators. The browser render/reconnect portion still needs a
-Chromium run and a stable multi-worker environment; the command does not turn its single-process transport numbers into
+fan-out for 2, 5, 20 and the configured maximum collaborators. The dedicated browser check can be run with Node.js 22
+and an installed Chromium binary:
+
+```bash
+cd frontend
+PW_CHROMIUM=/path/to/chromium bunx --no-install playwright test -c playwright.collab.config.ts \
+  e2e/collab/guest-room.spec.ts
+```
+
+It opens two guest editors and verifies presence plus reconnect after an API restart. Multi-worker verification requires
+Redis and two independent ASGI workers; in the current VM, separate workers on ports 8120 and 8121 exchanged a room
+update at revision 2 through Redis. The benchmark command itself remains single-process and its latency numbers are not
 a hard product limit.

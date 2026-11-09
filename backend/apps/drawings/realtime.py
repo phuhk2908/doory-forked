@@ -390,7 +390,7 @@ class DrawingRoomConsumer(AsyncJsonWebsocketConsumer):
         started = time.perf_counter()
         frame_size = kwargs.get("frame_size")
         if not isinstance(frame_size, int) or isinstance(frame_size, bool):
-            frame_size = len(self.encode_json(content).encode("utf-8"))
+            frame_size = len((await self.encode_json(content)).encode("utf-8"))
         document = content.get("document")
         delta = content.get("delta")
         client_id = content.get("client_id")
@@ -536,7 +536,7 @@ class DrawingRoomConsumer(AsyncJsonWebsocketConsumer):
         return True
 
     async def send_json(self, content: Any, close: bool = False) -> None:
-        text = self.encode_json(content)
+        text = await self.encode_json(content)
         guest_room_metrics.record_outbound(len(text.encode("utf-8")))
         await super().send(text_data=text, close=close)
 

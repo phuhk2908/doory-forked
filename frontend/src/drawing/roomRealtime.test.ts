@@ -1,7 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { blankDrawing, createElement, type DrawingDocument } from "./model";
 import {
   DrawingRoomRealtime,
+  drawingRoomRecoveryStorageKey,
   drawingRoomRealtimeAddress,
   type DrawingRoomSocket,
 } from "./roomRealtime";
@@ -34,6 +35,9 @@ class FakeSocket implements DrawingRoomSocket {
 }
 
 describe("drawing room realtime", () => {
+  beforeEach(() => sessionStorage.clear());
+  afterEach(() => sessionStorage.clear());
+
   it("builds a same-origin address and authenticates with the key in a frame", () => {
     expect(
       drawingRoomRealtimeAddress("a/../b?x=1", {
@@ -183,5 +187,84 @@ describe("drawing room realtime", () => {
       elements: [expect.objectContaining({ id: "remote" })],
     });
     realtime.stop();
+  });
+
+  it("recovers an unsaved snapshot after reconnect and clears it after acknowledgement", () => {
+    const firstSocket = new FakeSocket();
+    const first = new DrawingRoomRealtime(
+      "ws://test/ws/drawing-rooms/1/",
+      "k".repeat(43),
+      {
+        onDocument: () => undefined,
+        onSaved: () => undefined,
+        onPresence: () => undefined,
+        onStatus: () => undefined,
+        onError: () => undefined,
+      },
+      () => firstSocket,
+      "room-1",
+    );
+    const recovered = {
+      ...blankDrawing(),
+      elements: [{ ...createElement("rectangle"), id: "recovered" }],
+    };
+
+    first.start();
+    firstSocket.open();
+    first.publish(recovered);
+    firstSocket.receive({
+      type: "ready",
+      document: blankDrawing(),
+      revision: 1,
+      peers: 1,
+    });
+    expect(
+      sessionStorage.getItem(drawingRoomRecoveryStorageKey("room-1")),
+    ).toBeTruthy();
+    first.stop();
+
+    const secondSocket = new FakeSocket();
+    const second = new DrawingRoomRealtime(
+      "ws://test/ws/drawing-rooms/1/",
+      "k".repeat(43),
+      {
+        onDocument: () => undefined,
+        onSaved: () => undefined,
+        onPresence: () => undefined,
+        onStatus: () => undefined,
+        onError: () => undefined,
+      },
+      () => secondSocket,
+      "room-1",
+    );
+    second.start();
+    secondSocket.open();
+    secondSocket.receive({
+      type: "ready",
+      document: blankDrawing(),
+      revision: 1,
+      peers: 1,
+    });
+
+    const update = JSON.parse(secondSocket.sent[1]) as {
+      type: string;
+      delta?: { elements: Array<{ id: string }> };
+      document?: { elements: Array<{ id: string }> };
+      client_id?: number;
+    };
+    expect(update.type).toBe("update");
+    expect(update.delta?.elements ?? update.document?.elements).toEqual([
+      expect.objectContaining({ id: "recovered" }),
+    ]);
+    secondSocket.receive({
+      type: "saved",
+      document: recovered,
+      revision: 2,
+      client_id: update.client_id,
+    });
+    expect(
+      sessionStorage.getItem(drawingRoomRecoveryStorageKey("room-1")),
+    ).toBeNull();
+    second.stop();
   });
 });

@@ -54,12 +54,15 @@ def _benchmark_element(index: int) -> dict[str, Any]:
     }
 
 
-async def _drain(socket: WebsocketCommunicator) -> None:
+async def _receive_type(socket: WebsocketCommunicator, expected: str, timeout: float = 10) -> dict[str, Any]:
+    deadline = time.perf_counter() + timeout
     while True:
-        try:
-            await socket.receive_json_from(timeout=0.02)
-        except TimeoutError:
-            return
+        remaining = deadline - time.perf_counter()
+        if remaining <= 0:
+            raise TimeoutError(f"timed out waiting for {expected}")
+        message = await socket.receive_json_from(timeout=remaining)
+        if message.get("type") == expected:
+            return message
 
 
 async def _run_case(application: Any, size: int, rounds: int) -> dict[str, Any]:
@@ -94,9 +97,16 @@ async def _run_case(application: Any, size: int, rounds: int) -> dict[str, Any]:
             ready = await socket.receive_json_from(timeout=10)
             if ready.get("type") != "ready":
                 raise RuntimeError(f"collaborator {index + 1} was not ready: {ready}")
-        await asyncio.gather(*(_drain(socket) for socket in sockets))
+
+        recipients = max(0, size - 1)
+        fanout_limit = settings.DRAWING_ROOM_FANOUT_PER_SECOND
+        join_fanout = sum(max(1, member_count - 1) for member_count in range(1, size + 1))
+        if fanout_limit and join_fanout + recipients > fanout_limit:
+            await asyncio.sleep(1.05)
 
         for index in range(rounds):
+            if index and fanout_limit:
+                await asyncio.sleep(recipients / fanout_limit + 0.01)
             message = {
                 "type": "update",
                 "delta": {"schemaVersion": 1, "elements": [_benchmark_element(index)]},
@@ -106,7 +116,12 @@ async def _run_case(application: Any, size: int, rounds: int) -> dict[str, Any]:
             sent_bytes += len(encoded)
             started = time.perf_counter()
             await sockets[0].send_json_to(message)
-            responses = await asyncio.gather(*(socket.receive_json_from(timeout=10) for socket in sockets))
+            responses = await asyncio.gather(
+                *(
+                    _receive_type(socket, "saved" if collaborator == 0 else "document")
+                    for collaborator, socket in enumerate(sockets)
+                )
+            )
             latencies.append((time.perf_counter() - started) * 1000)
             if responses[0].get("type") != "saved":
                 raise RuntimeError(f"sender did not receive saved acknowledgement: {responses[0]}")

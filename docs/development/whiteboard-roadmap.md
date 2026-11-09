@@ -10,8 +10,8 @@ The guest room MVP is live. The next work is split by room safety first, then ed
 3. [x] Add protocol negotiation with full-snapshot fallback for rolling frontend/backend deploys.
 4. [x] Send version-aware element deltas, periodic repair snapshots and full merged acknowledgements.
 5. [x] Record delta/snapshot payload counters alongside existing latency, bytes, reconnect and fan-out metrics.
-6. [x] Add a repeatable transport benchmark for 2/5/20/maximum collaborators. Browser render/reconnect and multi-worker
-   verification remain environment-dependent.
+6. [x] Add a repeatable transport benchmark for 2/5/20/maximum collaborators, plus dedicated browser render/reconnect
+   and Redis-backed multi-worker verification.
 
 ## P0: room controls
 
@@ -53,11 +53,13 @@ The guest room MVP is live. The next work is split by room safety first, then ed
 
 ## P2: performance and scale
 
-- [ ] **P2.13** Complete the browser and multi-worker half of the collaboration benchmark. The single-process transport
-    matrix is available through `benchmark_drawing_room`; it reports latency, bytes, delta/snapshot counts and fan-out.
+- [x] **P2.13** Complete the browser and multi-worker half of the collaboration benchmark. The guest-room Chromium
+    spec covers two editors and reconnect after an API restart; the transport matrix covers 2/5/20/max collaborators;
+    and two independent ASGI workers successfully exchanged an update through Redis.
 - [x] **P2.14** Reduce realtime payload size by moving from full snapshots to element-level deltas. Send only new or version-changed elements and use periodic full snapshots for resync. See [whiteboard-realtime.md](whiteboard-realtime.md).
-- [ ] **P2.15** Evaluate Yjs/CRDT only if version-based merging is not sufficient, with special attention to text editing and concurrent changes. Record the decision and the measurements behind it.
-- [ ] **P2.16** Optimize persistence: debounce durable saves instead of writing every snapshot, and keep a recovery snapshot that can be applied after reconnect.
+- [x] **P2.15** Evaluate Yjs/CRDT only if version-based merging is not sufficient, with special attention to text editing and concurrent changes. Keep version/nonce merging for shapes; defer a gated `Y.Text` prototype until collaborative text is a product requirement. See [whiteboard-crdt-decision.md](whiteboard-crdt-decision.md).
+- [x] **P2.16** Optimize persistence: coalesce durable saves behind a 250ms quiet period and keep a session-scoped
+    recovery snapshot that is merged and applied after reconnect without storing the room key.
 
 ## P2: security and operations
 
@@ -91,7 +93,7 @@ These items are recorded separately from the completed P1 scope because they wer
 - **Full backend suite is effectively green after fixture refresh.** The Node.js 22 run reached 100% with 4,464 passed and 87 skipped; the only failure was the generated frontend-builder fixture, which was regenerated and now passes its freshness test. The production-settings probe also pins its origin lists so an ignored development `backend/.env` cannot contaminate it.
 - **Browser verification is still partial, but now uses the supported runtime.** Under Node.js 22, the mocked landing smoke suite passes 7/7 and the real Chromium 25-collaborator room-full/rejoin scenario passes. The full app/editor/collaboration suites remain pending.
 - **Full frontend unit-suite verification is still pending.** Vitest under Node.js 22 progressed through the suite but did not produce a summary within a 360-second timeout; the focused builder/realtime set passes 42/42.
-- **P2.13 is partially complete.** `benchmark_drawing_room` records the 2/5/20/max single-process transport matrix with
-  p50/p95 latency, payload bytes, delta/snapshot counts and fan-out. Browser render/reconnect and multi-worker
-  verification remain open; the existing 50-client stress test does not replace those measurements.
+- **The full collaboration suite still has unrelated verification gaps.** The dedicated guest-room Chromium check and
+  the Redis-backed two-worker exchange pass. The broader collaboration suite still has known access-toolbar and version
+  history failures, plus one restart test that is flaky on rerun; those are tracked separately from P2.13.
 - **Optional MCP proxy has a runtime DNS warning.** The web container logs `doory-mcp could not be resolved`; API, web, realtime, and `/api/v1/health/` remain healthy. MCP-specific checks should be run after the optional `doory-mcp` service/network is available.

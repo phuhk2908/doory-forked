@@ -257,12 +257,14 @@ browser fragment, is hashed in the database, and is presented in the initial roo
 Possession of the edit or view link grants its specific permission. A separate owner capability controls close and
 key rotation. The existing owner-only `/ws/drawings/<uuid>/` consumer is unchanged.
 
-Guest room updates are bounded JSON snapshots rather than Yjs deltas. The browser sends only its latest pending
-snapshot every 120ms, the server validates it and merges elements by `version`/`versionNonce` under a row lock, then
-broadcasts the accepted snapshot to the other members. A `saved` acknowledgement lets the source client clear its
-pending state. This keeps pointer interaction off the REST save path. Cursor and selection presence are volatile,
-bounded, and sent separately at 33ms. Room close and expiry reject new access; heartbeats also detect a close when
-API and realtime processes do not share an in-memory channel layer.
+Guest room updates are bounded JSON snapshots rather than Yjs deltas. The browser coalesces local changes behind a
+250ms durable-save quiet period, sends only its latest pending snapshot, and the server validates it and merges
+elements by `version`/`versionNonce` under a row lock before broadcasting the accepted snapshot to the other members.
+A `saved` acknowledgement lets the source client clear its pending state. While a save is in flight, the latest
+document is also kept as a session-scoped recovery snapshot without the room key; a reconnect merges and resubmits it
+before clearing the recovery entry. Cursor and selection presence are volatile, bounded, and sent separately at
+33ms. Room close and expiry reject new access; heartbeats also detect a close when API and realtime processes do not
+share an in-memory channel layer.
 
 Sources: [guest room model](../../backend/apps/drawings/models.py), [guest room service](../../backend/apps/drawings/services.py), [guest room WebSocket](../../backend/apps/drawings/realtime.py), [room page](../../frontend/src/pages/DrawingRoomPage.tsx), [Excalidraw room research](./excalidraw-guest-collaboration.md).
 
