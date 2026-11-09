@@ -95,7 +95,13 @@ test("a signed-in visitor of a view link watches the design live and cannot chan
   await expect(
     owner.page.locator('[data-testid="presence-avatar"][data-user="Cy"]'),
   ).toBeVisible();
-  await expect(cy.page.getByTestId("ed-share")).toHaveCount(0);
+  await cy.page.getByTestId("ed-share").click();
+  await expect(
+    cy.page
+      .getByRole("menu")
+      .getByRole("menuitem", { name: /Share with people/ }),
+  ).toHaveCount(0);
+  await cy.page.keyboard.press("Escape");
   await owner.context.close();
   await cy.context.close();
 });

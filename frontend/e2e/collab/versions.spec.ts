@@ -55,7 +55,7 @@ test("restoring a version while two people are editing puts everybody on it, onc
     .toBe(600);
 
   // Ada restores through the dialog.
-  await owner.page.getByTestId("ed-more").click();
+  await owner.page.getByTestId("ed-menu-file").click();
   await owner.page.getByRole("menuitem", { name: /Version history/ }).click();
   const row = owner.page
     .getByTestId("version-row")

@@ -90,10 +90,10 @@ The guest room MVP is live. The next work is split by room safety first, then ed
 
 These items are recorded separately from the completed P1 scope because they were not introduced by the whiteboard changes or still need a dedicated verification pass.
 
-- **Full backend suite is effectively green after fixture refresh.** The Node.js 22 run reached 100% with 4,464 passed and 87 skipped; the only failure was the generated frontend-builder fixture, which was regenerated and now passes its freshness test. The production-settings probe also pins its origin lists so an ignored development `backend/.env` cannot contaminate it.
-- **Browser verification is still partial, but now uses the supported runtime.** Under Node.js 22, the mocked landing smoke suite passes 7/7 and the real Chromium 25-collaborator room-full/rejoin scenario passes. The full app/editor/collaboration suites remain pending.
-- **Full frontend unit-suite verification is still pending.** Vitest under Node.js 22 progressed through the suite but did not produce a summary within a 360-second timeout; the focused builder/realtime set passes 42/42.
-- **The full collaboration suite still has unrelated verification gaps.** The dedicated guest-room Chromium check and
-  the Redis-backed two-worker exchange pass. The broader collaboration suite still has known access-toolbar and version
-  history failures, plus one restart test that is flaky on rerun; those are tracked separately from P2.13.
+- **Full backend suite is green.** The latest Node.js 22 run passed 4,487 tests with 87 skips. The real Chromium export and optimizer subset also passes after installing Chromium, `pdftoppm`, `cjpeg` and `oxipng`; one root-only Chromium sandbox test remains intentionally skipped.
+- **Browser verification is green on the supported runtime.** Under Node.js 22, the mocked landing smoke suite, the real
+  Chromium 25-collaborator room-full/rejoin scenario, the guest-room render/reconnect spec, and the full collaboration
+  suite pass. The full collaboration run completed with 55 passed and 5 intentionally skipped visual-light tests.
+- **Full frontend unit-suite verification is green.** Vitest under Node.js 22 passed 284 files and 3,856 tests, with one
+  skipped test.
 - **Optional MCP proxy has a runtime DNS warning.** The web container logs `doory-mcp could not be resolved`; API, web, realtime, and `/api/v1/health/` remain healthy. MCP-specific checks should be run after the optional `doory-mcp` service/network is available.
