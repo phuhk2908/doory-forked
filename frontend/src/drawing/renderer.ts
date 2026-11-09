@@ -340,25 +340,71 @@ function drawEraserTrail(
 ): void {
   if (points.length === 0) return;
   const last = points[points.length - 1];
+  const distances = [0];
+  for (let index = 1; index < points.length; index += 1) {
+    const previous = points[index - 1];
+    const current = points[index];
+    distances.push(
+      distances[index - 1] +
+        Math.hypot(current.x - previous.x, current.y - previous.y),
+    );
+  }
+  const totalDistance = distances[distances.length - 1] ?? 0;
+  const radii = points.map((_, index) =>
+    eraserTrailRadius(distances[index], totalDistance, zoom),
+  );
+  const sides = points.map((point, index) => {
+    const previous = points[Math.max(0, index - 1)];
+    const next = points[Math.min(points.length - 1, index + 1)];
+    let dx = next.x - previous.x;
+    let dy = next.y - previous.y;
+    const length = Math.hypot(dx, dy);
+    if (length === 0) {
+      dx = 1;
+      dy = 0;
+    } else {
+      dx /= length;
+      dy /= length;
+    }
+    const radius = radii[index];
+    const normal = { x: -dy * radius, y: dx * radius };
+    return {
+      left: { x: point.x + normal.x, y: point.y + normal.y },
+      right: { x: point.x - normal.x, y: point.y - normal.y },
+    };
+  });
   ctx.save();
+  ctx.fillStyle = "#6a52d9";
+  ctx.globalAlpha = 0.16;
+  ctx.beginPath();
+  ctx.moveTo(sides[0].left.x, sides[0].left.y);
+  for (const side of sides.slice(1)) ctx.lineTo(side.left.x, side.left.y);
+  for (const side of sides.slice().reverse())
+    ctx.lineTo(side.right.x, side.right.y);
+  ctx.closePath();
+  ctx.fill();
+
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
   ctx.strokeStyle = "#6a52d9";
-  ctx.globalAlpha = 0.16;
-  ctx.lineWidth = 14 / zoom;
-  ctx.beginPath();
-  ctx.moveTo(points[0].x, points[0].y);
-  for (const point of points.slice(1)) ctx.lineTo(point.x, point.y);
-  ctx.stroke();
-  ctx.fillStyle = "#6a52d9";
   ctx.globalAlpha = 0.2;
   ctx.beginPath();
-  ctx.arc(last.x, last.y, 9 / zoom, 0, Math.PI * 2);
+  ctx.arc(last.x, last.y, radii[radii.length - 1], 0, Math.PI * 2);
   ctx.fill();
   ctx.globalAlpha = 0.7;
   ctx.lineWidth = 1.5 / zoom;
   ctx.stroke();
   ctx.restore();
+}
+
+export function eraserTrailRadius(
+  distance: number,
+  totalDistance: number,
+  zoom: number,
+): number {
+  const progress =
+    totalDistance <= 0 ? 1 : Math.max(0, Math.min(1, distance / totalDistance));
+  return (3 + progress * 8) / zoom;
 }
 
 export function renderDrawing(

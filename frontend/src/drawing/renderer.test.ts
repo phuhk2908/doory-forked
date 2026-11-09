@@ -1,5 +1,5 @@
 import { blankDrawing, createElement } from "./model";
-import { gridLines, renderDrawing } from "./renderer";
+import { eraserTrailRadius, gridLines, renderDrawing } from "./renderer";
 
 vi.mock("roughjs", () => ({
   default: {
@@ -30,6 +30,64 @@ describe("grid rendering", () => {
 });
 
 describe("eraser preview rendering", () => {
+  it("keeps the eraser largest at the cursor and tapers the trail behind it", () => {
+    expect(eraserTrailRadius(0, 100, 1)).toBe(3);
+    expect(eraserTrailRadius(50, 100, 1)).toBe(7);
+    expect(eraserTrailRadius(100, 100, 1)).toBe(11);
+    expect(eraserTrailRadius(50, 100, 2)).toBe(3.5);
+    expect(eraserTrailRadius(0, 0, 1)).toBe(11);
+  });
+
+  it("draws the widest part of the trail at the cursor", () => {
+    const lineTo = vi.fn<(x: number, y: number) => void>();
+    const context = {
+      arc: vi.fn(),
+      beginPath: vi.fn(),
+      clearRect: vi.fn(),
+      closePath: vi.fn(),
+      fill: vi.fn(),
+      fillRect: vi.fn(),
+      lineTo,
+      moveTo: vi.fn(),
+      restore: vi.fn(),
+      save: vi.fn(),
+      scale: vi.fn(),
+      setTransform: vi.fn(),
+      stroke: vi.fn(),
+      translate: vi.fn(),
+    } as unknown as CanvasRenderingContext2D;
+    const canvas = document.createElement("canvas");
+    Object.defineProperty(canvas, "clientWidth", {
+      configurable: true,
+      value: 800,
+    });
+    Object.defineProperty(canvas, "clientHeight", {
+      configurable: true,
+      value: 600,
+    });
+    vi.spyOn(canvas, "getContext").mockReturnValue(context);
+
+    renderDrawing(
+      canvas,
+      blankDrawing(),
+      { zoom: 1, scrollX: 0, scrollY: 0 },
+      {
+        dpr: 1,
+        showDots: false,
+        eraserTrail: [
+          { x: 0, y: 0 },
+          { x: 50, y: 0 },
+          { x: 100, y: 0 },
+        ],
+      },
+    );
+
+    expect(lineTo).toHaveBeenCalledWith(50, 7);
+    expect(lineTo).toHaveBeenCalledWith(100, 11);
+    expect(lineTo).toHaveBeenCalledWith(100, -11);
+    expect(lineTo).toHaveBeenCalledWith(0, -3);
+  });
+
   it("fades erased elements in place without a deletion outline", () => {
     const alphaValues: number[] = [];
     let alpha = 1;

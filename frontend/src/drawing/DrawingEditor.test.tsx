@@ -6,7 +6,12 @@ import {
   waitFor,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { DrawingEditor } from "./DrawingEditor";
+import { createRef } from "react";
+import {
+  DrawingEditor,
+  type DrawingEditorHandle,
+  trimEraserTrail,
+} from "./DrawingEditor";
 import { blankDrawing, createElement, type DrawingDocument } from "./model";
 
 vi.mock("./renderer", () => ({
@@ -15,11 +20,30 @@ vi.mock("./renderer", () => ({
 }));
 
 describe("DrawingEditor", () => {
+  it("keeps only the recent distance of the eraser trail", () => {
+    expect(
+      trimEraserTrail(
+        [
+          { x: 0, y: 0 },
+          { x: 40, y: 0 },
+          { x: 80, y: 0 },
+          { x: 120, y: 0 },
+        ],
+        80,
+      ),
+    ).toEqual([
+      { x: 40, y: 0 },
+      { x: 80, y: 0 },
+      { x: 120, y: 0 },
+    ]);
+  });
+
   function dispatchPointer(
     canvas: HTMLElement,
     type: "pointerdown" | "pointermove" | "pointerup",
     clientX: number,
     clientY: number,
+    pointerId = 1,
   ): void {
     const event = new MouseEvent(type, {
       bubbles: true,
@@ -28,7 +52,7 @@ describe("DrawingEditor", () => {
       clientX,
       clientY,
     });
-    Object.defineProperty(event, "pointerId", { value: 1 });
+    Object.defineProperty(event, "pointerId", { value: pointerId });
     act(() => {
       canvas.dispatchEvent(event);
     });
@@ -352,5 +376,191 @@ describe("DrawingEditor", () => {
         expect.objectContaining({ id: "second", isDeleted: true }),
       ]),
     );
+  });
+
+  it("cancels an in-progress erase before it reaches save", async () => {
+    const first = createElement("rectangle", {
+      id: "first",
+      x: 100,
+      y: 100,
+      width: 40,
+      height: 40,
+    });
+    const saved: DrawingDocument[] = [];
+    render(
+      <DrawingEditor
+        initialDocument={{ ...blankDrawing(), elements: [first] }}
+        onSaveNow={async (document) => {
+          saved.push(document);
+        }}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /Eraser/ }));
+    const canvas = screen.getByRole("application", {
+      name: "Whiteboard canvas",
+    });
+    Object.defineProperty(canvas, "setPointerCapture", {
+      configurable: true,
+      value: vi.fn(),
+    });
+    Object.defineProperty(canvas, "hasPointerCapture", {
+      configurable: true,
+      value: vi.fn(() => true),
+    });
+    Object.defineProperty(canvas, "releasePointerCapture", {
+      configurable: true,
+      value: vi.fn(),
+    });
+
+    dispatchPointer(canvas, "pointerdown", 140, 100);
+    dispatchPointer(canvas, "pointermove", 220, 180);
+    fireEvent.keyDown(window, { key: "Escape" });
+    fireEvent.keyDown(window, { key: "s", ctrlKey: true });
+
+    await waitFor(() => expect(saved).toHaveLength(1));
+    expect(saved[0].elements).toEqual([
+      expect.objectContaining({ id: "first", isDeleted: false }),
+    ]);
+  });
+
+  it("does not commit an erase on pointer cancellation", async () => {
+    const first = createElement("rectangle", {
+      id: "first",
+      x: 100,
+      y: 100,
+      width: 40,
+      height: 40,
+    });
+    const changes: DrawingDocument[] = [];
+    render(
+      <DrawingEditor
+        initialDocument={{ ...blankDrawing(), elements: [first] }}
+        onDocumentChange={(document) => changes.push(document)}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /Eraser/ }));
+    const canvas = screen.getByRole("application", {
+      name: "Whiteboard canvas",
+    });
+    Object.defineProperty(canvas, "setPointerCapture", {
+      configurable: true,
+      value: vi.fn(),
+    });
+    Object.defineProperty(canvas, "hasPointerCapture", {
+      configurable: true,
+      value: vi.fn(() => true),
+    });
+    Object.defineProperty(canvas, "releasePointerCapture", {
+      configurable: true,
+      value: vi.fn(),
+    });
+
+    dispatchPointer(canvas, "pointerdown", 140, 100);
+    dispatchPointer(canvas, "pointermove", 220, 180);
+    act(() => {
+      fireEvent.pointerCancel(canvas, { pointerId: 1 });
+    });
+
+    expect(changes).toHaveLength(0);
+  });
+
+  it("cancels an active erase before applying a remote document", async () => {
+    const first = createElement("rectangle", {
+      id: "first",
+      x: 100,
+      y: 100,
+      width: 40,
+      height: 40,
+    });
+    const remote = createElement("ellipse", {
+      id: "remote",
+      x: 300,
+      y: 100,
+      width: 40,
+      height: 40,
+    });
+    const changes: DrawingDocument[] = [];
+    const editorRef = createRef<DrawingEditorHandle>();
+    render(
+      <DrawingEditor
+        ref={editorRef}
+        initialDocument={{ ...blankDrawing(), elements: [first] }}
+        onDocumentChange={(document) => changes.push(document)}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /Eraser/ }));
+    const canvas = screen.getByRole("application", {
+      name: "Whiteboard canvas",
+    });
+    Object.defineProperty(canvas, "setPointerCapture", {
+      configurable: true,
+      value: vi.fn(),
+    });
+    Object.defineProperty(canvas, "hasPointerCapture", {
+      configurable: true,
+      value: vi.fn(() => true),
+    });
+    Object.defineProperty(canvas, "releasePointerCapture", {
+      configurable: true,
+      value: vi.fn(),
+    });
+
+    dispatchPointer(canvas, "pointerdown", 140, 100);
+    dispatchPointer(canvas, "pointermove", 220, 180);
+    act(() => {
+      editorRef.current?.applyRemoteDocument({
+        ...blankDrawing(),
+        elements: [remote],
+      });
+    });
+    dispatchPointer(canvas, "pointerup", 340, 180);
+
+    expect(changes).toHaveLength(0);
+  });
+
+  it("ignores a second pointer until the active gesture ends", async () => {
+    const first = createElement("rectangle", {
+      id: "first",
+      x: 100,
+      y: 100,
+      width: 40,
+      height: 40,
+    });
+    const changes: DrawingDocument[] = [];
+    render(
+      <DrawingEditor
+        initialDocument={{ ...blankDrawing(), elements: [first] }}
+        onDocumentChange={(document) => changes.push(document)}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /Eraser/ }));
+    const canvas = screen.getByRole("application", {
+      name: "Whiteboard canvas",
+    });
+    Object.defineProperty(canvas, "setPointerCapture", {
+      configurable: true,
+      value: vi.fn(),
+    });
+    Object.defineProperty(canvas, "hasPointerCapture", {
+      configurable: true,
+      value: vi.fn(() => true),
+    });
+    Object.defineProperty(canvas, "releasePointerCapture", {
+      configurable: true,
+      value: vi.fn(),
+    });
+
+    dispatchPointer(canvas, "pointerdown", 140, 100, 1);
+    dispatchPointer(canvas, "pointermove", 220, 180, 2);
+    dispatchPointer(canvas, "pointerup", 340, 180, 2);
+    expect(changes).toHaveLength(0);
+
+    dispatchPointer(canvas, "pointermove", 220, 180, 1);
+    dispatchPointer(canvas, "pointerup", 340, 180, 1);
+    await waitFor(() => expect(changes).toHaveLength(1));
   });
 });

@@ -222,6 +222,25 @@ function keyFor(event: KeyboardEvent): string {
   return event.key.toLowerCase();
 }
 
+const ERASER_TRAIL_MAX_DISTANCE = 120;
+
+export function trimEraserTrail(
+  points: readonly Point[],
+  maxDistance: number,
+): Point[] {
+  let first = points.length - 1;
+  let distance = 0;
+  while (first > 0) {
+    const current = points[first];
+    const previous = points[first - 1];
+    const segment = Math.hypot(current.x - previous.x, current.y - previous.y);
+    if (distance + segment > maxDistance) break;
+    distance += segment;
+    first -= 1;
+  }
+  return points.slice(Math.max(0, first));
+}
+
 function updateTextElement(element: TextElement, text: string): TextElement {
   const next = { ...element, text };
   if (element.customData?.variant === "note") return next;
@@ -307,9 +326,28 @@ export const DrawingEditor = forwardRef<
   );
 
   function setPreviewDocument(next: DrawingDocument): void {
-    documentRef.current = next;
     setPreview(next);
   }
+
+  const cancelInteraction = useCallback((pointerId?: number): void => {
+    const interaction = interactionRef.current;
+    if (
+      interaction &&
+      pointerId !== undefined &&
+      interaction.pointerId !== pointerId
+    )
+      return;
+    const canvas = canvasRef.current;
+    if (interaction && canvas?.hasPointerCapture(interaction.pointerId))
+      canvas.releasePointerCapture(interaction.pointerId);
+    interactionRef.current = null;
+    setPreview(null);
+    setDraft(null);
+    setLasso(null);
+    setEraserTargets(new Set());
+    setEraserTrail([]);
+    setIsPanning(false);
+  }, []);
 
   const resetTo = useCallback(
     (next: DrawingDocument): void => {
@@ -338,6 +376,7 @@ export const DrawingEditor = forwardRef<
 
   const replaceDocument = useCallback(
     (next: DrawingDocument): void => {
+      cancelInteraction();
       const restored = restoreDrawing(next);
       documentRef.current = restored;
       historyRef.current.clear(restored);
@@ -352,11 +391,12 @@ export const DrawingEditor = forwardRef<
       setDirty(false);
       onSaveStateChange?.(false);
     },
-    [onSaveStateChange],
+    [cancelInteraction, onSaveStateChange],
   );
 
   const applyRemoteDocument = useCallback(
     (next: DrawingDocument): void => {
+      cancelInteraction();
       const restored = restoreDrawing(next);
       documentRef.current = restored;
       historyRef.current.clear(restored);
@@ -370,7 +410,7 @@ export const DrawingEditor = forwardRef<
       setDirty(false);
       onSaveStateChange?.(false);
     },
-    [onSaveStateChange],
+    [cancelInteraction, onSaveStateChange],
   );
 
   const saveNow = useCallback(async (): Promise<void> => {
@@ -557,12 +597,8 @@ export const DrawingEditor = forwardRef<
         return;
       }
       if (key === "escape") {
+        cancelInteraction();
         setSelection(new Set());
-        setEraserTargets(new Set());
-        setEraserTrail([]);
-        setDraft(null);
-        setLasso(null);
-        interactionRef.current = null;
         return;
       }
       if (key === "0") {
@@ -618,6 +654,7 @@ export const DrawingEditor = forwardRef<
     };
   }, [
     beginTextEditing,
+    cancelInteraction,
     editing,
     exportAs,
     markChange,
@@ -756,6 +793,8 @@ export const DrawingEditor = forwardRef<
   function pointerDown(event: ReactPointerEvent<HTMLCanvasElement>): void {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    if (interactionRef.current) return;
+    if (event.button !== 0 && event.button !== 1) return;
     const rect = canvas.getBoundingClientRect();
     const start = movement(event, rect, viewport);
     canvas.setPointerCapture(event.pointerId);
@@ -889,8 +928,9 @@ export const DrawingEditor = forwardRef<
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
     const current = movement(event, rect, viewport);
-    onPresenceChange?.({ cursor: current, selection: [...selection] });
     const interaction = interactionRef.current;
+    if (interaction && interaction.pointerId !== event.pointerId) return;
+    onPresenceChange?.({ cursor: current, selection: [...selection] });
     if (!interaction) {
       if (tool === "eraser") {
         const ids = elementsHitBySegment(
@@ -940,8 +980,11 @@ export const DrawingEditor = forwardRef<
     } else if (interaction.kind === "erase") {
       const previous =
         interaction.points[interaction.points.length - 1] ?? current;
-      interaction.points.push(current);
-      setEraserTrail([...interaction.points]);
+      interaction.points = trimEraserTrail(
+        [...interaction.points, current],
+        ERASER_TRAIL_MAX_DISTANCE / viewport.zoom,
+      );
+      setEraserTrail(interaction.points);
       const ids = elementsHitBySegment(
         interaction.document,
         previous,
@@ -969,6 +1012,7 @@ export const DrawingEditor = forwardRef<
   function pointerUp(event: ReactPointerEvent<HTMLCanvasElement>): void {
     const canvas = canvasRef.current;
     const interaction = interactionRef.current;
+    if (interaction && interaction.pointerId !== event.pointerId) return;
     if (!canvas || !interaction) {
       if (canvas?.hasPointerCapture(event.pointerId))
         canvas.releasePointerCapture(event.pointerId);
@@ -1032,6 +1076,10 @@ export const DrawingEditor = forwardRef<
         });
       }
     }
+  }
+
+  function pointerCancel(event: ReactPointerEvent<HTMLCanvasElement>): void {
+    cancelInteraction(event.pointerId);
   }
 
   function pointerLeave(): void {
@@ -1467,13 +1515,12 @@ export const DrawingEditor = forwardRef<
           data-pan-mode={tool === "hand" || spacePressed ? "true" : "false"}
           data-pan-active={isPanning ? "true" : "false"}
           data-select-mode={tool === "select" ? "true" : "false"}
-          data-eraser-mode={tool === "eraser" ? "true" : "false"}
           data-tool={tool}
           onPointerDown={pointerDown}
           onPointerMove={pointerMove}
           onPointerLeave={pointerLeave}
           onPointerUp={pointerUp}
-          onPointerCancel={pointerUp}
+          onPointerCancel={pointerCancel}
           onDoubleClick={doubleClick}
         />
         {remoteOverlays.map((overlay) =>
