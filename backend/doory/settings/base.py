@@ -298,6 +298,8 @@ SPECTACULAR_SETTINGS = {
         "ElementKindEnum": "apps.elements.models.ElementKind",
         "ShareRoleEnum": "apps.sharing.models.ShareRole",
         "BrandFontRoleEnum": "apps.brand.serializers.FONT_ROLES",
+        # Link modes and collaborator roles intentionally use the same access choices.
+        "DrawingRoomAccessEnum": "apps.drawings.models.DrawingRoom.LinkMode",
     },
 }
 

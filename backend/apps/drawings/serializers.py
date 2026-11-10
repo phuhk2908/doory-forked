@@ -135,7 +135,7 @@ class DrawingRoomCollaboratorSerializer(serializers.ModelSerializer):
         fields = ("user_id", "email", "name", "avatar_url", "role", "created_at", "updated_at")
         read_only_fields = fields
 
-    def get_avatar_url(self, obj):
+    def get_avatar_url(self, obj: DrawingRoomCollaborator) -> str | None:
         return obj.user.avatar.url if obj.user.avatar else None
 
 
