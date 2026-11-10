@@ -1,11 +1,17 @@
 import { blankDrawing, createElement } from "./model";
-import { eraserTrailRadius, gridLines, renderDrawing } from "./renderer";
+import {
+  eraserTrailRadius,
+  gridLines,
+  renderDrawing,
+  renderSvg,
+} from "./renderer";
 
 vi.mock("roughjs", () => ({
   default: {
     canvas: vi.fn(() => ({
       ellipse: vi.fn(),
       polygon: vi.fn(),
+      path: vi.fn(),
       rectangle: vi.fn(),
     })),
   },
@@ -38,7 +44,7 @@ describe("eraser preview rendering", () => {
     expect(eraserTrailRadius(0, 0, 1)).toBe(11);
   });
 
-  it("draws the widest part of the trail at the cursor", () => {
+  it("draws the trail without a duplicate cursor circle", () => {
     const lineTo = vi.fn<(x: number, y: number) => void>();
     const context = {
       arc: vi.fn(),
@@ -86,6 +92,7 @@ describe("eraser preview rendering", () => {
     expect(lineTo).toHaveBeenCalledWith(100, 11);
     expect(lineTo).toHaveBeenCalledWith(100, -11);
     expect(lineTo).toHaveBeenCalledWith(0, -3);
+    expect(context.arc).not.toHaveBeenCalled();
   });
 
   it("fades erased elements in place without a deletion outline", () => {
@@ -137,5 +144,27 @@ describe("eraser preview rendering", () => {
 
     expect(alphaValues).toContain(0.3);
     expect(context.setLineDash).not.toHaveBeenCalled();
+  });
+});
+
+describe("text export rendering", () => {
+  it("keeps note wrapping and its footer clipped in SVG", () => {
+    const note = createElement("text", {
+      id: "note-export",
+      x: 20,
+      y: 30,
+      width: 100,
+      height: 80,
+      text: "alpha beta supercalifragilistic",
+      customData: { variant: "note", createdAt: Date.now() },
+    });
+    const svg = renderSvg(
+      { ...blankDrawing(), elements: [note] },
+      { bounds: "content", padding: 0 },
+    );
+
+    expect(svg).toContain('clipPath id="note-note-export"');
+    expect(svg.match(/<tspan/g)?.length ?? 0).toBeGreaterThan(2);
+    expect(svg).toContain("Added");
   });
 });

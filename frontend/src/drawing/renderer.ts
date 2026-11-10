@@ -3,6 +3,7 @@ import {
   documentBounds,
   elementBounds,
   selectionBounds,
+  textLines,
   textBounds,
   worldToScreen,
   type Point,
@@ -115,35 +116,32 @@ function drawText(ctx: CanvasRenderingContext2D, element: TextElement): void {
   ctx.globalAlpha = element.style.opacity;
   ctx.textAlign = element.style.textAlign;
   ctx.textBaseline = "top";
-  const lines: string[] = [];
   const lineHeight = element.style.fontSize * element.style.lineHeight;
-  for (const source of element.text.split("\n")) {
-    if (!isNote) {
-      lines.push(source);
-      continue;
-    }
-    const words = source.split(" ");
-    let line = "";
-    for (const word of words) {
-      const next = line ? `${line} ${word}` : word;
-      if (line && ctx.measureText(next).width > contentWidth) {
-        lines.push(line);
-        line = word;
-      } else {
-        line = next;
-      }
-    }
-    lines.push(line);
-  }
+  const lines = textLines(element, (value) => ctx.measureText(value).width);
   const textX = (): number =>
     element.style.textAlign === "left"
       ? padding
       : element.style.textAlign === "center"
         ? padding + contentWidth / 2
         : padding + contentWidth;
+  if (isNote) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(
+      padding,
+      padding,
+      Math.max(0, element.width - padding * 2),
+      Math.max(
+        0,
+        element.height - padding * 2 - DRAWING_NOTE_DATE_FONT_SIZE - 8,
+      ),
+    );
+    ctx.clip();
+  }
   lines.forEach((line, lineIndex) => {
     ctx.fillText(line, textX(), padding + lineIndex * lineHeight);
   });
+  if (isNote) ctx.restore();
   if (isNote) {
     const createdAt = element.customData?.createdAt;
     if (typeof createdAt === "number" && Number.isFinite(createdAt)) {
@@ -198,15 +196,29 @@ function drawElement(
     strokeLineDash: dash(element.style.strokeStyle),
   };
   ctx.globalAlpha = element.style.opacity;
-  if (element.type === "rectangle")
-    roughCanvas.rectangle(
-      element.x,
-      element.y,
-      element.width,
-      element.height,
-      options,
+  if (element.type === "rectangle") {
+    const radius = Math.min(
+      element.style.roundness,
+      element.width / 2,
+      element.height / 2,
     );
-  else if (element.type === "ellipse")
+    if (radius <= 0) {
+      roughCanvas.rectangle(
+        element.x,
+        element.y,
+        element.width,
+        element.height,
+        options,
+      );
+    } else {
+      const right = element.x + element.width;
+      const bottom = element.y + element.height;
+      roughCanvas.path(
+        `M ${element.x + radius} ${element.y} H ${right - radius} Q ${right} ${element.y} ${right} ${element.y + radius} V ${bottom - radius} Q ${right} ${bottom} ${right - radius} ${bottom} H ${element.x + radius} Q ${element.x} ${bottom} ${element.x} ${bottom - radius} V ${element.y + radius} Q ${element.x} ${element.y} ${element.x + radius} ${element.y} Z`,
+        options,
+      );
+    }
+  } else if (element.type === "ellipse")
     roughCanvas.ellipse(
       element.x + element.width / 2,
       element.y + element.height / 2,
@@ -339,7 +351,6 @@ function drawEraserTrail(
   zoom: number,
 ): void {
   if (points.length === 0) return;
-  const last = points[points.length - 1];
   const distances = [0];
   for (let index = 1; index < points.length; index += 1) {
     const previous = points[index - 1];
@@ -383,17 +394,6 @@ function drawEraserTrail(
     ctx.lineTo(side.right.x, side.right.y);
   ctx.closePath();
   ctx.fill();
-
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-  ctx.strokeStyle = "#6a52d9";
-  ctx.globalAlpha = 0.2;
-  ctx.beginPath();
-  ctx.arc(last.x, last.y, radii[radii.length - 1], 0, Math.PI * 2);
-  ctx.fill();
-  ctx.globalAlpha = 0.7;
-  ctx.lineWidth = 1.5 / zoom;
-  ctx.stroke();
   ctx.restore();
 }
 
@@ -519,10 +519,37 @@ function svgElement(element: DrawingElement): string {
   if (element.type === "text") {
     const isNote = element.customData?.variant === "note";
     const padding = isNote ? DRAWING_NOTE_PADDING : 0;
+    const contentWidth = isNote
+      ? Math.max(40, element.width - padding * 2)
+      : textBounds(element).width;
     const noteBackground = isNote
       ? `<rect x="${element.x}" y="${element.y}" width="${element.width}" height="${element.height}" rx="${element.style.roundness}" style="${style}"/>`
       : "";
     const textY = element.y + padding + element.style.fontSize;
+    const textX =
+      element.style.textAlign === "center"
+        ? element.x + padding + contentWidth / 2
+        : element.style.textAlign === "right"
+          ? element.x + padding + contentWidth
+          : element.x + padding;
+    const textAnchor =
+      element.style.textAlign === "center"
+        ? "middle"
+        : element.style.textAlign === "right"
+          ? "end"
+          : "start";
+    const lines = textLines(element);
+    const lineHeight = element.style.fontSize * element.style.lineHeight;
+    const textContent = lines
+      .map(
+        (line, index) =>
+          `<tspan x="${textX}" dy="${index === 0 ? 0 : lineHeight}">${escapeXml(line)}</tspan>`,
+      )
+      .join("");
+    const clipId = `note-${element.id.replace(/[^a-zA-Z0-9_-]/gu, "") || "text"}`;
+    const noteClip = isNote
+      ? `<clipPath id="${clipId}"><rect x="${element.x + padding}" y="${element.y + padding}" width="${Math.max(0, element.width - padding * 2)}" height="${Math.max(0, element.height - padding * 2 - DRAWING_NOTE_DATE_FONT_SIZE - 8)}"/></clipPath>`
+      : "";
     const date =
       isNote &&
       typeof element.customData?.createdAt === "number" &&
@@ -533,7 +560,7 @@ function svgElement(element: DrawingElement): string {
       date && !Number.isNaN(date.getTime())
         ? `<text x="${element.x + element.width - padding}" y="${element.y + element.height - padding}" text-anchor="end" font-family="${escapeXml(element.style.fontFamily)}" font-size="${DRAWING_NOTE_DATE_FONT_SIZE}" fill="${escapeXml(element.style.stroke)}" opacity="${element.style.opacity * 0.68}">Added ${escapeXml(new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" }).format(date))}</text>`
         : "";
-    return `${noteBackground}<text x="${element.x + padding}" y="${textY}" font-family="${escapeXml(element.style.fontFamily)}" font-size="${element.style.fontSize}" fill="${escapeXml(element.style.stroke)}" opacity="${element.style.opacity}">${escapeXml(element.text)}</text>${dateLabel}`;
+    return `${noteClip}${noteBackground}<text x="${textX}" y="${textY}" text-anchor="${textAnchor}" font-family="${escapeXml(element.style.fontFamily)}" font-size="${element.style.fontSize}" fill="${escapeXml(element.style.stroke)}" opacity="${element.style.opacity}"${isNote ? ` clip-path="url(#${clipId})"` : ""}>${textContent}</text>${dateLabel}`;
   }
   if (
     element.type !== "line" &&

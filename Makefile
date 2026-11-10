@@ -72,7 +72,7 @@ test-web: check-tooling ## Frontend tests (vitest)
 
 lint: docs-check check-tooling check-backend check-migrations ## Ruff, Oxlint, Oxfmt, TypeScript and docs checks (no changes)
 	cd backend && $(abspath $(PY)) -m ruff check . && $(abspath $(PY)) -m ruff format --check .
-	cd frontend && bun run lint && bun run format:check && bun run typecheck
+	cd frontend && bun run lint && bun run format:check && bun run check
 
 docs-check: ## Check that every setting is documented in docs/self-hosting/configuration.md
 	sh docs/check-settings.sh

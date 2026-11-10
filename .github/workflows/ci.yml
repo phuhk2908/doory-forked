@@ -122,7 +122,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev
       - run: bun install --frozen-lockfile
       - run: bun run lint
-      - run: bun run typecheck
+      - run: bun run check
       - run: bun run test
       - run: bun run build
       - name: Bundle budgets

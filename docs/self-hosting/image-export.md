@@ -85,6 +85,9 @@ manual deployment, run `python manage.py process_export_jobs --limit 1` from a s
 API also nudges a local worker immediately, but the database row and snapshot are authoritative, so a restart does
 not discard a queued export. Stale worker leases are requeued up to `EXPORT_JOB_MAX_ATTEMPTS`.
 
+The Compose worker has no HTTP healthcheck because it is a queue consumer rather than an HTTP server; Compose starts
+it only after the API healthcheck passes. Use `docker compose logs -f export-worker` to inspect queue processing.
+
 ## SVG and PDF
 
 These formats make the same files as the editor's Download:

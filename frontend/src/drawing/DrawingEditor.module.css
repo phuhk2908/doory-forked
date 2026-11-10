@@ -302,18 +302,9 @@
   cursor: text;
 }
 
-.canvas[data-tool="line"] {
-  cursor:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M4 20 20 4' fill='none' stroke='%231f2937' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E")
-      12 12,
-    crosshair;
-}
-
+.canvas[data-tool="line"],
 .canvas[data-tool="arrow"] {
-  cursor:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M4 12h15m-6-6 6 6-6 6' fill='none' stroke='%231f2937' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
-      12 12,
-    crosshair;
+  cursor: crosshair;
 }
 
 .canvas[data-tool="freedraw"] {
@@ -362,24 +353,336 @@
   border: 1px solid var(--selection-color);
 }
 
+.selectionHandles {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.resizeHandle {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  padding: 0;
+  background: var(--color-surface);
+  border: 1.5px solid var(--selection-color);
+  border-radius: 3px;
+  box-shadow: 0 1px 3px rgb(15 23 42 / 18%);
+  pointer-events: auto;
+  transform: translate(-50%, -50%);
+}
+
+.resizeHandle:hover,
+.resizeHandle:focus-visible {
+  background: var(--selection-color);
+}
+
+.rotateHandle {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  color: var(--selection-color);
+  background: var(--color-surface);
+  border: 1.5px solid var(--selection-color);
+  border-radius: var(--radius-full);
+  box-shadow: 0 1px 3px rgb(15 23 42 / 18%);
+  cursor: grab;
+  pointer-events: auto;
+  transform: translate(-50%, -50%);
+}
+
+.rotateHandle:hover,
+.rotateHandle:focus-visible {
+  color: var(--color-on-brand);
+  background: var(--selection-color);
+}
+
+.rotateHandle:active {
+  cursor: grabbing;
+}
+
+.resizeHandle[data-handle="nw"],
+.resizeHandle[data-handle="se"] {
+  cursor: nwse-resize;
+}
+
+.resizeHandle[data-handle="ne"],
+.resizeHandle[data-handle="sw"] {
+  cursor: nesw-resize;
+}
+
+.resizeHandle[data-handle="n"],
+.resizeHandle[data-handle="s"] {
+  cursor: ns-resize;
+}
+
+.resizeHandle[data-handle="e"],
+.resizeHandle[data-handle="w"] {
+  cursor: ew-resize;
+}
+
+.endpointHandle {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  background: var(--color-surface);
+  border: 2px solid var(--selection-color);
+  border-radius: var(--radius-full);
+  box-shadow: 0 1px 3px rgb(15 23 42 / 20%);
+  cursor: crosshair;
+  pointer-events: auto;
+  transform: translate(-50%, -50%);
+}
+
+.endpointHandle[data-bound="true"] {
+  background: var(--selection-color);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--selection-color) 18%, transparent),
+    0 1px 3px rgb(15 23 42 / 20%);
+}
+
+.endpointHandle:hover,
+.endpointHandle:focus-visible {
+  background: var(--selection-color);
+}
+
+.waypointHandle,
+.waypointAddHandle {
+  position: absolute;
+  padding: 0;
+  color: var(--selection-color);
+  background: var(--color-surface);
+  border: 1.5px solid var(--selection-color);
+  box-shadow: 0 1px 3px rgb(15 23 42 / 18%);
+  pointer-events: auto;
+  transform: translate(-50%, -50%);
+}
+
+.waypointHandle {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  cursor: move;
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.waypointAddHandle {
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-full);
+  cursor: copy;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 15px;
+}
+
+.waypointHandle:hover,
+.waypointHandle:focus-visible,
+.waypointAddHandle:hover,
+.waypointAddHandle:focus-visible {
+  color: var(--color-on-brand);
+  background: var(--selection-color);
+}
+
+.bindingGuide {
+  position: absolute;
+  z-index: 3;
+  pointer-events: none;
+  border: 2px solid var(--selection-color);
+  border-radius: 6px;
+  box-shadow: 0 0 0 4px
+    color-mix(in srgb, var(--selection-color) 14%, transparent);
+}
+
+.bindingGuide span {
+  position: absolute;
+  top: -26px;
+  left: 0;
+  padding: 4px 7px;
+  color: var(--color-on-brand);
+  background: var(--selection-color);
+  border-radius: var(--radius-full);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.propertiesPanel {
+  position: absolute;
+  top: 72px;
+  left: 16px;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  width: 220px;
+  max-height: calc(100% - 128px);
+  overflow: auto;
+  color: var(--color-text);
+  background: color-mix(in srgb, var(--color-surface-raised) 97%, transparent);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  scrollbar-width: thin;
+}
+
+.propertiesHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px 9px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.propertiesHeader strong {
+  font-size: 13px;
+}
+
+.propertiesHeader span,
+.propertiesSectionTitle {
+  color: var(--color-text-muted);
+  font-size: 11px;
+}
+
+.propertiesSection {
+  display: grid;
+  gap: 9px;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.propertiesSection:last-child {
+  border-bottom: 0;
+}
+
+.propertiesSectionTitle {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.propertiesRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 28px;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.propertiesRow > label,
+.propertiesLabel {
+  color: var(--color-text-muted);
+  line-height: 1.2;
+}
+
+.propertiesRow > input[type="number"],
+.rangeControl > input[type="number"],
+.propertiesRow > select {
+  box-sizing: border-box;
+  width: 84px;
+  min-height: 28px;
+  padding: 3px 7px;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font: inherit;
+}
+
+.colorControl,
+.rangeControl,
+.segmentedControl {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 6px;
+}
+
+.colorControl span,
+.rangeControl output {
+  max-width: 92px;
+  overflow: hidden;
+  color: var(--color-text-subtle);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.colorControl input[type="color"] {
+  width: 28px;
+  height: 28px;
+  padding: 2px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.rangeControl input[type="range"] {
+  width: 82px;
+  accent-color: var(--color-brand-fill);
+}
+
+.propertyToggle {
+  min-height: 28px;
+  padding: 3px 7px;
+  color: var(--color-text-muted);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+}
+
+.propertyToggle:hover,
+.propertyToggle[aria-pressed="true"] {
+  color: var(--color-brand-strong);
+  background: var(--color-brand-soft);
+  border-color: var(--color-brand);
+}
+
+.propertyToggle:disabled,
+.propertiesPanel input:disabled,
+.propertiesPanel select:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.segmentedControl .propertyToggle {
+  min-width: 27px;
+  padding-inline: 5px;
+}
+
 .textEditor {
   box-sizing: border-box;
   position: absolute;
   z-index: 3;
-  resize: both;
-  min-width: 120px;
-  padding: 4px 6px;
-  color: var(--color-text);
-  background: color-mix(in srgb, var(--color-surface) 85%, transparent);
-  border: 1px solid var(--selection-color);
-  border-radius: var(--radius-sm);
+  resize: none;
+  padding: 0;
+  color: transparent;
+  caret-color: var(--color-text);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
   outline: none;
+  overflow: hidden;
 }
 
-.textEditor[data-note="true"] {
-  padding: 3px 4px;
-  border-radius: 7px;
-  box-shadow: 0 4px 12px rgb(15 23 42 / 12%);
+.textEditor::selection {
+  color: transparent;
+  background: color-mix(in srgb, var(--selection-color) 28%, transparent);
+}
+
+.textEditor:focus-visible {
+  outline: none;
+  box-shadow: none;
 }
 
 .remoteSelection,
@@ -566,5 +869,44 @@ input:focus-visible {
     padding-inline: 2px;
     font-size: 9px;
     line-height: 11px;
+  }
+
+  .propertiesPanel {
+    top: 52px;
+    right: 8px;
+    left: 8px;
+    width: auto;
+    max-height: min(46vh, 360px);
+  }
+
+  .propertiesSection {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .propertiesSectionTitle {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 360px) {
+  .toolGroup {
+    right: 4px;
+    left: 48px;
+    gap: 0;
+    padding: 2px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    touch-action: pan-x;
+  }
+
+  .toolButton,
+  .shapeButton {
+    min-width: 26px;
+    width: 26px;
+  }
+
+  .shapeDropdownButton {
+    min-width: 12px;
+    width: 12px;
   }
 }

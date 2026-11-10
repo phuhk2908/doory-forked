@@ -6,6 +6,7 @@ import type {
   LinearElement,
   TextElement,
 } from "./model";
+import { DRAWING_NOTE_DATE_FONT_SIZE, DRAWING_NOTE_PADDING } from "./model";
 
 export interface Point {
   x: number;
@@ -41,6 +42,81 @@ function measureTextLine(element: TextElement, text: string): number {
     return Math.max(1, textMeasureContext.measureText(text).width);
   }
   return Math.max(1, text.length * element.style.fontSize * 0.6);
+}
+
+function wrapLine(
+  source: string,
+  width: number,
+  measure: (value: string) => number,
+): string[] {
+  if (!source) return [""];
+  const tokens = source.split(/(\s+)/u).filter((token) => token.length > 0);
+  const lines: string[] = [];
+  let line = "";
+
+  for (const token of tokens) {
+    if (/^\s+$/u.test(token)) {
+      if (line && measure(line + token) <= width) line += token;
+      continue;
+    }
+
+    if (line && measure(line + token) <= width) {
+      line += token;
+      continue;
+    }
+
+    if (line) {
+      lines.push(line.trimEnd());
+      line = "";
+    }
+
+    const characters = Array.from(token);
+    let offset = 0;
+    while (offset < characters.length) {
+      let low = 1;
+      let high = characters.length - offset;
+      let best = 1;
+      while (low <= high) {
+        const middle = Math.floor((low + high) / 2);
+        const candidate = characters.slice(offset, offset + middle).join("");
+        if (measure(candidate) <= width) {
+          best = middle;
+          low = middle + 1;
+        } else high = middle - 1;
+      }
+      const part = characters.slice(offset, offset + best).join("");
+      offset += best;
+      if (offset < characters.length) lines.push(part);
+      else line = part;
+    }
+  }
+
+  if (line || lines.length === 0) lines.push(line.trimEnd());
+  return lines;
+}
+
+export function textLines(
+  element: TextElement,
+  measure: (value: string) => number = (value) =>
+    measureTextLine(element, value),
+): string[] {
+  if (element.customData?.variant !== "note") return element.text.split("\n");
+  const width = Math.max(40, element.width - DRAWING_NOTE_PADDING * 2);
+  return element.text
+    .split("\n")
+    .flatMap((source) => wrapLine(source, width, measure));
+}
+
+export function noteTextHeight(element: TextElement): number {
+  if (element.customData?.variant !== "note") return element.height;
+  return (
+    DRAWING_NOTE_PADDING * 2 +
+    textLines(element).length *
+      element.style.fontSize *
+      element.style.lineHeight +
+    DRAWING_NOTE_DATE_FONT_SIZE +
+    8
+  );
 }
 
 export function textBounds(element: TextElement): Rect {
@@ -128,24 +204,50 @@ export function rotatePoint(point: Point, centre: Point, angle: number): Point {
   return { x: centre.x + x * cos - y * sin, y: centre.y + x * sin + y * cos };
 }
 
+function rotatedRectBounds(rect: Rect, angle: number): Rect {
+  if (angle % 360 === 0) return rect;
+  const centre = {
+    x: rect.x + rect.width / 2,
+    y: rect.y + rect.height / 2,
+  };
+  const corners = [
+    { x: rect.x, y: rect.y },
+    { x: rectRight(rect), y: rect.y },
+    { x: rectRight(rect), y: rectBottom(rect) },
+    { x: rect.x, y: rectBottom(rect) },
+  ].map((corner) => rotatePoint(corner, centre, angle));
+  const xs = corners.map((corner) => corner.x);
+  const ys = corners.map((corner) => corner.y);
+  const x = Math.min(...xs);
+  const y = Math.min(...ys);
+  return {
+    x,
+    y,
+    width: Math.max(...xs) - x,
+    height: Math.max(...ys) - y,
+  };
+}
+
 export function elementBounds(element: DrawingElement): Rect {
-  if (element.type === "text") return textBounds(element);
-  if ("points" in element && element.points.length > 0) {
+  let bounds: Rect;
+  if (element.type === "text") bounds = textBounds(element);
+  else if ("points" in element && element.points.length > 0) {
     const xs = element.points.map((point) => point.x);
     const ys = element.points.map((point) => point.y);
-    return {
+    bounds = {
       x: element.x + Math.min(...xs),
       y: element.y + Math.min(...ys),
       width: Math.max(...xs) - Math.min(...xs),
       height: Math.max(...ys) - Math.min(...ys),
     };
-  }
-  return {
-    x: element.x,
-    y: element.y,
-    width: element.width,
-    height: element.height,
-  };
+  } else
+    bounds = {
+      x: element.x,
+      y: element.y,
+      width: element.width,
+      height: element.height,
+    };
+  return rotatedRectBounds(bounds, element.angle);
 }
 
 export function documentBounds(document: DrawingDocument): Rect {

@@ -113,6 +113,10 @@ services:
           python manage.py process_export_jobs --limit 1;
           sleep "$${EXPORT_WORKER_INTERVAL_SECONDS:-2}";
         done
+    # The backend image's default health probe targets an HTTP server. This worker intentionally exposes none;
+    # startup is already gated on the healthy API above.
+    healthcheck:
+      disable: true
     shm_size: "512m"
 
   # Live editing: the same image as `api`, served by uvicorn so WebSockets work. Redis is shared with the API so

@@ -26,6 +26,7 @@ import {
   MousePointer2,
   Pencil,
   Redo2,
+  RotateCw,
   Square,
   StickyNote,
   Type,
@@ -41,6 +42,8 @@ import {
   elementsInRect,
   hitTestScene,
   normalizeRect,
+  noteTextHeight,
+  rotatePoint,
   screenToWorld,
   selectionBounds,
   textBounds,
@@ -57,10 +60,24 @@ import {
   createNote,
   createShape,
   createText,
+  bindLinearElement,
   deleteElements,
   duplicateElements,
   groupElements,
+  linearEndpoint,
+  linearPoint,
+  insertLinearWaypoint,
+  moveLinearEndpoint,
+  moveLinearPoint,
+  pasteElements,
+  removeLinearWaypoint,
+  rotateElement,
+  resizeElement,
+  resizeElements,
+  syncBindings,
   updateElements,
+  type LinearEndpoint,
+  type ResizeHandle,
 } from "./scene";
 import { exportDrawing, renderDrawing } from "./renderer";
 import {
@@ -71,8 +88,10 @@ import {
   type DrawingDocument,
   type DrawingElement,
   type DrawingExportOptions,
+  type DrawingStyle,
   type DrawingTool,
   type DrawingViewport,
+  type LinearElement,
   type TextElement,
 } from "./model";
 import styles from "./DrawingEditor.module.css";
@@ -133,6 +152,44 @@ type Interaction =
       ids: ReadonlySet<string>;
     }
   | {
+      kind: "resize";
+      pointerId: number;
+      start: Point;
+      current: Point;
+      document: DrawingDocument;
+      elements: readonly DrawingElement[];
+      handle: ResizeHandle;
+      keepAspectRatio: boolean;
+    }
+  | {
+      kind: "endpoint";
+      pointerId: number;
+      start: Point;
+      current: Point;
+      document: DrawingDocument;
+      element: LinearElement;
+      endpoint: LinearEndpoint;
+      targetId: string | null;
+    }
+  | {
+      kind: "waypoint";
+      pointerId: number;
+      document: DrawingDocument;
+      baseDocument: DrawingDocument;
+      elementId: string;
+      index: number;
+    }
+  | {
+      kind: "rotate";
+      pointerId: number;
+      start: Point;
+      current: Point;
+      centre: Point;
+      document: DrawingDocument;
+      element: DrawingElement;
+      startAngle: number;
+    }
+  | {
       kind: "erase";
       pointerId: number;
       document: DrawingDocument;
@@ -187,6 +244,107 @@ const SHAPE_LABELS: Record<
   diamond: { label: "Diamond", icon: Diamond, shortcut: "D" },
 };
 
+const RESIZE_HANDLES: ResizeHandle[] = [
+  "nw",
+  "n",
+  "ne",
+  "e",
+  "se",
+  "s",
+  "sw",
+  "w",
+];
+
+type TransformTarget = Rect & { angle?: number };
+
+function isResizableElement(element: DrawingElement | undefined): boolean {
+  return (
+    element?.type === "rectangle" ||
+    element?.type === "ellipse" ||
+    element?.type === "diamond" ||
+    element?.type === "line" ||
+    element?.type === "arrow" ||
+    element?.type === "freedraw" ||
+    (element?.type === "text" && element.customData?.variant === "note")
+  );
+}
+
+function canResizeSelection(elements: readonly DrawingElement[]): boolean {
+  return (
+    elements.length > 0 &&
+    elements.every(isResizableElement) &&
+    (elements.length === 1 || elements.every((element) => element.angle === 0))
+  );
+}
+
+function resizeHandleAt(
+  element: TransformTarget,
+  screen: Point,
+  viewport: DrawingViewport,
+): ResizeHandle | null {
+  return (
+    RESIZE_HANDLES.find((handle) => {
+      const position = resizeHandlePosition(element, handle, viewport);
+      return Math.hypot(screen.x - position.x, screen.y - position.y) <= 12;
+    }) ?? null
+  );
+}
+
+function resizeHandlePosition(
+  element: TransformTarget,
+  handle: ResizeHandle,
+  viewport: DrawingViewport,
+): Point {
+  const x = handle.includes("w")
+    ? element.x
+    : handle.includes("e")
+      ? element.x + element.width
+      : element.x + element.width / 2;
+  const y = handle.includes("n")
+    ? element.y
+    : handle.includes("s")
+      ? element.y + element.height
+      : element.y + element.height / 2;
+  const rotated = rotatePoint(
+    { x, y },
+    { x: element.x + element.width / 2, y: element.y + element.height / 2 },
+    element.angle ?? 0,
+  );
+  return worldToScreen(rotated, viewport);
+}
+
+function rotationHandlePosition(
+  element: TransformTarget,
+  viewport: DrawingViewport,
+): Point {
+  const rotated = rotatePoint(
+    {
+      x: element.x + element.width / 2,
+      y: element.y - 24,
+    },
+    { x: element.x + element.width / 2, y: element.y + element.height / 2 },
+    element.angle ?? 0,
+  );
+  return worldToScreen(rotated, viewport);
+}
+
+function rotationHandleAt(
+  element: TransformTarget,
+  screen: Point,
+  viewport: DrawingViewport,
+): boolean {
+  const position = rotationHandlePosition(element, viewport);
+  return Math.hypot(screen.x - position.x, screen.y - position.y) <= 13;
+}
+
+function linearEndpointPosition(
+  element: LinearElement,
+  endpoint: LinearEndpoint,
+  viewport: DrawingViewport,
+): Point {
+  return worldToScreen(linearEndpoint(element, endpoint), viewport);
+}
+
 function download(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
@@ -202,8 +360,11 @@ function translateDocument(
   dx: number,
   dy: number,
 ): DrawingDocument {
-  return updateElements(document, ids, (element) =>
-    translateElement(element, dx, dy),
+  return syncBindings(
+    updateElements(document, ids, (element) =>
+      translateElement(element, dx, dy),
+    ),
+    ids,
   );
 }
 
@@ -220,6 +381,25 @@ function movement(
 
 function keyFor(event: KeyboardEvent): string {
   return event.key.toLowerCase();
+}
+
+const DRAWING_CLIPBOARD_PREFIX = "doory-drawing:v1:";
+
+function readClipboardElements(value: string): DrawingElement[] {
+  if (!value.startsWith(DRAWING_CLIPBOARD_PREFIX)) return [];
+  try {
+    const elements = JSON.parse(
+      value.slice(DRAWING_CLIPBOARD_PREFIX.length),
+    ) as unknown;
+    if (!Array.isArray(elements)) return [];
+    return restoreDrawing({
+      schemaVersion: 1,
+      background: "#ffffff",
+      elements,
+    }).elements.filter((element) => !element.isDeleted);
+  } catch {
+    return [];
+  }
 }
 
 const ERASER_TRAIL_MAX_DISTANCE = 120;
@@ -243,9 +423,447 @@ export function trimEraserTrail(
 
 function updateTextElement(element: TextElement, text: string): TextElement {
   const next = { ...element, text };
-  if (element.customData?.variant === "note") return next;
+  if (element.customData?.variant === "note")
+    return {
+      ...next,
+      height: Math.max(element.height, noteTextHeight(next)),
+    };
   const bounds = textBounds(next);
   return { ...next, width: bounds.width, height: bounds.height };
+}
+
+function updateStyledElement(
+  element: DrawingElement,
+  patch: Partial<DrawingElement["style"]>,
+): DrawingElement {
+  const next = {
+    ...element,
+    style: { ...element.style, ...patch },
+  };
+  if (next.type === "text" && next.customData?.variant === "note")
+    return {
+      ...next,
+      height: Math.max(element.height, noteTextHeight(next)),
+    };
+  if (next.type !== "text") return next;
+  const bounds = textBounds(next);
+  return { ...next, width: bounds.width, height: bounds.height };
+}
+
+interface DrawingPropertiesPanelProps {
+  elements: readonly DrawingElement[];
+  readOnly: boolean;
+  onStyleChange: (patch: Partial<DrawingElement["style"]>, key: string) => void;
+  onElementChange: (
+    patch: Partial<Pick<LinearElement, "startArrowhead" | "endArrowhead">>,
+    key: string,
+  ) => void;
+}
+
+function commonStyleValue<K extends keyof DrawingElement["style"]>(
+  elements: readonly DrawingElement[],
+  key: K,
+): DrawingElement["style"][K] | undefined {
+  const first = elements[0]?.style[key];
+  return elements.every((element) => element.style[key] === first)
+    ? first
+    : undefined;
+}
+
+function isFillElement(element: DrawingElement): boolean {
+  return (
+    element.type === "rectangle" ||
+    element.type === "ellipse" ||
+    element.type === "diamond" ||
+    (element.type === "text" && element.customData?.variant === "note")
+  );
+}
+
+function commonArrowValue<K extends "startArrowhead" | "endArrowhead">(
+  elements: readonly DrawingElement[],
+  key: K,
+): LinearElement[K] | undefined {
+  const arrows = elements.filter(
+    (element): element is LinearElement => element.type === "arrow",
+  );
+  if (arrows.length === 0) return undefined;
+  const fallback = key === "endArrowhead" ? "arrow" : null;
+  const first = arrows[0]?.[key] ?? fallback;
+  return arrows.every((element) => (element[key] ?? fallback) === first)
+    ? (first as LinearElement[K])
+    : undefined;
+}
+
+function colorInputValue(value: string | undefined, fallback: string): string {
+  return value && /^#[0-9a-f]{6}$/iu.test(value) ? value : fallback;
+}
+
+function DrawingPropertiesPanel({
+  elements,
+  readOnly,
+  onStyleChange,
+  onElementChange,
+}: DrawingPropertiesPanelProps) {
+  if (elements.length === 0) return null;
+  const stroke = commonStyleValue(elements, "stroke");
+  const fill = commonStyleValue(elements, "fill");
+  const strokeWidthValue = commonStyleValue(elements, "strokeWidth");
+  const strokeWidth = strokeWidthValue ?? 2;
+  const strokeStyle = commonStyleValue(elements, "strokeStyle");
+  const opacityValue = commonStyleValue(elements, "opacity");
+  const opacity = opacityValue ?? 1;
+  const fontSizeValue = commonStyleValue(elements, "fontSize");
+  const fontSize = fontSizeValue ?? 24;
+  const fontFamily = commonStyleValue(elements, "fontFamily") ?? "";
+  const lineHeightValue = commonStyleValue(elements, "lineHeight");
+  const lineHeight = lineHeightValue ?? 1.25;
+  const textAlign = commonStyleValue(elements, "textAlign");
+  const roundnessValue = commonStyleValue(elements, "roundness");
+  const roundness = roundnessValue ?? 8;
+  const roughnessValue = commonStyleValue(elements, "roughness");
+  const roughness = roughnessValue ?? 1;
+  const hasText = elements.some((element) => element.type === "text");
+  const hasArrow = elements.some((element) => element.type === "arrow");
+  const endArrowhead = commonArrowValue(elements, "endArrowhead");
+  const startArrowhead = commonArrowValue(elements, "startArrowhead");
+  const hasFill = elements.some(isFillElement);
+  const onlyText = elements.every((element) => element.type === "text");
+
+  return (
+    <aside className={styles.propertiesPanel} aria-label="Selection properties">
+      <div className={styles.propertiesHeader}>
+        <strong>Properties</strong>
+        <span>{elements.length} selected</span>
+      </div>
+      <div className={styles.propertiesSection}>
+        <div className={styles.propertiesRow}>
+          <label htmlFor="drawing-stroke-color">
+            {onlyText ? "Text color" : "Stroke color"}
+          </label>
+          <div className={styles.colorControl}>
+            <input
+              id="drawing-stroke-color"
+              type="color"
+              value={colorInputValue(stroke, "#1f2937")}
+              disabled={readOnly}
+              aria-label={onlyText ? "Text color" : "Stroke color"}
+              onChange={(event) =>
+                onStyleChange({ stroke: event.currentTarget.value }, "stroke")
+              }
+            />
+            <span>{stroke === undefined ? "Mixed" : stroke}</span>
+          </div>
+        </div>
+        {hasFill ? (
+          <div className={styles.propertiesRow}>
+            <label htmlFor="drawing-fill-color">Fill</label>
+            <div className={styles.colorControl}>
+              <input
+                id="drawing-fill-color"
+                type="color"
+                value={colorInputValue(fill, "#ffffff")}
+                disabled={readOnly}
+                aria-label="Fill color"
+                onChange={(event) =>
+                  onStyleChange({ fill: event.currentTarget.value }, "fill")
+                }
+              />
+              <button
+                type="button"
+                className={styles.propertyToggle}
+                aria-pressed={fill === "transparent"}
+                disabled={readOnly}
+                onClick={() => onStyleChange({ fill: "transparent" }, "fill")}
+              >
+                {fill === "transparent" ? "No fill" : (fill ?? "Mixed")}
+              </button>
+            </div>
+          </div>
+        ) : null}
+        <div className={styles.propertiesRow}>
+          <label htmlFor="drawing-stroke-width">Stroke width</label>
+          <div className={styles.rangeControl}>
+            <input
+              id="drawing-stroke-width"
+              type="range"
+              min="0.5"
+              max="12"
+              step="0.5"
+              value={strokeWidth}
+              disabled={readOnly}
+              onChange={(event) =>
+                onStyleChange(
+                  { strokeWidth: Number(event.currentTarget.value) },
+                  "strokeWidth",
+                )
+              }
+            />
+            <output>
+              {strokeWidthValue === undefined ? "Mixed" : strokeWidth}
+            </output>
+          </div>
+        </div>
+        <div className={styles.propertiesRow}>
+          <label htmlFor="drawing-opacity">Opacity</label>
+          <div className={styles.rangeControl}>
+            <input
+              id="drawing-opacity"
+              type="range"
+              min="0.1"
+              max="1"
+              step="0.05"
+              value={opacity}
+              disabled={readOnly}
+              onChange={(event) =>
+                onStyleChange(
+                  { opacity: Number(event.currentTarget.value) },
+                  "opacity",
+                )
+              }
+            />
+            <output>
+              {opacityValue === undefined
+                ? "Mixed"
+                : `${Math.round(opacity * 100)}%`}
+            </output>
+          </div>
+        </div>
+        <div className={styles.propertiesRow}>
+          <label htmlFor="drawing-stroke-style">Line style</label>
+          <select
+            id="drawing-stroke-style"
+            value={strokeStyle ?? ""}
+            disabled={readOnly}
+            onChange={(event) => {
+              if (event.currentTarget.value)
+                onStyleChange(
+                  {
+                    strokeStyle: event.currentTarget.value as
+                      | "solid"
+                      | "dashed"
+                      | "dotted",
+                  },
+                  "strokeStyle",
+                );
+            }}
+          >
+            <option value="">Mixed</option>
+            <option value="solid">Solid</option>
+            <option value="dashed">Dashed</option>
+            <option value="dotted">Dotted</option>
+          </select>
+        </div>
+      </div>
+      {hasText ? (
+        <div className={styles.propertiesSection}>
+          <div className={styles.propertiesSectionTitle}>Text</div>
+          <div className={styles.propertiesRow}>
+            <label htmlFor="drawing-font-size">Size</label>
+            <div className={styles.rangeControl}>
+              <input
+                id="drawing-font-size"
+                type="number"
+                min="8"
+                max="256"
+                step="1"
+                value={fontSize}
+                disabled={readOnly}
+                onChange={(event) => {
+                  const value = Number(event.currentTarget.value);
+                  if (Number.isFinite(value))
+                    onStyleChange({ fontSize: value }, "fontSize");
+                }}
+              />
+              <output>
+                {fontSizeValue === undefined ? "Mixed" : fontSize}
+              </output>
+            </div>
+          </div>
+          <div className={styles.propertiesRow}>
+            <label htmlFor="drawing-font-family">Font</label>
+            <select
+              id="drawing-font-family"
+              value={fontFamily}
+              disabled={readOnly}
+              onChange={(event) => {
+                if (event.currentTarget.value)
+                  onStyleChange(
+                    { fontFamily: event.currentTarget.value },
+                    "fontFamily",
+                  );
+              }}
+            >
+              <option value="">Mixed</option>
+              <option value="Inter, sans-serif">Inter</option>
+              <option value="system-ui, sans-serif">System</option>
+              <option value="Georgia, serif">Serif</option>
+              <option value="ui-monospace, monospace">Mono</option>
+            </select>
+          </div>
+          <div className={styles.propertiesRow}>
+            <label htmlFor="drawing-line-height">Line height</label>
+            <div className={styles.rangeControl}>
+              <input
+                id="drawing-line-height"
+                type="range"
+                min="0.8"
+                max="3"
+                step="0.05"
+                value={lineHeight}
+                disabled={readOnly}
+                onChange={(event) =>
+                  onStyleChange(
+                    { lineHeight: Number(event.currentTarget.value) },
+                    "lineHeight",
+                  )
+                }
+              />
+              <output>
+                {lineHeightValue === undefined
+                  ? "Mixed"
+                  : lineHeight.toFixed(2)}
+              </output>
+            </div>
+          </div>
+          <div className={styles.propertiesRow}>
+            <span className={styles.propertiesLabel}>Align</span>
+            <div
+              className={styles.segmentedControl}
+              role="group"
+              aria-label="Text alignment"
+            >
+              {(["left", "center", "right"] as const).map((alignment) => (
+                <button
+                  key={alignment}
+                  type="button"
+                  className={styles.propertyToggle}
+                  aria-pressed={textAlign === alignment}
+                  disabled={readOnly}
+                  onClick={() =>
+                    onStyleChange({ textAlign: alignment }, "textAlign")
+                  }
+                >
+                  {alignment[0].toUpperCase()}
+                </button>
+              ))}
+              <output>{textAlign === undefined ? "Mixed" : textAlign}</output>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {hasArrow ? (
+        <div className={styles.propertiesSection}>
+          <div className={styles.propertiesSectionTitle}>Arrowheads</div>
+          <div className={styles.propertiesRow}>
+            <label htmlFor="drawing-start-arrowhead">Start</label>
+            <select
+              id="drawing-start-arrowhead"
+              value={
+                startArrowhead === undefined ? "" : (startArrowhead ?? "none")
+              }
+              disabled={readOnly}
+              onChange={(event) =>
+                onElementChange(
+                  {
+                    startArrowhead:
+                      event.currentTarget.value === "none"
+                        ? null
+                        : (event.currentTarget.value as "arrow" | "triangle"),
+                  },
+                  "startArrowhead",
+                )
+              }
+            >
+              <option value="">Mixed</option>
+              <option value="none">None</option>
+              <option value="arrow">Arrow</option>
+              <option value="triangle">Triangle</option>
+            </select>
+          </div>
+          <div className={styles.propertiesRow}>
+            <label htmlFor="drawing-end-arrowhead">End</label>
+            <select
+              id="drawing-end-arrowhead"
+              value={endArrowhead === undefined ? "" : (endArrowhead ?? "none")}
+              disabled={readOnly}
+              onChange={(event) =>
+                onElementChange(
+                  {
+                    endArrowhead:
+                      event.currentTarget.value === "none"
+                        ? null
+                        : (event.currentTarget.value as "arrow" | "triangle"),
+                  },
+                  "endArrowhead",
+                )
+              }
+            >
+              <option value="">Mixed</option>
+              <option value="none">None</option>
+              <option value="arrow">Arrow</option>
+              <option value="triangle">Triangle</option>
+            </select>
+          </div>
+        </div>
+      ) : null}
+      {elements.some(
+        (element) =>
+          element.type === "rectangle" ||
+          element.type === "ellipse" ||
+          element.type === "diamond" ||
+          (element.type === "text" && element.customData?.variant === "note"),
+      ) ? (
+        <div className={styles.propertiesSection}>
+          <div className={styles.propertiesRow}>
+            <label htmlFor="drawing-roundness">Roundness</label>
+            <div className={styles.rangeControl}>
+              <input
+                id="drawing-roundness"
+                type="range"
+                min="0"
+                max="32"
+                step="1"
+                value={roundness}
+                disabled={readOnly}
+                onChange={(event) =>
+                  onStyleChange(
+                    { roundness: Number(event.currentTarget.value) },
+                    "roundness",
+                  )
+                }
+              />
+              <output>
+                {roundnessValue === undefined ? "Mixed" : roundness}
+              </output>
+            </div>
+          </div>
+          <div className={styles.propertiesRow}>
+            <label htmlFor="drawing-roughness">Roughness</label>
+            <div className={styles.rangeControl}>
+              <input
+                id="drawing-roughness"
+                type="range"
+                min="0"
+                max="3"
+                step="0.1"
+                value={roughness}
+                disabled={readOnly}
+                onChange={(event) =>
+                  onStyleChange(
+                    { roughness: Number(event.currentTarget.value) },
+                    "roughness",
+                  )
+                }
+              />
+              <output>
+                {roughnessValue === undefined ? "Mixed" : roughness}
+              </output>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </aside>
+  );
 }
 
 export const DrawingEditor = forwardRef<
@@ -285,6 +903,10 @@ export const DrawingEditor = forwardRef<
     scrollY: -80,
   });
   const [preview, setPreview] = useState<DrawingDocument | null>(null);
+  const [endpointSnap, setEndpointSnap] = useState<{
+    point: Point;
+    targetId: string | null;
+  } | null>(null);
   const [draft, setDraft] = useState<DrawingElement | null>(null);
   const [lasso, setLasso] = useState<Rect | null>(null);
   const [editing, setEditing] = useState<TextEditing | null>(null);
@@ -306,7 +928,12 @@ export const DrawingEditor = forwardRef<
   const titleInputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const shapeMenuRef = useRef<HTMLDivElement>(null);
+  const clipboardRef = useRef<readonly DrawingElement[]>([]);
+  const styleDefaultsRef = useRef<Partial<DrawingStyle>>({});
   const shown = preview ?? document;
+  const selectedElements = document.elements.filter(
+    (element) => selection.has(element.id) && !element.isDeleted,
+  );
 
   useEffect(() => {
     if (!renameOpen) setTitleDraft(title);
@@ -323,6 +950,45 @@ export const DrawingEditor = forwardRef<
       onDocumentChange?.(next, label);
     },
     [onDocumentChange, onSaveStateChange],
+  );
+
+  const updateSelectedStyle = useCallback(
+    (patch: Partial<DrawingElement["style"]>, key: string): void => {
+      if (readOnly || selection.size === 0) return;
+      styleDefaultsRef.current = { ...styleDefaultsRef.current, ...patch };
+      const next = updateElements(
+        documentRef.current,
+        selection,
+        (element) => ({
+          ...updateStyledElement(element, patch),
+          version: element.version + 1,
+          versionNonce: versionNonce(),
+        }),
+      );
+      markChange(next, "Change style", "style:" + key);
+    },
+    [markChange, readOnly, selection],
+  );
+
+  const updateSelectedElement = useCallback(
+    (
+      patch: Partial<Pick<LinearElement, "startArrowhead" | "endArrowhead">>,
+      key: string,
+    ): void => {
+      if (readOnly || selection.size === 0) return;
+      const next = updateElements(documentRef.current, selection, (element) =>
+        element.type === "arrow"
+          ? {
+              ...element,
+              ...patch,
+              version: element.version + 1,
+              versionNonce: versionNonce(),
+            }
+          : element,
+      );
+      markChange(next, "Change arrowhead", "arrowhead:" + key);
+    },
+    [markChange, readOnly, selection],
   );
 
   function setPreviewDocument(next: DrawingDocument): void {
@@ -342,6 +1008,7 @@ export const DrawingEditor = forwardRef<
       canvas.releasePointerCapture(interaction.pointerId);
     interactionRef.current = null;
     setPreview(null);
+    setEndpointSnap(null);
     setDraft(null);
     setLasso(null);
     setEraserTargets(new Set());
@@ -517,6 +1184,14 @@ export const DrawingEditor = forwardRef<
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
       if (editing) return;
+      const target = event.target;
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement ||
+        (target instanceof HTMLElement && target.isContentEditable)
+      )
+        return;
       if (event.code === "Space") {
         event.preventDefault();
         if (!spacePressedRef.current) {
@@ -526,6 +1201,56 @@ export const DrawingEditor = forwardRef<
         return;
       }
       const key = keyFor(event);
+      if ((event.metaKey || event.ctrlKey) && key === "a") {
+        event.preventDefault();
+        const ids = new Set(
+          documentRef.current.elements
+            .filter((element) => !element.isDeleted)
+            .map((element) => element.id),
+        );
+        setSelection(ids);
+        onPresenceChange?.({ cursor: null, selection: [...ids] });
+        return;
+      }
+      if (
+        (event.metaKey || event.ctrlKey) &&
+        key === "c" &&
+        selection.size > 0
+      ) {
+        event.preventDefault();
+        clipboardRef.current = documentRef.current.elements.filter(
+          (element) => selection.has(element.id) && !element.isDeleted,
+        );
+        if (typeof navigator !== "undefined" && navigator.clipboard) {
+          void navigator.clipboard
+            .writeText(
+              DRAWING_CLIPBOARD_PREFIX + JSON.stringify(clipboardRef.current),
+            )
+            .catch(() => undefined);
+        }
+        return;
+      }
+      if ((event.metaKey || event.ctrlKey) && key === "v" && !readOnly) {
+        event.preventDefault();
+        const paste = async (): Promise<void> => {
+          let source = clipboardRef.current;
+          if (source.length === 0 && navigator.clipboard) {
+            try {
+              source = readClipboardElements(
+                await navigator.clipboard.readText(),
+              );
+            } catch {
+              source = [];
+            }
+          }
+          if (source.length === 0) return;
+          const result = pasteElements(documentRef.current, source);
+          markChange(result.document, "Paste selection");
+          setSelection(new Set(result.ids));
+        };
+        void paste();
+        return;
+      }
       if (event.key === "Enter" && selection.size === 1 && !readOnly) {
         const selected = documentRef.current.elements.find(
           (element): element is TextElement =>
@@ -654,6 +1379,7 @@ export const DrawingEditor = forwardRef<
     editing,
     exportAs,
     markChange,
+    onPresenceChange,
     readOnly,
     redo,
     saveNow,
@@ -726,6 +1452,224 @@ export const DrawingEditor = forwardRef<
     } finally {
       setRenameBusy(false);
     }
+  }
+
+  function beginResize(
+    event: ReactPointerEvent<HTMLElement>,
+    handle: ResizeHandle,
+  ): void {
+    if (readOnly || editing || !canResizeSelection(selectedElements)) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const start = movement(event, canvas.getBoundingClientRect(), viewport);
+    canvas.setPointerCapture(event.pointerId);
+    interactionRef.current = {
+      kind: "resize",
+      pointerId: event.pointerId,
+      start,
+      current: start,
+      document: documentRef.current,
+      elements: selectedElements,
+      handle,
+      keepAspectRatio: event.shiftKey,
+    };
+  }
+
+  function beginEndpoint(
+    event: ReactPointerEvent<HTMLElement>,
+    endpoint: LinearEndpoint,
+  ): void {
+    if (readOnly || editing || selectedElements.length !== 1) return;
+    const canvas = canvasRef.current;
+    const element = selectedElements[0];
+    if (
+      !canvas ||
+      !element ||
+      (element.type !== "line" && element.type !== "arrow")
+    )
+      return;
+    event.preventDefault();
+    event.stopPropagation();
+    const start = movement(event, canvas.getBoundingClientRect(), viewport);
+    canvas.setPointerCapture(event.pointerId);
+    setEndpointSnap(null);
+    interactionRef.current = {
+      kind: "endpoint",
+      pointerId: event.pointerId,
+      start,
+      current: start,
+      document: documentRef.current,
+      element,
+      endpoint,
+      targetId: null,
+    };
+  }
+
+  function beginWaypoint(
+    event: ReactPointerEvent<HTMLElement>,
+    index: number,
+    segmentIndex?: number,
+    point?: Point,
+  ): void {
+    if (readOnly || editing || selectedElements.length !== 1) return;
+    const canvas = canvasRef.current;
+    const element = selectedElements[0];
+    if (
+      !canvas ||
+      !element ||
+      (element.type !== "line" && element.type !== "arrow")
+    )
+      return;
+    const baseDocument = documentRef.current;
+    const initialPoint = point ?? linearPoint(element, index);
+    const inserted =
+      segmentIndex === undefined
+        ? { document: baseDocument, index, point: initialPoint }
+        : insertLinearWaypoint(
+            baseDocument,
+            element.id,
+            segmentIndex,
+            initialPoint,
+          );
+    if (!inserted) return;
+    event.preventDefault();
+    event.stopPropagation();
+    canvas.setPointerCapture(event.pointerId);
+    if (segmentIndex !== undefined) setPreviewDocument(inserted.document);
+    interactionRef.current = {
+      kind: "waypoint",
+      pointerId: event.pointerId,
+      document: inserted.document,
+      baseDocument,
+      elementId: element.id,
+      index: inserted.index,
+    };
+  }
+
+  function addWaypointFromKeyboard(
+    elementId: string,
+    segmentIndex: number,
+    point: Point,
+  ): void {
+    if (readOnly || editing) return;
+    const inserted = insertLinearWaypoint(
+      documentRef.current,
+      elementId,
+      segmentIndex,
+      point,
+    );
+    if (inserted)
+      markChange(
+        inserted.document,
+        "Add connector point",
+        "waypoint:" + elementId,
+      );
+  }
+
+  function handleWaypointKeyDown(
+    event: ReactKeyboardEvent<HTMLButtonElement>,
+    elementId: string,
+    index: number,
+  ): void {
+    const point = documentRef.current.elements.find(
+      (element): element is LinearElement =>
+        element.id === elementId &&
+        (element.type === "line" || element.type === "arrow"),
+    );
+    if (!point) return;
+    if (event.key === "Delete" || event.key === "Backspace") {
+      event.preventDefault();
+      event.stopPropagation();
+      const next = removeLinearWaypoint(documentRef.current, elementId, index);
+      if (next)
+        markChange(next, "Remove connector point", "waypoint:" + elementId);
+      return;
+    }
+    const delta = event.shiftKey ? 10 : 1;
+    const dx =
+      event.key === "ArrowLeft"
+        ? -delta
+        : event.key === "ArrowRight"
+          ? delta
+          : 0;
+    const dy =
+      event.key === "ArrowUp" ? -delta : event.key === "ArrowDown" ? delta : 0;
+    if (dx === 0 && dy === 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const current = linearPoint(point, index);
+    const moved = moveLinearPoint(documentRef.current, elementId, index, {
+      x: current.x + dx,
+      y: current.y + dy,
+    });
+    if (moved)
+      markChange(
+        moved.document,
+        "Move connector point",
+        "waypoint:" + elementId,
+      );
+  }
+
+  function handleEndpointKeyDown(
+    event: ReactKeyboardEvent<HTMLButtonElement>,
+    elementId: string,
+    endpoint: LinearEndpoint,
+  ): void {
+    const delta = event.shiftKey ? 10 : 1;
+    const dx =
+      event.key === "ArrowLeft"
+        ? -delta
+        : event.key === "ArrowRight"
+          ? delta
+          : 0;
+    const dy =
+      event.key === "ArrowUp" ? -delta : event.key === "ArrowDown" ? delta : 0;
+    if (dx === 0 && dy === 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const element = documentRef.current.elements.find(
+      (candidate): candidate is LinearElement =>
+        candidate.id === elementId &&
+        (candidate.type === "line" || candidate.type === "arrow"),
+    );
+    if (!element) return;
+    const current = linearEndpoint(element, endpoint);
+    const moved = moveLinearEndpoint(documentRef.current, elementId, endpoint, {
+      x: current.x + dx,
+      y: current.y + dy,
+    });
+    if (moved)
+      markChange(
+        moved.document,
+        "Move connector endpoint",
+        "endpoint:" + elementId + ":" + endpoint,
+      );
+  }
+
+  function beginRotate(event: ReactPointerEvent<HTMLElement>): void {
+    if (readOnly || editing || selection.size !== 1) return;
+    const canvas = canvasRef.current;
+    const element = selectedElements[0];
+    if (!canvas || !element || !isResizableElement(element)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const start = movement(event, canvas.getBoundingClientRect(), viewport);
+    canvas.setPointerCapture(event.pointerId);
+    interactionRef.current = {
+      kind: "rotate",
+      pointerId: event.pointerId,
+      start,
+      current: start,
+      centre: {
+        x: element.x + element.width / 2,
+        y: element.y + element.height / 2,
+      },
+      document: documentRef.current,
+      element,
+      startAngle: element.angle,
+    };
   }
 
   function finishText(commit: boolean): void {
@@ -804,6 +1748,29 @@ export const DrawingEditor = forwardRef<
       return;
     }
     if (tool === "select") {
+      if (!editing && canResizeSelection(selectedElements)) {
+        const bounds = selectionBounds(documentRef.current, selection);
+        const screenPoint = {
+          x: event.clientX - rect.left,
+          y: event.clientY - rect.top,
+        };
+        if (
+          selectedElements.length === 1 &&
+          rotationHandleAt(selectedElements[0]!, screenPoint, viewport)
+        ) {
+          beginRotate(event);
+          return;
+        }
+        const handleTarget =
+          selectedElements.length === 1 ? selectedElements[0]! : bounds;
+        const handle = bounds
+          ? resizeHandleAt(handleTarget!, screenPoint, viewport)
+          : null;
+        if (handle) {
+          beginResize(event, handle);
+          return;
+        }
+      }
       const hit = hitTestScene(documentRef.current, start, 10 / viewport.zoom);
       if (hit) {
         const next = event.shiftKey
@@ -837,7 +1804,7 @@ export const DrawingEditor = forwardRef<
     if (tool === "text") {
       if (readOnly) return;
       event.preventDefault();
-      const text = createText(start.x, start.y);
+      const text = createText(start.x, start.y, styleDefaultsRef.current);
       markChange(
         {
           ...documentRef.current,
@@ -859,7 +1826,7 @@ export const DrawingEditor = forwardRef<
     if (tool === "note") {
       if (readOnly) return;
       event.preventDefault();
-      const note = createNote(start.x, start.y);
+      const note = createNote(start.x, start.y, styleDefaultsRef.current);
       markChange(
         {
           ...documentRef.current,
@@ -963,6 +1930,76 @@ export const DrawingEditor = forwardRef<
     } else if (interaction.kind === "lasso") {
       interaction.current = current;
       setLasso(normalizeRect(interaction.start, current));
+    } else if (interaction.kind === "resize") {
+      interaction.current = current;
+      interaction.keepAspectRatio = event.shiftKey;
+      if (interaction.elements.length === 1) {
+        const element = interaction.elements[0]!;
+        const centre = {
+          x: element.x + element.width / 2,
+          y: element.y + element.height / 2,
+        };
+        const next = updateElements(
+          interaction.document,
+          new Set([element.id]),
+          (currentElement) =>
+            resizeElement(
+              currentElement,
+              interaction.handle,
+              rotatePoint(current, centre, -element.angle),
+              interaction.keepAspectRatio,
+            ),
+        );
+        setPreviewDocument(syncBindings(next, new Set([element.id])));
+      } else {
+        setPreviewDocument(
+          resizeElements(
+            interaction.document,
+            new Set(interaction.elements.map((element) => element.id)),
+            interaction.handle,
+            current,
+            interaction.keepAspectRatio,
+          ),
+        );
+      }
+    } else if (interaction.kind === "endpoint") {
+      interaction.current = current;
+      const moved = moveLinearEndpoint(
+        interaction.document,
+        interaction.element.id,
+        interaction.endpoint,
+        current,
+      );
+      interaction.targetId = moved.targetId;
+      setEndpointSnap({ point: moved.point, targetId: moved.targetId });
+      setPreviewDocument(moved.document);
+    } else if (interaction.kind === "waypoint") {
+      const moved = moveLinearPoint(
+        interaction.document,
+        interaction.elementId,
+        interaction.index,
+        current,
+      );
+      if (moved) setPreviewDocument(moved.document);
+    } else if (interaction.kind === "rotate") {
+      interaction.current = current;
+      const startRadians = Math.atan2(
+        interaction.start.y - interaction.centre.y,
+        interaction.start.x - interaction.centre.x,
+      );
+      const currentRadians = Math.atan2(
+        current.y - interaction.centre.y,
+        current.x - interaction.centre.x,
+      );
+      const angle =
+        interaction.startAngle +
+        ((currentRadians - startRadians) * 180) / Math.PI;
+      const next = updateElements(
+        interaction.document,
+        new Set([interaction.element.id]),
+        (element) => rotateElement(element, angle),
+      );
+      setPreviewDocument(syncBindings(next, new Set([interaction.element.id])));
     } else if (interaction.kind === "drag") {
       interaction.current = current;
       setPreviewDocument(
@@ -998,10 +2035,25 @@ export const DrawingEditor = forwardRef<
     } else {
       interaction.points.push(current);
       if (interaction.tool === "freedraw")
-        setDraft(createFreedraw(interaction.points));
+        setDraft(createFreedraw(interaction.points, styleDefaultsRef.current));
       else if (interaction.tool === "line" || interaction.tool === "arrow")
-        setDraft(createLinear(interaction.tool, interaction.start, current));
-      else setDraft(createShape(interaction.tool, interaction.start, current));
+        setDraft(
+          createLinear(
+            interaction.tool,
+            interaction.start,
+            current,
+            styleDefaultsRef.current,
+          ),
+        );
+      else
+        setDraft(
+          createShape(
+            interaction.tool,
+            interaction.start,
+            current,
+            styleDefaultsRef.current,
+          ),
+        );
     }
   }
 
@@ -1033,6 +2085,36 @@ export const DrawingEditor = forwardRef<
         selection: [...next],
       });
       setLasso(null);
+    } else if (interaction.kind === "resize") {
+      if (preview && preview !== interaction.document)
+        markChange(preview, "Resize selection", "resize");
+      historyRef.current.seal();
+      setPreview(null);
+    } else if (interaction.kind === "endpoint") {
+      if (preview && preview !== interaction.document)
+        markChange(
+          preview,
+          interaction.targetId ? "Connect endpoint" : "Move connector endpoint",
+          "endpoint:" + interaction.element.id + ":" + interaction.endpoint,
+        );
+      historyRef.current.seal();
+      setPreview(null);
+      setEndpointSnap(null);
+    } else if (interaction.kind === "waypoint") {
+      const next = preview ?? interaction.document;
+      if (next !== interaction.baseDocument)
+        markChange(
+          next,
+          "Edit connector path",
+          "waypoint:" + interaction.elementId,
+        );
+      historyRef.current.seal();
+      setPreview(null);
+    } else if (interaction.kind === "rotate") {
+      if (preview && preview !== interaction.document)
+        markChange(preview, "Rotate selection", "rotate");
+      historyRef.current.seal();
+      setPreview(null);
     } else if (interaction.kind === "drag") {
       if (preview && preview !== interaction.document)
         markChange(preview, "Move selection", "drag");
@@ -1058,17 +2140,21 @@ export const DrawingEditor = forwardRef<
           ? current.points.length > 1
           : current.width > 3 || current.height > 3)
       ) {
+        const nextElement =
+          current.type === "line" || current.type === "arrow"
+            ? bindLinearElement(documentRef.current, current)
+            : current;
         markChange(
           {
             ...documentRef.current,
-            elements: [...documentRef.current.elements, current],
+            elements: [...documentRef.current.elements, nextElement],
           },
           "Add " + interaction.tool,
         );
-        setSelection(new Set([current.id]));
+        setSelection(new Set([nextElement.id]));
         onPresenceChange?.({
           cursor: movement(event, canvas.getBoundingClientRect(), viewport),
-          selection: [current.id],
+          selection: [nextElement.id],
         });
       }
     }
@@ -1167,6 +2253,7 @@ export const DrawingEditor = forwardRef<
   const editingBounds = editingElement ? elementBounds(editingElement) : null;
   const editingPadding =
     editingElement?.customData?.variant === "note" ? DRAWING_NOTE_PADDING : 0;
+  const editingNote = editingElement?.customData?.variant === "note";
   const editingPosition = editingElement
     ? worldToScreen(
         {
@@ -1177,23 +2264,15 @@ export const DrawingEditor = forwardRef<
       )
     : null;
   const editingWidth = editingBounds
-    ? Math.max(
-        120,
-        editingBounds.width -
-          (editingElement?.customData?.variant === "note"
-            ? editingPadding * 2
-            : 0),
-      )
-    : 120;
+    ? editingNote
+      ? Math.max(40, editingBounds.width - editingPadding * 2)
+      : Math.max(1, editingBounds.width)
+    : 1;
   const editingHeight = editingBounds
-    ? Math.max(
-        40,
-        editingBounds.height -
-          (editingElement?.customData?.variant === "note"
-            ? editingPadding * 2
-            : 0),
-      )
-    : 40;
+    ? editingNote
+      ? Math.max(40, editingBounds.height - editingPadding * 2)
+      : Math.max(editingElement?.style.fontSize ?? 24, editingBounds.height)
+    : 24;
   const editingValue = editing?.value ?? "";
   const remoteOverlays = remotePeers.flatMap((peer) => {
     const color = peer.color ?? "#f97316";
@@ -1242,6 +2321,48 @@ export const DrawingEditor = forwardRef<
       : "rectangle";
   const activeShapeDetails = SHAPE_LABELS[activeShape];
   const ActiveShapeIcon = activeShapeDetails.icon;
+  const selectedBounds = selectionBounds(shown, selection);
+  const shownSelectedElements = selectedElements.map(
+    (element) =>
+      shown.elements.find((candidate) => candidate.id === element.id) ??
+      element,
+  );
+  const showResizeHandles =
+    !readOnly &&
+    !editing &&
+    canResizeSelection(selectedElements) &&
+    selectedBounds !== null &&
+    !(
+      selectedElements.length === 1 &&
+      (selectedElements[0]?.type === "line" ||
+        selectedElements[0]?.type === "arrow")
+    );
+  const transformTarget: TransformTarget | null =
+    shownSelectedElements.length === 1
+      ? shownSelectedElements[0]!
+      : selectedBounds;
+  const selectedLinearElement: LinearElement | null =
+    shownSelectedElements.length === 1 &&
+    (shownSelectedElements[0]?.type === "line" ||
+      shownSelectedElements[0]?.type === "arrow")
+      ? (shownSelectedElements[0] as LinearElement)
+      : null;
+  const selectedLinearPoints = selectedLinearElement
+    ? selectedLinearElement.points.map((_, index) =>
+        linearPoint(selectedLinearElement, index),
+      )
+    : [];
+  const showConnectorHandles =
+    !readOnly &&
+    !editing &&
+    selectedLinearElement !== null &&
+    selectedBounds !== null;
+  const bindingTarget = endpointSnap?.targetId
+    ? shown.elements.find((element) => element.id === endpointSnap.targetId)
+    : null;
+  const bindingTargetBounds = bindingTarget
+    ? elementBounds(bindingTarget)
+    : null;
 
   return (
     <div
@@ -1519,6 +2640,168 @@ export const DrawingEditor = forwardRef<
           onPointerCancel={pointerCancel}
           onDoubleClick={doubleClick}
         />
+        {(showResizeHandles || showConnectorHandles) && selectedBounds ? (
+          <div
+            className={styles.selectionHandles}
+            aria-label={
+              selectedLinearElement ? "Edit connector path" : "Resize selection"
+            }
+          >
+            {showResizeHandles && selectedElements.length === 1 ? (
+              <button
+                type="button"
+                className={styles.rotateHandle}
+                aria-label="Rotate selection"
+                style={rotationHandlePosition(
+                  shownSelectedElements[0]!,
+                  viewport,
+                )}
+                onPointerDown={beginRotate}
+              >
+                <RotateCw size={12} aria-hidden="true" />
+              </button>
+            ) : null}
+            {showResizeHandles
+              ? RESIZE_HANDLES.map((handle) => {
+                  const position = resizeHandlePosition(
+                    transformTarget!,
+                    handle,
+                    viewport,
+                  );
+                  return (
+                    <button
+                      key={handle}
+                      type="button"
+                      className={styles.resizeHandle}
+                      data-handle={handle}
+                      aria-label={`Resize selection ${handle}`}
+                      style={{ left: position.x, top: position.y }}
+                      onPointerDown={(event) => beginResize(event, handle)}
+                    />
+                  );
+                })
+              : null}
+            {selectedLinearElement
+              ? (["start", "end"] as LinearEndpoint[]).map((endpoint) => {
+                  const binding =
+                    endpoint === "start"
+                      ? selectedLinearElement.startBinding
+                      : selectedLinearElement.endBinding;
+                  const position = linearEndpointPosition(
+                    selectedLinearElement,
+                    endpoint,
+                    viewport,
+                  );
+                  return (
+                    <button
+                      key={endpoint}
+                      type="button"
+                      className={styles.endpointHandle}
+                      data-bound={binding ? "true" : "false"}
+                      aria-label={`Connector endpoint ${endpoint}`}
+                      title={`Move connector endpoint ${endpoint} with arrow keys`}
+                      style={{ left: position.x, top: position.y }}
+                      onPointerDown={(event) => beginEndpoint(event, endpoint)}
+                      onKeyDown={(event) =>
+                        handleEndpointKeyDown(
+                          event,
+                          selectedLinearElement.id,
+                          endpoint,
+                        )
+                      }
+                    />
+                  );
+                })
+              : null}
+            {selectedLinearElement
+              ? selectedLinearPoints.slice(1, -1).map((point, offset) => {
+                  const index = offset + 1;
+                  const position = worldToScreen(point, viewport);
+                  return (
+                    <button
+                      key={`waypoint-${index}`}
+                      type="button"
+                      className={styles.waypointHandle}
+                      aria-label={`Move connector point ${index}`}
+                      title="Move connector point. Arrow keys nudge it; Delete removes it."
+                      style={{ left: position.x, top: position.y }}
+                      onPointerDown={(event) => beginWaypoint(event, index)}
+                      onKeyDown={(event) =>
+                        handleWaypointKeyDown(
+                          event,
+                          selectedLinearElement.id,
+                          index,
+                        )
+                      }
+                    />
+                  );
+                })
+              : null}
+            {selectedLinearElement
+              ? selectedLinearPoints.slice(0, -1).map((point, index) => {
+                  const next = selectedLinearPoints[index + 1]!;
+                  const midpoint = {
+                    x: (point.x + next.x) / 2,
+                    y: (point.y + next.y) / 2,
+                  };
+                  const position = worldToScreen(midpoint, viewport);
+                  return (
+                    <button
+                      key={`waypoint-add-${index}`}
+                      type="button"
+                      className={styles.waypointAddHandle}
+                      aria-label={`Add connector point ${index + 1}`}
+                      title="Add connector point"
+                      style={{ left: position.x, top: position.y }}
+                      onPointerDown={(event) =>
+                        beginWaypoint(event, index + 1, index, midpoint)
+                      }
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          addWaypointFromKeyboard(
+                            selectedLinearElement.id,
+                            index,
+                            midpoint,
+                          );
+                        }
+                      }}
+                    >
+                      +
+                    </button>
+                  );
+                })
+              : null}
+          </div>
+        ) : null}
+        {endpointSnap && bindingTargetBounds
+          ? (() => {
+              const topLeft = worldToScreen(
+                { x: bindingTargetBounds.x, y: bindingTargetBounds.y },
+                viewport,
+              );
+              const bottomRight = worldToScreen(
+                {
+                  x: bindingTargetBounds.x + bindingTargetBounds.width,
+                  y: bindingTargetBounds.y + bindingTargetBounds.height,
+                },
+                viewport,
+              );
+              return (
+                <div
+                  className={styles.bindingGuide}
+                  style={{
+                    left: topLeft.x,
+                    top: topLeft.y,
+                    width: bottomRight.x - topLeft.x,
+                    height: bottomRight.y - topLeft.y,
+                  }}
+                >
+                  <span>Connected</span>
+                </div>
+              );
+            })()
+          : null}
         {remoteOverlays.map((overlay) =>
           overlay.kind === "selection" ? (
             <div
@@ -1576,25 +2859,23 @@ export const DrawingEditor = forwardRef<
               left: editingPosition.x,
               top: editingPosition.y,
               width: editingWidth * viewport.zoom,
-              minHeight: editingHeight * viewport.zoom,
+              height: editingHeight * viewport.zoom,
               fontFamily: editingElement.style.fontFamily,
               fontSize: editingElement.style.fontSize * viewport.zoom,
               lineHeight: editingElement.style.lineHeight,
-              background:
-                editingElement.customData?.variant === "note"
-                  ? editingElement.style.fill
-                  : undefined,
-              borderColor:
-                editingElement.customData?.variant === "note"
-                  ? editingElement.style.stroke
-                  : undefined,
+              textAlign: editingElement.style.textAlign,
+              transform: `rotate(${editingElement.angle}deg)`,
+              transformOrigin: "center center",
             }}
-            data-note={
-              editingElement.customData?.variant === "note" ? "true" : "false"
-            }
             aria-label="Edit text"
           />
         ) : null}
+        <DrawingPropertiesPanel
+          elements={selectedElements}
+          readOnly={readOnly}
+          onStyleChange={updateSelectedStyle}
+          onElementChange={updateSelectedElement}
+        />
       </main>
       <div className={styles.floatingZoom} aria-label="Zoom controls">
         <button

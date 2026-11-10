@@ -1,9 +1,12 @@
 import {
   documentBounds,
+  elementBounds,
   elementsInRect,
   hitTest,
   normalizeRect,
+  noteTextHeight,
   screenToWorld,
+  textLines,
   textBounds,
   viewportAtPoint,
   worldToScreen,
@@ -64,5 +67,40 @@ describe("drawing geometry", () => {
 
     expect(bounds.width).toBeLessThan(240);
     expect(bounds.height).toBeGreaterThan(0);
+  });
+
+  it("wraps note text at the note width and breaks long words", () => {
+    const note = createElement("text", {
+      width: 72,
+      height: 80,
+      text: "alpha beta supercalifragilistic",
+      customData: { variant: "note" },
+    }) as TextElement;
+    const lines = textLines(note, (value) => value.length * 8);
+
+    expect(lines).toEqual([
+      "alpha",
+      "beta",
+      "super",
+      "calif",
+      "ragil",
+      "istic",
+    ]);
+    expect(noteTextHeight(note)).toBeGreaterThan(note.height);
+  });
+
+  it("includes rotated corners in element bounds", () => {
+    const rectangle = createElement("rectangle", {
+      x: 10,
+      y: 20,
+      width: 100,
+      height: 40,
+      angle: 90,
+    });
+
+    expect(elementBounds(rectangle).x).toBeCloseTo(40);
+    expect(elementBounds(rectangle).y).toBeCloseTo(-10);
+    expect(elementBounds(rectangle).width).toBeCloseTo(40);
+    expect(elementBounds(rectangle).height).toBeCloseTo(100);
   });
 });

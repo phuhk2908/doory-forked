@@ -13,6 +13,7 @@ import {
   trimEraserTrail,
 } from "./DrawingEditor";
 import { blankDrawing, createElement, type DrawingDocument } from "./model";
+import { createLinear } from "./scene";
 
 vi.mock("./renderer", () => ({
   exportDrawing: vi.fn(async () => new Blob()),
@@ -99,6 +100,258 @@ describe("DrawingEditor", () => {
     expect(screen.getByText("100%")).toBeInTheDocument();
   });
 
+  it("shows the properties panel and resize handles for a selected shape", () => {
+    const rectangle = createElement("rectangle", {
+      id: "shape",
+      x: 20,
+      y: 30,
+      width: 100,
+      height: 60,
+    });
+    render(
+      <DrawingEditor
+        initialDocument={{ ...blankDrawing(), elements: [rectangle] }}
+      />,
+    );
+    const canvas = screen.getByRole("application", {
+      name: "Whiteboard canvas",
+    });
+    Object.defineProperty(canvas, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({
+        left: 0,
+        top: 0,
+        width: 800,
+        height: 600,
+        right: 800,
+        bottom: 600,
+      }),
+    });
+    Object.defineProperty(canvas, "setPointerCapture", {
+      configurable: true,
+      value: vi.fn(),
+    });
+
+    dispatchPointer(canvas, "pointerdown", 170, 140);
+
+    expect(
+      screen.getByRole("complementary", { name: "Selection properties" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("button", { name: /Resize selection/ }),
+    ).toHaveLength(8);
+    expect(
+      screen.getByRole("button", { name: "Rotate selection" }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows editable endpoint handles for a selected connector", () => {
+    const arrow = createLinear("arrow", { x: 20, y: 30 }, { x: 120, y: 90 });
+    const editorRef = createRef<DrawingEditorHandle>();
+    render(
+      <DrawingEditor
+        ref={editorRef}
+        initialDocument={{ ...blankDrawing(), elements: [arrow] }}
+      />,
+    );
+    const canvas = screen.getByRole("application", {
+      name: "Whiteboard canvas",
+    });
+    Object.defineProperty(canvas, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({
+        left: 0,
+        top: 0,
+        width: 800,
+        height: 600,
+        right: 800,
+        bottom: 600,
+      }),
+    });
+    Object.defineProperty(canvas, "setPointerCapture", {
+      configurable: true,
+      value: vi.fn(),
+    });
+
+    dispatchPointer(canvas, "pointerdown", 190, 140);
+
+    expect(
+      screen.getAllByRole("button", { name: /Connector endpoint/ }),
+    ).toHaveLength(2);
+    expect(
+      screen.queryByRole("button", { name: /Resize selection/ }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Rotate selection" }),
+    ).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Add connector point 1" }),
+    ).toBeInTheDocument();
+
+    const add = screen.getByRole("button", { name: "Add connector point 1" });
+    fireEvent.keyDown(add, { key: "Enter" });
+    expect(
+      screen.getByRole("button", { name: "Move connector point 1" }),
+    ).toBeInTheDocument();
+    const movedPoint = screen.getByRole("button", {
+      name: "Move connector point 1",
+    });
+    const before = editorRef.current
+      ?.getDocument()
+      .elements.find((element) => element.id === arrow.id);
+    fireEvent.keyDown(movedPoint, { key: "ArrowRight" });
+    const after = editorRef.current
+      ?.getDocument()
+      .elements.find((element) => element.id === arrow.id);
+    if (
+      !before ||
+      !after ||
+      (before.type !== "arrow" && before.type !== "line") ||
+      (after.type !== "arrow" && after.type !== "line")
+    )
+      throw new Error("connector missing");
+    expect(after.points[1]?.x).toBe((before.points[1]?.x ?? 0) + 1);
+
+    fireEvent.keyDown(movedPoint, { key: "Delete" });
+    expect(
+      editorRef.current
+        ?.getDocument()
+        .elements.some((element) => element.id === arrow.id),
+    ).toBe(true);
+    expect(
+      screen.queryByRole("button", { name: "Move connector point 1" }),
+    ).toBeNull();
+  });
+
+  it("applies inspector colors to a selection", () => {
+    const rectangle = createElement("rectangle", {
+      id: "styled-shape",
+      x: 20,
+      y: 30,
+      width: 100,
+      height: 60,
+    });
+    const editorRef = createRef<DrawingEditorHandle>();
+    render(
+      <DrawingEditor
+        ref={editorRef}
+        initialDocument={{ ...blankDrawing(), elements: [rectangle] }}
+      />,
+    );
+    const canvas = screen.getByRole("application", {
+      name: "Whiteboard canvas",
+    });
+    Object.defineProperty(canvas, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({
+        left: 0,
+        top: 0,
+        width: 800,
+        height: 600,
+        right: 800,
+        bottom: 600,
+      }),
+    });
+    Object.defineProperty(canvas, "setPointerCapture", {
+      configurable: true,
+      value: vi.fn(),
+    });
+    Object.defineProperty(canvas, "hasPointerCapture", {
+      configurable: true,
+      value: vi.fn(() => true),
+    });
+    Object.defineProperty(canvas, "releasePointerCapture", {
+      configurable: true,
+      value: vi.fn(),
+    });
+
+    dispatchPointer(canvas, "pointerdown", 170, 140);
+    fireEvent.change(screen.getByLabelText("Stroke color"), {
+      target: { value: "#2563eb" },
+    });
+    fireEvent.change(screen.getByLabelText("Fill color"), {
+      target: { value: "#dbeafe" },
+    });
+
+    const styled = editorRef.current?.getDocument().elements[0];
+    expect(styled?.style).toMatchObject({
+      stroke: "#2563eb",
+      fill: "#dbeafe",
+    });
+  });
+
+  it("updates text font size and color from the floating inspector", () => {
+    const text = createElement("text", {
+      id: "styled-text",
+      x: 20,
+      y: 30,
+      width: 100,
+      height: 40,
+      text: "Text",
+    });
+    const editorRef = createRef<DrawingEditorHandle>();
+    render(
+      <DrawingEditor
+        ref={editorRef}
+        initialDocument={{ ...blankDrawing(), elements: [text] }}
+      />,
+    );
+    const canvas = screen.getByRole("application", {
+      name: "Whiteboard canvas",
+    });
+    Object.defineProperty(canvas, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({
+        left: 0,
+        top: 0,
+        width: 800,
+        height: 600,
+        right: 800,
+        bottom: 600,
+      }),
+    });
+    Object.defineProperty(canvas, "setPointerCapture", {
+      configurable: true,
+      value: vi.fn(),
+    });
+    dispatchPointer(canvas, "pointerdown", 170, 140);
+    fireEvent.change(screen.getByLabelText("Text color"), {
+      target: { value: "#be123c" },
+    });
+    fireEvent.change(screen.getByLabelText("Size"), {
+      target: { value: "32" },
+    });
+
+    const styled = editorRef.current?.getDocument().elements[0];
+    expect(styled?.style).toMatchObject({ stroke: "#be123c", fontSize: 32 });
+  });
+
+  it("selects all canvas elements and pastes a fresh copy", () => {
+    const rectangle = createElement("rectangle", {
+      id: "shape",
+      x: 20,
+      y: 30,
+      width: 100,
+      height: 60,
+    });
+    const editorRef = createRef<DrawingEditorHandle>();
+    render(
+      <DrawingEditor
+        ref={editorRef}
+        initialDocument={{ ...blankDrawing(), elements: [rectangle] }}
+      />,
+    );
+
+    fireEvent.keyDown(window, { key: "a", ctrlKey: true });
+    fireEvent.keyDown(window, { key: "c", ctrlKey: true });
+    fireEvent.keyDown(window, { key: "v", ctrlKey: true });
+
+    const elements = editorRef.current?.getDocument().elements ?? [];
+    expect(elements).toHaveLength(2);
+    expect(elements[1]).toMatchObject({ x: 44, y: 54 });
+    expect(elements[1]?.id).not.toBe(rectangle.id);
+  });
+
   it("renders collaborator cursors as labeled pointer icons", () => {
     render(
       <DrawingEditor
@@ -132,7 +385,8 @@ describe("DrawingEditor", () => {
   });
 
   it("keeps the note editor open after placing a note", async () => {
-    render(<DrawingEditor initialDocument={blankDrawing()} />);
+    const editorRef = createRef<DrawingEditorHandle>();
+    render(<DrawingEditor ref={editorRef} initialDocument={blankDrawing()} />);
 
     await userEvent.click(screen.getByRole("button", { name: /Note/ }));
     const canvas = screen.getByRole("application", {
@@ -167,11 +421,14 @@ describe("DrawingEditor", () => {
     expect(setPointerCapture).toHaveBeenCalledWith(1);
 
     fireEvent.change(screen.getByRole("textbox", { name: "Edit text" }), {
-      target: { value: "A working note" },
+      target: { value: "A working note ".repeat(80) },
     });
     expect(screen.getByRole("textbox", { name: "Edit text" })).toHaveValue(
-      "A working note",
+      "A working note ".repeat(80),
     );
+    expect(
+      editorRef.current?.getDocument().elements[0]?.height,
+    ).toBeGreaterThan(128);
   });
 
   it("keeps the text editor open after placing text", async () => {
@@ -207,12 +464,10 @@ describe("DrawingEditor", () => {
     expect(screen.getByRole("textbox", { name: "Edit text" })).toHaveValue("");
     expect(setPointerCapture).toHaveBeenCalledWith(1);
 
-    fireEvent.change(screen.getByRole("textbox", { name: "Edit text" }), {
-      target: { value: "A working text" },
-    });
-    expect(screen.getByRole("textbox", { name: "Edit text" })).toHaveValue(
-      "A working text",
-    );
+    const textbox = screen.getByRole("textbox", { name: "Edit text" });
+    fireEvent.change(textbox, { target: { value: "awd" } });
+    expect(textbox).toHaveValue("awd");
+    expect(textbox.style.width).not.toBe("120px");
   });
 
   it("commits typed text when the editor loses focus", async () => {

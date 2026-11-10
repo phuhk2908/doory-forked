@@ -46,6 +46,25 @@ The guest room MVP is live. The next work is split by room safety first, then ed
     - Keep Share, Rotate link, and End room in the collaboration controls because they change access for other people.
 14. [x] Add consistent tooltips for every tool and action on hover and keyboard focus, including the action name and its shortcut when one exists. Cover the shape dropdown, More menu, zoom pill, Eraser, and Note.
 
+## P1: Excalidraw-style editor fidelity
+
+1. [x] Use one text layout path for the canvas, textarea overlay, PNG and SVG export. Notes wrap against their inner
+   width, keep padding, show a creation date, and retain a visible default label while editing.
+2. [x] Add single- and multi-selection transform handles for shapes, notes, lines, arrows and freehand strokes, with
+   Shift-constrained resize, rotation, rotated bounds and one history entry per gesture.
+3. [x] Add a floating selection inspector for stroke/fill/opacity/line style, text font/size/line-height/alignment,
+   shape roundness/roughness and arrowhead choices. Inspector changes also become defaults for new elements.
+4. [x] Add canvas-native Ctrl/Cmd+A and copy/paste. Pasted elements receive fresh IDs, remapped groups and safe
+   connector metadata.
+5. [x] Bind line/arrow endpoints to nearby shapes and notes, keep endpoints attached as targets move or resize, and
+   detach bindings when their target is deleted.
+6. [x] Add explicit endpoint handles, connector snapping guides and a user-facing binding affordance. Binding remains
+   conservative, but selected line/arrow endpoints can now be dragged, snapped to a target boundary, highlighted, or
+   detached by dragging away.
+7. [x] Add connector path editing with midpoint handles and draggable waypoints while preserving endpoint bindings and
+   one undo entry per path gesture.
+8. [ ] Add optional orthogonal routing after endpoint and waypoint behavior has product-level usage data.
+
 ## P1: creation entry UX
 
 15. [x] Make the `Start designing` chooser horizontal on desktop, with `Start a design` and `Start a whiteboard` as two equal entry cards. Stack the cards on small screens without changing the direct whiteboard route.
