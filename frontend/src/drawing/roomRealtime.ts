@@ -71,6 +71,10 @@ interface RecoverySnapshot {
   baseRevision: number;
 }
 
+interface PublishWaiter {
+  resolve: () => void;
+}
+
 export const drawingRoomRecoveryStorageKey = (roomId: string): string =>
   RECOVERY_STORAGE_PREFIX + roomId;
 
@@ -171,6 +175,8 @@ export class DrawingRoomRealtime {
     clientId: number;
     snapshot: boolean;
   } | null = null;
+  private pendingWaiters: PublishWaiter[] = [];
+  private inFlightWaiters: PublishWaiter[] = [];
   private serverDocument: DrawingDocument | null = null;
   private serverRevision = 1;
   private updatesSinceSnapshot = 0;
@@ -224,14 +230,19 @@ export class DrawingRoomRealtime {
     this.clearPresence();
     const socket = this.socket;
     this.socket = null;
+    this.resolvePendingWaiters();
     socket?.close();
     this.callbacks.onStatus("offline");
   }
 
-  publish(document: DrawingDocument): void {
-    if (!this.canEdit) return;
+  publish(document: DrawingDocument): Promise<void> {
+    if (!this.canEdit) return Promise.resolve();
     this.pending = { document, clientId: ++this.nextClientId };
+    const result = new Promise<void>((resolve) => {
+      this.pendingWaiters.push({ resolve });
+    });
     this.scheduleFlush();
+    return result;
   }
 
   publishPresence(presence: {
@@ -286,6 +297,8 @@ export class DrawingRoomRealtime {
           clientId: this.inFlight.clientId,
         };
       }
+      this.pendingWaiters.push(...this.inFlightWaiters);
+      this.inFlightWaiters = [];
       this.inFlight = null;
       this.clearPing();
       if (!this.stopped) {
@@ -374,6 +387,8 @@ export class DrawingRoomRealtime {
         if (this.inFlight?.clientId !== clientId) return;
         const snapshot = this.inFlight.snapshot;
         this.inFlight = null;
+        const waiters = this.inFlightWaiters;
+        this.inFlightWaiters = [];
         if (!this.serverDocument || value.revision >= this.serverRevision) {
           this.serverDocument = value.document;
           this.serverRevision = value.revision;
@@ -387,6 +402,7 @@ export class DrawingRoomRealtime {
           this.serverRevision,
           clientId,
         );
+        this.resolveWaiters(waiters);
         if (!this.pending) clearRecoverySnapshot(this.recoveryStorageKey);
         this.flushPending();
       }
@@ -412,6 +428,7 @@ export class DrawingRoomRealtime {
       this.clearPresence();
       const socket = this.socket;
       this.socket = null;
+      this.resolvePendingWaiters();
       socket?.close();
       this.callbacks.onStatus("closed");
       this.callbacks.onClosed?.(
@@ -473,6 +490,8 @@ export class DrawingRoomRealtime {
       return;
     const pending = this.pending;
     this.pending = null;
+    this.inFlightWaiters = this.pendingWaiters;
+    this.pendingWaiters = [];
     const delta = this.serverDocument
       ? computeDrawingDelta(this.serverDocument, pending.document)
       : null;
@@ -482,7 +501,12 @@ export class DrawingRoomRealtime {
         delta.background !== undefined ||
         delta.files !== undefined),
     );
-    if (!hasDelta && delta) return;
+    if (!hasDelta && delta) {
+      const waiters = this.inFlightWaiters;
+      this.inFlightWaiters = [];
+      this.resolveWaiters(waiters);
+      return;
+    }
     const sendSnapshot =
       !delta ||
       this.updatesSinceSnapshot >= SNAPSHOT_EVERY_UPDATES ||
@@ -512,6 +536,17 @@ export class DrawingRoomRealtime {
       base_revision: this.serverRevision,
       client_id: pending.clientId,
     });
+  }
+
+  private resolveWaiters(waiters: PublishWaiter[]): void {
+    for (const waiter of waiters) waiter.resolve();
+  }
+
+  private resolvePendingWaiters(): void {
+    const waiters = [...this.pendingWaiters, ...this.inFlightWaiters];
+    this.pendingWaiters = [];
+    this.inFlightWaiters = [];
+    this.resolveWaiters(waiters);
   }
 
   private scheduleRetry(): void {
@@ -633,7 +668,7 @@ export function useDrawingRoomRealtime({
   onPeers?: (peers: DrawingRoomPeer[]) => void;
   onClosed?: (reason: string, key: string) => void;
 }): DrawingRoomRealtimeState & {
-  publish(document: DrawingDocument): void;
+  publish(document: DrawingDocument): Promise<void>;
   publishPresence(presence: {
     cursor: { x: number; y: number } | null;
     selection: string[];
@@ -714,7 +749,8 @@ export function useDrawingRoomRealtime({
 
   return {
     ...state,
-    publish: (document) => realtimeRef.current?.publish(document),
+    publish: (document) =>
+      realtimeRef.current?.publish(document) ?? Promise.resolve(),
     publishPresence: (presence) =>
       realtimeRef.current?.publishPresence(presence),
   };

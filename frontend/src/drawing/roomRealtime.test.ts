@@ -38,7 +38,7 @@ describe("drawing room realtime", () => {
   beforeEach(() => sessionStorage.clear());
   afterEach(() => sessionStorage.clear());
 
-  it("builds a same-origin address and authenticates with the key in a frame", () => {
+  it("builds a same-origin address and resolves a publish after acknowledgement", async () => {
     expect(
       drawingRoomRealtimeAddress("a/../b?x=1", {
         protocol: "https:",
@@ -69,7 +69,7 @@ describe("drawing room realtime", () => {
       elements: [first, { ...createElement("ellipse"), id: "shape-2" }],
     };
     const base = { ...blankDrawing(), elements: [first] };
-    realtime.publish(document);
+    const published = realtime.publish(document);
     socket.receive({ type: "ready", document: base, revision: 1, peers: 1 });
 
     expect(JSON.parse(socket.sent[0])).toMatchObject({
@@ -85,6 +85,14 @@ describe("drawing room realtime", () => {
       client_id: 1,
     });
     expect(documents).toEqual([{ document: base, revision: 1 }]);
+    const update = JSON.parse(socket.sent[1]) as { client_id: number };
+    socket.receive({
+      type: "saved",
+      document,
+      revision: 2,
+      client_id: update.client_id,
+    });
+    await expect(published).resolves.toBeUndefined();
     realtime.stop();
   });
 

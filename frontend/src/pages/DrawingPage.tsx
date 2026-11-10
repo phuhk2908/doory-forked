@@ -7,10 +7,10 @@ import {
 } from "@/drawing/DrawingEditor";
 import type { DrawingDocument } from "@/drawing/model";
 import { useDrawingRealtime } from "@/drawing/realtime";
+import { useDrawingSession } from "@/drawing/session";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { drawingsApi, isApiError } from "@/lib/api";
 import { qk } from "@/lib/api/keys";
-import { useLatest } from "@/lib/useLatest";
 import { usePageMeta } from "@/lib/usePageMeta";
 import { useUnsavedGuard } from "@/lib/useUnsavedGuard";
 import {
@@ -35,16 +35,11 @@ export default function DrawingPage() {
   const { config, status } = useAuth();
   const editorRef = useRef<DrawingEditorHandle>(null);
   const revisionRef = useRef(1);
-  const pendingRef = useRef<DrawingDocument | null>(null);
-  const timerRef = useRef<number | null>(null);
-  const inFlightRef = useRef<Promise<void> | null>(null);
-  const [dirty, setDirty] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [titleOverride, setTitleOverride] = useState<{
     id: string;
     title: string;
   } | null>(null);
-  useUnsavedGuard(dirty);
 
   const query = useQuery({
     queryKey: qk.drawings.detail(id),
@@ -62,9 +57,41 @@ export default function DrawingPage() {
       : (drawing?.title ?? "Whiteboard");
   usePageMeta({ title: drawingTitle, noindex: true });
 
+  const session = useDrawingSession({
+    delayMs: 700,
+    canSave: () => Boolean(drawing),
+    save: async (document) => {
+      const saved = await drawingsApi.saveDocument(
+        id,
+        document,
+        revisionRef.current,
+      );
+      revisionRef.current = saved.revision;
+      try {
+        const thumbnail = await editorRef.current?.export({
+          format: "png",
+          bounds: "content",
+          padding: 24,
+          scale: 1,
+        });
+        if (thumbnail) await drawingsApi.uploadThumbnail(id, thumbnail);
+      } catch {
+        // The document is already safe; a missing thumbnail should not make the editor look unsaved.
+      }
+    },
+    onError: (error) => {
+      setSaveError(
+        isApiError(error) && error.isConflict
+          ? "This whiteboard changed in another tab. Reload it before saving again."
+          : "Could not save yet. Your changes are still on this page.",
+      );
+    },
+  });
+  useUnsavedGuard(session.dirty);
+
   function acceptRemote(document: DrawingDocument, revision: number): void {
     if (revision <= revisionRef.current) return;
-    if (dirty || pendingRef.current || inFlightRef.current) {
+    if (session.dirty) {
       setSaveError(
         "This whiteboard changed in another tab. Save or reload before continuing.",
       );
@@ -72,7 +99,7 @@ export default function DrawingPage() {
     }
     editorRef.current?.replaceDocument(document);
     revisionRef.current = revision;
-    setDirty(false);
+    session.markSaved();
     setSaveError(null);
   }
 
@@ -80,15 +107,10 @@ export default function DrawingPage() {
     document: DrawingDocument | null,
     revision: number,
   ): void {
-    if (
-      document &&
-      revision > revisionRef.current &&
-      !dirty &&
-      !pendingRef.current &&
-      !inFlightRef.current
-    ) {
+    if (document && revision > revisionRef.current && !session.dirty) {
       editorRef.current?.replaceDocument(document);
       revisionRef.current = revision;
+      session.markSaved();
       setSaveError(null);
       return;
     }
@@ -111,82 +133,6 @@ export default function DrawingPage() {
   useEffect(() => {
     if (drawing) revisionRef.current = drawing.revision;
   }, [drawing]);
-
-  function queueSave(document: DrawingDocument, immediate = false): void {
-    pendingRef.current = document;
-    setDirty(true);
-    setSaveError(null);
-    if (timerRef.current !== null) window.clearTimeout(timerRef.current);
-    timerRef.current = immediate
-      ? null
-      : window.setTimeout(() => {
-          timerRef.current = null;
-          void savePending();
-        }, 700);
-    if (immediate) void savePending().catch(() => undefined);
-  }
-
-  async function savePending(): Promise<void> {
-    if (inFlightRef.current) {
-      await inFlightRef.current;
-      if (pendingRef.current) await savePending();
-      return;
-    }
-    const document = pendingRef.current;
-    if (!document) {
-      setDirty(false);
-      return;
-    }
-    pendingRef.current = null;
-    const task = (async () => {
-      try {
-        const saved = await drawingsApi.saveDocument(
-          id,
-          document,
-          revisionRef.current,
-        );
-        revisionRef.current = saved.revision;
-        try {
-          const thumbnail = await editorRef.current?.export({
-            format: "png",
-            bounds: "content",
-            padding: 24,
-            scale: 1,
-          });
-          if (thumbnail) await drawingsApi.uploadThumbnail(id, thumbnail);
-        } catch {
-          // The document is already safe; a missing thumbnail should not make the editor look unsaved.
-        }
-        if (!pendingRef.current) setDirty(false);
-      } catch (error) {
-        pendingRef.current = document;
-        setSaveError(
-          isApiError(error) && error.isConflict
-            ? "This whiteboard changed in another tab. Reload it before saving again."
-            : "Could not save yet. Your changes are still on this page.",
-        );
-        throw error;
-      }
-    })();
-    inFlightRef.current = task;
-    try {
-      await task;
-    } finally {
-      inFlightRef.current = null;
-    }
-    if (pendingRef.current) await savePending();
-  }
-
-  const latestSavePending = useLatest(savePending);
-  useEffect(
-    () => () => {
-      if (timerRef.current !== null) window.clearTimeout(timerRef.current);
-      void latestSavePending
-        .get()()
-        .catch(() => undefined);
-    },
-    [latestSavePending],
-  );
 
   async function renameDrawing(nextTitle: string): Promise<void> {
     const updated = await drawingsApi.patch(id, { title: nextTitle });
@@ -227,11 +173,11 @@ export default function DrawingPage() {
         initialDocument={drawing.document}
         title={drawingTitle}
         onTitleChange={renameDrawing}
-        onDocumentChange={(document) => queueSave(document)}
-        onSaveNow={async (document) => {
-          queueSave(document, true);
-          await savePending();
+        onDocumentChange={(document) => {
+          setSaveError(null);
+          session.queue(document);
         }}
+        onSaveNow={session.saveNow}
       />
     </div>
   );

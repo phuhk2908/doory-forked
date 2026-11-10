@@ -26,6 +26,8 @@ export type {
   DrawingRoomRealtimeState,
   DrawingRoomRealtimeStatus,
 } from "./roomRealtime";
+export { DrawingSessionController, useDrawingSession } from "./session";
+export type { DrawingSessionOptions, DrawingSessionState } from "./session";
 export {
   drawingRoomHash,
   drawingRoomOwnerStorageKey,

@@ -17,6 +17,7 @@ import {
   useDrawingRoomRealtime,
   type DrawingRoomPeer,
 } from "@/drawing/roomRealtime";
+import { useDrawingSession } from "@/drawing/session";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { useAuthModal } from "@/features/auth/AuthModalProvider";
 import { drawingRoomsApi, drawingsApi, isApiError } from "@/lib/api";
@@ -84,7 +85,6 @@ export default function DrawingRoomPage() {
   const [load, setLoad] = useState<Load>({
     kind: link ? "loading" : "missing",
   });
-  const [dirty, setDirty] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -123,7 +123,20 @@ export default function DrawingRoomPage() {
       ),
     [peers],
   );
-  useUnsavedGuard(dirty && canEdit && !ended);
+  const realtimeRef = useRef<{
+    publish(document: DrawingDocument): Promise<void>;
+  } | null>(null);
+  const session = useDrawingSession({
+    delayMs: 0,
+    canSave: () => load.kind === "ready" && canEdit && !ended,
+    save: (document) =>
+      realtimeRef.current?.publish(document) ?? Promise.resolve(),
+    onError: () => {
+      if (!ended)
+        setError("Could not save yet. Your changes are still on this page.");
+    },
+  });
+  useUnsavedGuard(session.dirty && canEdit && !ended);
 
   useEffect(() => {
     if (!link) return undefined;
@@ -192,7 +205,7 @@ export default function DrawingRoomPage() {
       : document;
     editorRef.current?.applyRemoteDocument(merged);
     revisionRef.current = revision;
-    setDirty(false);
+    session.markSaved();
   }
 
   const realtime = useDrawingRoomRealtime({
@@ -208,7 +221,7 @@ export default function DrawingRoomPage() {
         : document;
       if (current && JSON.stringify(merged) !== JSON.stringify(current))
         editorRef.current?.applyRemoteDocument(merged);
-      setDirty(false);
+      session.markSaved();
     },
     onPresence: () => undefined,
     onPeers: setPeers,
@@ -239,6 +252,7 @@ export default function DrawingRoomPage() {
     },
     onError: (message) => setError(message),
   });
+  realtimeRef.current = realtime;
 
   async function copyText(value: string, label: string): Promise<void> {
     try {
@@ -544,11 +558,11 @@ export default function DrawingRoomPage() {
           color: peerColors.get(peer.id),
         }))}
         onPresenceChange={(presence) => realtime.publishPresence(presence)}
+        onSaveNow={session.saveNow}
         onDocumentChange={(document) => {
           if (!canEdit || ended) return;
-          setDirty(true);
           setError(null);
-          realtime.publish(document);
+          session.queue(document);
         }}
       />
       <Dialog

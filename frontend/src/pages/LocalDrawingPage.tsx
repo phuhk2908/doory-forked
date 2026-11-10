@@ -4,8 +4,8 @@ import {
   DrawingEditor,
   type DrawingEditorHandle,
 } from "@/drawing/DrawingEditor";
-import type { DrawingDocument } from "@/drawing/model";
 import { drawingLocalRepository, type LocalDrawing } from "@/drawing/local";
+import { useDrawingSession } from "@/drawing/session";
 import {
   drawingRoomDisplayName,
   drawingRoomHash,
@@ -19,7 +19,6 @@ import {
   EditorProblemPage,
   EditorSkeleton,
 } from "@/features/editor/EditorStates";
-import { useLatest } from "@/lib/useLatest";
 import { usePageMeta } from "@/lib/usePageMeta";
 import { useUnsavedGuard } from "@/lib/useUnsavedGuard";
 import styles from "./DrawingPage.module.css";
@@ -36,16 +35,11 @@ export default function LocalDrawingPage() {
   const { status } = useAuth();
   const { openAuthModal } = useAuthModal();
   const editorRef = useRef<DrawingEditorHandle>(null);
-  const pendingRef = useRef<DrawingDocument | null>(null);
-  const timerRef = useRef<number | null>(null);
-  const inFlightRef = useRef<Promise<void> | null>(null);
   const [load, setLoad] = useState<Load>({ kind: "loading" });
-  const [dirty, setDirty] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [actionBusy, setActionBusy] = useState(false);
   const [collaborationOpen, setCollaborationOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
-  useUnsavedGuard(dirty);
 
   useEffect(() => {
     let active = true;
@@ -69,33 +63,11 @@ export default function LocalDrawingPage() {
     noindex: true,
   });
 
-  function queueSave(document: DrawingDocument, immediate = false): void {
-    pendingRef.current = document;
-    setDirty(true);
-    if (timerRef.current !== null) window.clearTimeout(timerRef.current);
-    timerRef.current = immediate
-      ? null
-      : window.setTimeout(() => {
-          timerRef.current = null;
-          void savePending();
-        }, 250);
-    if (immediate) void savePending().catch(() => undefined);
-  }
-
-  async function savePending(): Promise<void> {
-    if (inFlightRef.current) {
-      await inFlightRef.current;
-      if (pendingRef.current) await savePending();
-      return;
-    }
-    const document = pendingRef.current;
-    if (!document || load.kind !== "ready") {
-      if (!pendingRef.current) setDirty(false);
-      return;
-    }
-    pendingRef.current = null;
-    setSaving(true);
-    const task = (async () => {
+  const session = useDrawingSession({
+    delayMs: 250,
+    canSave: () => load.kind === "ready",
+    save: async (document) => {
+      if (load.kind !== "ready") return;
       const thumbnail = await editorRef.current?.export({
         format: "png",
         bounds: "content",
@@ -108,34 +80,15 @@ export default function LocalDrawingPage() {
         document,
         thumbnail,
       });
-      if (!pendingRef.current) setDirty(false);
-    })().catch(() => {
-      pendingRef.current = document;
+    },
+    onError: () => {
       setError(
         "Could not save to this browser. Keep this tab open and try again.",
       );
-      throw new Error("local_save_failed");
-    });
-    inFlightRef.current = task;
-    try {
-      await task;
-    } finally {
-      inFlightRef.current = null;
-      setSaving(false);
-    }
-    if (pendingRef.current) await savePending();
-  }
-
-  const latestSavePending = useLatest(savePending);
-  useEffect(
-    () => () => {
-      if (timerRef.current !== null) window.clearTimeout(timerRef.current);
-      void latestSavePending
-        .get()()
-        .catch(() => undefined);
     },
-    [latestSavePending],
-  );
+  });
+  useUnsavedGuard(session.dirty);
+  const saving = session.saving || actionBusy;
 
   async function saveToAccount(): Promise<void> {
     if (load.kind !== "ready") return;
@@ -144,7 +97,7 @@ export default function LocalDrawingPage() {
       status === "authenticated" ||
       (await openAuthModal({ reason: "save", tab: "signup" }));
     if (!signedIn) return;
-    setSaving(true);
+    setActionBusy(true);
     try {
       await editorRef.current?.saveNow();
       const current = await drawingLocalRepository.get(localId);
@@ -171,17 +124,13 @@ export default function LocalDrawingPage() {
           : "Could not save this whiteboard to your account yet.",
       );
     } finally {
-      setSaving(false);
+      setActionBusy(false);
     }
   }
 
   async function renameDrawing(nextTitle: string): Promise<void> {
     if (load.kind !== "ready") return;
-    if (timerRef.current !== null) {
-      window.clearTimeout(timerRef.current);
-      timerRef.current = null;
-    }
-    await savePending();
+    await session.flush();
     const current = await drawingLocalRepository.get(localId);
     const saved = await drawingLocalRepository.save({
       id: localId,
@@ -198,7 +147,7 @@ export default function LocalDrawingPage() {
   async function startCollaboration(): Promise<void> {
     if (load.kind !== "ready") return;
     setError(null);
-    setSaving(true);
+    setActionBusy(true);
     try {
       await editorRef.current?.saveNow();
       const room = await drawingRoomsApi.create({
@@ -221,7 +170,7 @@ export default function LocalDrawingPage() {
           : "Could not start a collaboration room yet.",
       );
     } finally {
-      setSaving(false);
+      setActionBusy(false);
     }
   }
 
@@ -267,11 +216,8 @@ export default function LocalDrawingPage() {
         title={load.drawing.title}
         onSaveToAccount={() => void saveToAccount()}
         onTitleChange={renameDrawing}
-        onDocumentChange={(document) => queueSave(document)}
-        onSaveNow={async (document) => {
-          queueSave(document, true);
-          await savePending();
-        }}
+        onDocumentChange={(document) => session.queue(document)}
+        onSaveNow={session.saveNow}
       />
       <Dialog
         open={collaborationOpen}
