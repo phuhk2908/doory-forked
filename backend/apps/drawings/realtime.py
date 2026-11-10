@@ -360,9 +360,11 @@ class DrawingRoomConsumer(AsyncJsonWebsocketConsumer):
         await database_sync_to_async(refresh_guest_room_slot)(self.room_id)
         kind = content.get("type")
         if kind == "ping":
-            if await self._load() is None:
+            snapshot = await self._load()
+            if snapshot is None:
                 await self._close_room("closed_or_expired")
                 return
+            await self._sync_room_access(snapshot["mode"])
             await self.send_json({"type": "pong"})
             return
         if kind == "presence":
@@ -386,6 +388,12 @@ class DrawingRoomConsumer(AsyncJsonWebsocketConsumer):
             guest_room_metrics.record_invalid("type")
             await self.send_json({"type": "error", "code": "unknown_message"})
             return
+        snapshot = await self._load()
+        if snapshot is None:
+            guest_room_metrics.record_dropped("closed_room")
+            await self._close_room("closed_or_expired")
+            return
+        await self._sync_room_access(snapshot["mode"])
         if self.room_mode != "edit":
             guest_room_metrics.record_dropped("read_only_update")
             await self.send_json({"type": "error", "code": "read_only", "message": "This room is view-only."})
@@ -588,6 +596,11 @@ class DrawingRoomConsumer(AsyncJsonWebsocketConsumer):
             await self._close_room("closed_or_expired")
             return
         _room, mode = access
+        await self._sync_room_access(mode, force=True)
+
+    async def _sync_room_access(self, mode: str, *, force: bool = False) -> None:
+        if not force and self.room_mode == mode:
+            return
         self.room_mode = mode
         presence = _room_presence.get(self.group, {}).get(self.peer_id)
         if presence is not None:

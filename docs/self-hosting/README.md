@@ -10,7 +10,7 @@
 | MCP | Model Context Protocol server for AI assistants | `mcp` (profile `mcp`) | `doory-mcp.service` | No, see [mcp.md](mcp.md) |
 | Database | PostgreSQL 16 (SQLite works for development only) | `db` | your PostgreSQL | Yes |
 | Cache | Shared cache for rate limits and stock search results | the database (`dbcache`) | the database (`dbcache`) | Yes in production |
-| Redis | Channel layer for running realtime on more than one worker | `redis` (profile `redis`) | your Redis | No, see [realtime.md](realtime.md) |
+| Redis | Shared channel layer between API, realtime and optional MCP processes | `redis` | your Redis | Yes for separate services, see [realtime.md](realtime.md) |
 | Chromium | Headless browser for server-side PDF and image export | inside the `api` and `mcp` images | Playwright's Chromium | No, see [image-export.md](image-export.md) |
 | ffmpeg | Checks and converts video clips | inside the `api`, `realtime` and `mcp` images | the `ffmpeg` package | No, see [video.md](video.md) |
 | Media storage | Uploads, fonts, element packs, audio, models | `media` volume | `MEDIA_ROOT` | Yes (local folder or [S3-compatible](../integrations/object-storage.md)) |

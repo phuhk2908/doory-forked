@@ -1,5 +1,5 @@
 import { forwardRef } from "react";
-import { screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -12,13 +12,18 @@ import { renderApp } from "@/test/app";
 import { server } from "@/test/msw";
 
 vi.mock("@/drawing/DrawingEditor", () => ({
-  DrawingEditor: forwardRef<HTMLDivElement, { title?: string }>(
-    ({ title }, ref) => (
-      <div ref={ref} data-testid="room-editor">
-        {title}
-      </div>
-    ),
-  ),
+  DrawingEditor: forwardRef<
+    HTMLDivElement,
+    { title?: string; readOnly?: boolean }
+  >(({ title, readOnly }, ref) => (
+    <div
+      ref={ref}
+      data-testid="room-editor"
+      data-read-only={readOnly ? "true" : "false"}
+    >
+      {title}
+    </div>
+  )),
 }));
 
 const ROOM_ID = "123e4567-e89b-12d3-a456-426614174000";
@@ -132,5 +137,29 @@ describe("DrawingRoomPage room lifecycle", () => {
     expect(oldSocket).toBeDefined();
     oldSocket.receive({ type: "closed", reason: "revoked" });
     expect(screen.queryByText("Room ended")).not.toBeInTheDocument();
+  });
+
+  it("applies an access change to the already-open room", async () => {
+    renderApp("/drawings/room");
+
+    expect(await screen.findByTestId("room-editor")).toHaveAttribute(
+      "data-read-only",
+      "false",
+    );
+    act(() => {
+      TestSocket.instances[0].receive({
+        type: "access",
+        mode: "view",
+        can_edit: false,
+      });
+    });
+
+    await waitFor(() => {
+      expect(screen.getAllByText("View only")).not.toHaveLength(0);
+      expect(screen.getByTestId("room-editor")).toHaveAttribute(
+        "data-read-only",
+        "true",
+      );
+    });
   });
 });

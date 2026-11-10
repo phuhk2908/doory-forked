@@ -21,6 +21,7 @@ export interface Rect {
 
 export const rectRight = (rect: Rect): number => rect.x + rect.width;
 export const rectBottom = (rect: Rect): number => rect.y + rect.height;
+export const DRAWING_ZOOM_STEP = 1.1;
 
 let textMeasureContext: CanvasRenderingContext2D | null | undefined;
 
@@ -107,6 +108,15 @@ export function viewportAtPoint(
     scrollX: next.scrollX + before.x - after.x,
     scrollY: next.scrollY + before.y - after.y,
   };
+}
+
+export function zoomViewport(
+  viewport: DrawingViewport,
+  screen: Point,
+  direction: "in" | "out",
+): DrawingViewport {
+  const factor = direction === "in" ? DRAWING_ZOOM_STEP : 1 / DRAWING_ZOOM_STEP;
+  return viewportAtPoint(viewport, screen, viewport.zoom * factor);
 }
 
 export function rotatePoint(point: Point, centre: Point, angle: number): Point {

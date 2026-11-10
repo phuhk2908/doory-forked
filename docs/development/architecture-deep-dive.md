@@ -239,9 +239,9 @@ Room loads pycrdt document and update log
 batches, while `flushed_version` records how far the canonical design document has caught up. Compaction folds update
 rows into the snapshot. Maintenance saves unflushed rooms, compacts long logs and removes stale presence rows.
 
-One worker can use the in-memory channel layer. Multiple workers or replicas must set `REDIS_URL`; Redis carries room
-updates between processes, while PostgreSQL remains the durable store. The realtime service refuses a multi-worker
-configuration without Redis.
+The Docker API and realtime services must share `REDIS_URL`, even with one worker, because committed updates and room
+management events originate in separate processes. Multiple workers or replicas also require Redis; PostgreSQL remains
+the durable store. A single-process local development server can use the in-memory channel layer.
 
 If realtime cannot connect or the protocol/session fails before the first sync, the frontend falls back to normal REST
 autosave. While a live room is active, normal document saves stop; `save now` asks the room to flush, while title and

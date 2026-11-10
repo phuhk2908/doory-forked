@@ -535,3 +535,36 @@ input:focus-visible {
     right: 8px;
   }
 }
+
+@media (max-width: 600px) {
+  .toolGroup {
+    right: 8px;
+    left: 56px;
+    max-width: none;
+    gap: 1px;
+    padding: 4px;
+    transform: none;
+  }
+
+  .toolButton,
+  .shapeButton {
+    min-width: 28px;
+    width: 28px;
+    height: 32px;
+    padding: 0;
+  }
+
+  .shapeDropdownButton {
+    min-width: 14px;
+    width: 14px;
+    height: 32px;
+  }
+
+  .toolShortcut {
+    right: 0;
+    bottom: 0;
+    padding-inline: 2px;
+    font-size: 9px;
+    line-height: 11px;
+  }
+}

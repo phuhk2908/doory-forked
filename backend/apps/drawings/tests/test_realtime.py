@@ -1,7 +1,11 @@
+from unittest.mock import AsyncMock, call, patch
+
+import pytest
 from asgiref.sync import async_to_sync
 from channels.layers import InMemoryChannelLayer
 
 from apps.drawings.events import broadcast_drawing_update
+from apps.drawings.realtime import DrawingRoomConsumer
 
 
 def test_account_drawing_updates_use_one_shared_broadcast_path():
@@ -28,3 +32,23 @@ def test_account_drawing_updates_use_one_shared_broadcast_path():
         "delta": delta,
         "revision": 2,
     }
+
+
+@pytest.mark.django_db
+def test_guest_room_ping_rechecks_access_for_processes_without_shared_events():
+    consumer = DrawingRoomConsumer()
+    consumer.state = "active"
+    consumer.room_id = "00000000-0000-4000-8000-000000000000"
+    consumer.group = "doory.drawing-room." + consumer.room_id
+    consumer.peer_id = "peer-1"
+    consumer.room_mode = "edit"
+    consumer.send_json = AsyncMock()
+    consumer._load = AsyncMock(return_value={"mode": "view"})
+
+    with patch("apps.drawings.realtime.refresh_guest_room_slot", return_value=None):
+        async_to_sync(consumer.receive_json)({"type": "ping"})
+
+    assert consumer.send_json.await_args_list == [
+        call({"type": "access", "mode": "view", "can_edit": False}),
+        call({"type": "pong"}),
+    ]

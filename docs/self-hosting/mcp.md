@@ -7,7 +7,7 @@ clients can then list, create and edit designs on a user's behalf, using a token
 
 - An MCP client that supports the HTTP transport.
 - For `export_design` (an image, SVG, PDF or video of pages), [server-side export](image-export.md).
-- Optional: Redis (`REDIS_URL`), so edits appear in open editors immediately instead of within a few seconds.
+- Redis (`REDIS_URL`) is included by the Docker Compose stack so edits appear in open editors immediately.
 
 ## Turn it on
 

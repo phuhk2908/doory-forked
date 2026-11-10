@@ -6,8 +6,10 @@ Docker. It uses the same code as the API, run by uvicorn.
 ## Requirements
 
 - The proxy forwards WebSockets on `/ws/`. The bundled nginx configs already do this.
-- With one worker (the default), you don't need anything else.
-- With more than one worker or server, you need Redis so they can share updates.
+- Docker starts Redis and points both the API and realtime services at it. This is required even with one realtime
+  worker because room management requests run in the separate API process.
+- Without Docker, set `REDIS_URL` for the API and realtime services. A single-process local development server can
+  use the in-memory layer, but separate services need Redis so they share room events.
 
 ## Whiteboards
 
@@ -51,10 +53,9 @@ updates.
 
 ## Several workers
 
-Docker:
+Docker (Redis is included by the default Compose stack):
 
 ```ini
-COMPOSE_PROFILES=redis
 REDIS_URL=redis://redis:6379/0
 REALTIME_WORKERS=4
 ```
@@ -62,7 +63,7 @@ REALTIME_WORKERS=4
 Then run `docker compose up -d`. Without Docker, point `REDIS_URL` at your Redis, raise `--workers` in
 `doory-realtime.service`, and restart the services.
 
-Redis also makes MCP edits show up immediately in open editors. Without it they appear within a few seconds.
+Redis also carries MCP edits and room access changes to open editors immediately.
 
 ## Settings
 
@@ -85,4 +86,6 @@ It's safe to run at any time. Schedule it as described in [Scheduled tasks](READ
 - **Editors don't see each other's changes:** check that `/ws/` reaches the realtime service (look for failed
   WebSocket requests in the browser's network tab) and that the proxy passes the `Upgrade` and `Connection`
   headers.
+- **Room access, close or rename changes don't reach an open guest room:** check that API and realtime share the
+  same `REDIS_URL`, then restart both services.
 - **Changes only reach some editors:** you're running several workers without Redis. Set `REDIS_URL`.

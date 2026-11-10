@@ -54,6 +54,23 @@ describe("drawing model", () => {
     expect(restored.elements).toHaveLength(1);
   });
 
+  it("keeps default text metrics when restoring older style data", () => {
+    const restored = restoreDrawing({
+      schemaVersion: 1,
+      elements: [
+        {
+          ...createElement("text"),
+          text: "hello",
+          style: { fontSize: 24 },
+        },
+      ],
+    });
+
+    expect(restored.elements[0]).toMatchObject({
+      style: { textAlign: "left", lineHeight: 1.25 },
+    });
+  });
+
   it("merges independent room edits by element version", () => {
     const one = {
       ...createElement("rectangle"),

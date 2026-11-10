@@ -89,6 +89,16 @@ describe("DrawingEditor", () => {
     expect(canvas).toHaveAttribute("data-pan-mode", "false");
   });
 
+  it("returns to the starting zoom after one zoom in and out", async () => {
+    render(<DrawingEditor initialDocument={blankDrawing()} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+    expect(screen.getByText("110%")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Zoom out" }));
+    expect(screen.getByText("100%")).toBeInTheDocument();
+  });
+
   it("renders collaborator cursors as labeled pointer icons", () => {
     render(
       <DrawingEditor

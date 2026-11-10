@@ -45,8 +45,8 @@ import {
   selectionBounds,
   textBounds,
   translateElement,
-  viewportAtPoint,
   worldToScreen,
+  zoomViewport,
   type Point,
   type Rect,
 } from "./geometry";
@@ -608,16 +608,12 @@ export const DrawingEditor = forwardRef<
       }
       if (key === "+" || key === "=") {
         event.preventDefault();
-        setViewport((value) =>
-          viewportAtPoint(value, { x: 0, y: 0 }, value.zoom * 1.1),
-        );
+        setViewport((value) => zoomViewport(value, { x: 0, y: 0 }, "in"));
         return;
       }
       if (key === "-") {
         event.preventDefault();
-        setViewport((value) =>
-          viewportAtPoint(value, { x: 0, y: 0 }, value.zoom * 0.9),
-        );
+        setViewport((value) => zoomViewport(value, { x: 0, y: 0 }, "out"));
         return;
       }
       const nextTool = TOOL_KEYS[key];
@@ -673,10 +669,10 @@ export const DrawingEditor = forwardRef<
       const rect = canvas.getBoundingClientRect();
       if (event.ctrlKey || event.metaKey) {
         setViewport((value) =>
-          viewportAtPoint(
+          zoomViewport(
             value,
             { x: event.clientX - rect.left, y: event.clientY - rect.top },
-            value.zoom * (event.deltaY > 0 ? 0.9 : 1.1),
+            event.deltaY > 0 ? "out" : "in",
           ),
         );
       } else {
@@ -1628,9 +1624,7 @@ export const DrawingEditor = forwardRef<
           aria-label="Zoom out"
           data-tooltip="Zoom out"
           onClick={() =>
-            setViewport((value) =>
-              viewportAtPoint(value, { x: 0, y: 0 }, value.zoom * 0.9),
-            )
+            setViewport((value) => zoomViewport(value, { x: 0, y: 0 }, "out"))
           }
         >
           <ZoomOut size={16} aria-hidden="true" />
@@ -1644,9 +1638,7 @@ export const DrawingEditor = forwardRef<
           aria-label="Zoom in"
           data-tooltip="Zoom in"
           onClick={() =>
-            setViewport((value) =>
-              viewportAtPoint(value, { x: 0, y: 0 }, value.zoom * 1.1),
-            )
+            setViewport((value) => zoomViewport(value, { x: 0, y: 0 }, "in"))
           }
         >
           <ZoomIn size={16} aria-hidden="true" />

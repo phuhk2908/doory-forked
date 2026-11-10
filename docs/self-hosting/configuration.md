@@ -42,7 +42,7 @@ add a row to the matching section (see [CONTRIBUTING.md](../../CONTRIBUTING.md#d
 | `INSTALL_CHROMIUM` | `true` | Build a headless Chromium into the image, needed for [server-side export](image-export.md) (adds about 400 MB) |
 | `INSTALL_FFMPEG` | `true` | Build ffmpeg into the image, needed for [video clips](video.md) (adds about 250 MB) |
 | `INSTALL_IMAGE_OPTIMIZERS` | `true` | Build mozjpeg and oxipng into the image for the built-in [image optimizer](../integrations/image-optimization.md) (adds about 2 MB) |
-| `COMPOSE_PROFILES` | | Optional services to start: `mcp`, `redis`, or both (`mcp,redis`) |
+| `COMPOSE_PROFILES` | | Optional services to start, such as `mcp` or `ai` (comma separated) |
 | `REALTIME_WORKERS` | `1` | Workers of the `realtime` service. Use more than 1 only together with Redis |
 | `REALTIME_MEM_LIMIT` | `2g` | Memory limit of the `realtime` service |
 | `MCP_WORKERS` | `1` | Workers of the `mcp` service |
@@ -59,7 +59,7 @@ add a row to the matching section (see [CONTRIBUTING.md](../../CONTRIBUTING.md#d
 | `POSTGRES_USER` | `doory` | Docker: the database user |
 | `TEST_DATABASE_URL` | | Tests only: the database the test suite uses |
 | `CACHE_URL` | `locmemcache://` | Shared cache. Production needs a cache that all workers share; Docker and the manual guide use `dbcache://doory_cache` |
-| `REDIS_URL` | | Redis, e.g. `redis://redis:6379/0`. Needed only to run [realtime](realtime.md) on more than one worker |
+| `REDIS_URL` | | Shared channel layer, e.g. `redis://redis:6379/0`. Docker supplies this default; separate API/realtime processes and multiple workers need it for live-room events |
 | `LOG_LEVEL` | `INFO` | Log level of every service |
 | `DJANGO_SETTINGS_MODULE` | `doory.settings.dev` | Django settings module. Local Make targets select `dev` or `test`; Docker and the systemd units use `doory.settings.prod` |
 | `DJANGO_DEBUG` | `false` | Development only: show Django's debug pages |

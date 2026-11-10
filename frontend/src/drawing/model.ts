@@ -168,7 +168,10 @@ export function versionNonce(): number {
 }
 
 export function styleWith(overrides: Partial<DrawingStyle> = {}): DrawingStyle {
-  return { ...DEFAULT_STYLE, ...overrides };
+  const definedOverrides = Object.fromEntries(
+    Object.entries(overrides).filter(([, value]) => value !== undefined),
+  ) as Partial<DrawingStyle>;
+  return { ...DEFAULT_STYLE, ...definedOverrides };
 }
 
 export function createElement<T extends DrawingElement["type"]>(
