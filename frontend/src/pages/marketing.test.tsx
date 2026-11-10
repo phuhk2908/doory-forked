@@ -8,6 +8,7 @@ import {
   listLocalDesigns,
   localRepository,
 } from "@/lib/local";
+import { exportLocalProject } from "@/lib/local/projectArchive";
 import { renderApp } from "@/test/app";
 import { makeTemplate, makeUser, page } from "@/test/factories";
 
@@ -335,6 +336,35 @@ describe('"Your local designs" strip', () => {
     expect(
       screen.getByRole("button", { name: "Restore project" }),
     ).toBeInTheDocument();
+  });
+
+  it("restores a selected project backup and opens the new local design", async () => {
+    const source = await createLocalDesign({
+      title: "Restored poster",
+      document: createBlankDocument(480, 672),
+    });
+    const backup = await exportLocalProject(source.id);
+    await localRepository.clear();
+
+    const { router } = renderApp("/");
+    await screen.findByRole("heading", { level: 1 });
+    const input =
+      document.querySelector<HTMLInputElement>('input[type="file"]');
+    expect(input).not.toBeNull();
+    await userEvent.upload(
+      input!,
+      new File([backup.blob], backup.filename, {
+        type: backup.blob.type,
+      }),
+    );
+
+    await waitFor(() =>
+      expect(router.state.location.pathname).toMatch(/^\/local\//),
+    );
+    expect(await listLocalDesigns()).toHaveLength(1);
+    expect((await listLocalDesigns())[0]).toMatchObject({
+      title: "Restored poster",
+    });
   });
 
   it("lists local designs so guests can come back, and deletes after confirmation", async () => {

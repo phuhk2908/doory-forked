@@ -162,4 +162,30 @@ describe("DrawingRoomPage room lifecycle", () => {
       );
     });
   });
+
+  it("shows the number of deduplicated peers instead of a stale server count", async () => {
+    renderApp("/drawings/room");
+
+    expect(await screen.findByTestId("room-editor")).toBeInTheDocument();
+    act(() => {
+      TestSocket.instances[0].receive({
+        type: "ready",
+        document: blankDrawing(),
+        revision: 1,
+        peer_id: "self",
+        peers: 5,
+        presence: [
+          {
+            peer_id: "peer-1",
+            mode: "edit",
+            cursor: null,
+            selection: [],
+          },
+        ],
+      });
+    });
+
+    expect(await screen.findByText("Live · 1 other")).toBeInTheDocument();
+    expect(screen.queryByText("Live · 4 others")).not.toBeInTheDocument();
+  });
 });

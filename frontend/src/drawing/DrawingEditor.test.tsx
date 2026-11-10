@@ -145,6 +145,45 @@ describe("DrawingEditor", () => {
     ).toBeInTheDocument();
   });
 
+  it("keeps the rotate handle inside the canvas when the selection is above the viewport", () => {
+    const rectangle = createElement("rectangle", {
+      id: "top-edge-shape",
+      x: 20,
+      y: -200,
+      width: 100,
+      height: 60,
+    });
+    render(
+      <DrawingEditor
+        initialDocument={{ ...blankDrawing(), elements: [rectangle] }}
+      />,
+    );
+    const canvas = screen.getByRole("application", {
+      name: "Whiteboard canvas",
+    });
+    Object.defineProperty(canvas, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({
+        left: 0,
+        top: 0,
+        width: 320,
+        height: 240,
+        right: 320,
+        bottom: 240,
+      }),
+    });
+    Object.defineProperty(canvas, "setPointerCapture", {
+      configurable: true,
+      value: vi.fn(),
+    });
+
+    dispatchPointer(canvas, "pointerdown", 140, -120);
+
+    const handle = screen.getByRole("button", { name: "Rotate selection" });
+    expect(Number.parseFloat(handle.style.top)).toBeGreaterThanOrEqual(14);
+    expect(Number.parseFloat(handle.style.top)).toBeLessThanOrEqual(226);
+  });
+
   it("shows editable endpoint handles for a selected connector", () => {
     const arrow = createLinear("arrow", { x: 20, y: 30 }, { x: 120, y: 90 });
     const editorRef = createRef<DrawingEditorHandle>();

@@ -224,6 +224,7 @@ export class DrawingRoomRealtime {
     }
     this.stopped = true;
     this.authenticated = false;
+    this.peerId = null;
     this.clearRetry();
     this.clearFlush();
     this.clearPing();
@@ -232,6 +233,8 @@ export class DrawingRoomRealtime {
     this.socket = null;
     this.resolvePendingWaiters();
     socket?.close();
+    this.clearPeers();
+    this.callbacks.onPresence(0);
     this.callbacks.onStatus("offline");
   }
 
@@ -291,6 +294,9 @@ export class DrawingRoomRealtime {
       if (this.socket !== socket) return;
       this.socket = null;
       this.authenticated = false;
+      this.peerId = null;
+      this.clearPeers();
+      this.callbacks.onPresence(0);
       if (!this.pending && this.inFlight) {
         this.pending = {
           document: this.inFlight.document,
@@ -422,6 +428,7 @@ export class DrawingRoomRealtime {
       clearRecoverySnapshot(this.recoveryStorageKey);
       this.stopped = true;
       this.authenticated = false;
+      this.peerId = null;
       this.clearRetry();
       this.clearFlush();
       this.clearPing();
@@ -430,6 +437,8 @@ export class DrawingRoomRealtime {
       this.socket = null;
       this.resolvePendingWaiters();
       socket?.close();
+      this.clearPeers();
+      this.callbacks.onPresence(0);
       this.callbacks.onStatus("closed");
       this.callbacks.onClosed?.(
         typeof value.reason === "string" ? value.reason : "closed",
@@ -594,6 +603,11 @@ export class DrawingRoomRealtime {
       for (const item of value) this.applyPeer(item);
     }
     this.callbacks.onPeers?.([...this.peers.values()]);
+  }
+
+  private clearPeers(): void {
+    this.peers.clear();
+    this.callbacks.onPeers?.([]);
   }
 
   private applyPeer(value: unknown): void {

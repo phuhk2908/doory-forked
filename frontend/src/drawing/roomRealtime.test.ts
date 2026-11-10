@@ -150,15 +150,17 @@ describe("drawing room realtime", () => {
     });
     socket.receive({ type: "room_title", title: "Renamed board" });
     socket.receive({ type: "access", mode: "edit", can_edit: true });
+
+    expect(peers).toContainEqual([
+      { id: "peer-1", mode: "edit", cursor: null, selection: [] },
+    ]);
     socket.receive({ type: "closed", reason: "revoked" });
 
     expect(access).toEqual([
       { mode: "view", canEdit: false },
       { mode: "edit", canEdit: true },
     ]);
-    expect(peers.at(-1)).toEqual([
-      { id: "peer-1", mode: "edit", cursor: null, selection: [] },
-    ]);
+    expect(peers.at(-1)).toEqual([]);
     expect(closed).toEqual(["revoked"]);
     expect(titles).toEqual(["Renamed board"]);
     expect(JSON.parse(socket.sent[0])).toMatchObject({
@@ -248,6 +250,50 @@ describe("drawing room realtime", () => {
         avatarUrl: "/media/avatar.webp",
       },
     ]);
+    realtime.stop();
+  });
+
+  it("clears remote peers when the transport closes before reconnecting", () => {
+    const socket = new FakeSocket();
+    const peers: unknown[] = [];
+    const counts: number[] = [];
+    const statuses: string[] = [];
+    const realtime = new DrawingRoomRealtime(
+      "ws://test/ws/drawing-rooms/1/",
+      "k".repeat(43),
+      {
+        onDocument: () => undefined,
+        onSaved: () => undefined,
+        onPresence: (count) => counts.push(count),
+        onStatus: (status) => statuses.push(status),
+        onError: () => undefined,
+        onPeers: (value) => peers.push(value),
+      },
+      () => socket,
+    );
+    realtime.start();
+    socket.open();
+    socket.receive({
+      type: "ready",
+      document: blankDrawing(),
+      revision: 1,
+      peer_id: "self",
+      peers: 2,
+      presence: [
+        {
+          peer_id: "peer-1",
+          mode: "edit",
+          cursor: null,
+          selection: [],
+        },
+      ],
+    });
+
+    socket.close();
+
+    expect(peers.at(-1)).toEqual([]);
+    expect(counts.at(-1)).toBe(0);
+    expect(statuses.at(-1)).toBe("offline");
     realtime.stop();
   });
 

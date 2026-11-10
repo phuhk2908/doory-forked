@@ -10,6 +10,7 @@ import {
   textBounds,
   viewportAtPoint,
   worldToScreen,
+  zoomViewport,
 } from "./geometry";
 import { createElement, type TextElement } from "./model";
 
@@ -29,6 +30,15 @@ describe("drawing geometry", () => {
     expect(worldToScreen(screenToWorld(cursor, viewport), next)).toEqual(
       cursor,
     );
+  });
+
+  it("uses a reciprocal zoom step so 100% returns from 110%", () => {
+    const viewport = { zoom: 1, scrollX: -120, scrollY: -80 };
+    const zoomedIn = zoomViewport(viewport, { x: 0, y: 0 }, "in");
+    const restored = zoomViewport(zoomedIn, { x: 0, y: 0 }, "out");
+
+    expect(zoomedIn.zoom).toBe(1.1);
+    expect(restored.zoom).toBe(1);
   });
 
   it("finds shapes in a lasso and tests their interior", () => {

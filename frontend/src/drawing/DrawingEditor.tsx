@@ -256,6 +256,12 @@ const RESIZE_HANDLES: ResizeHandle[] = [
 ];
 
 type TransformTarget = Rect & { angle?: number };
+interface CanvasBounds {
+  width: number;
+  height: number;
+}
+
+const TRANSFORM_HANDLE_MARGIN = 14;
 
 function isResizableElement(element: DrawingElement | undefined): boolean {
   return (
@@ -316,6 +322,7 @@ function resizeHandlePosition(
 function rotationHandlePosition(
   element: TransformTarget,
   viewport: DrawingViewport,
+  bounds?: CanvasBounds,
 ): Point {
   const rotated = rotatePoint(
     {
@@ -325,16 +332,42 @@ function rotationHandlePosition(
     { x: element.x + element.width / 2, y: element.y + element.height / 2 },
     element.angle ?? 0,
   );
-  return worldToScreen(rotated, viewport);
+  const position = worldToScreen(rotated, viewport);
+  if (!bounds || bounds.width <= 0 || bounds.height <= 0) return position;
+  return {
+    x: Math.min(
+      Math.max(position.x, TRANSFORM_HANDLE_MARGIN),
+      Math.max(TRANSFORM_HANDLE_MARGIN, bounds.width - TRANSFORM_HANDLE_MARGIN),
+    ),
+    y: Math.min(
+      Math.max(position.y, TRANSFORM_HANDLE_MARGIN),
+      Math.max(
+        TRANSFORM_HANDLE_MARGIN,
+        bounds.height - TRANSFORM_HANDLE_MARGIN,
+      ),
+    ),
+  };
 }
 
 function rotationHandleAt(
   element: TransformTarget,
   screen: Point,
   viewport: DrawingViewport,
+  bounds?: CanvasBounds,
 ): boolean {
-  const position = rotationHandlePosition(element, viewport);
+  const position = rotationHandlePosition(element, viewport, bounds);
   return Math.hypot(screen.x - position.x, screen.y - position.y) <= 13;
+}
+
+function canvasBounds(
+  canvas: HTMLCanvasElement | null,
+): CanvasBounds | undefined {
+  if (!canvas) return undefined;
+  const rect = canvas.getBoundingClientRect();
+  return {
+    width: canvas.clientWidth || rect.width,
+    height: canvas.clientHeight || rect.height,
+  };
 }
 
 function linearEndpointPosition(
@@ -1756,7 +1789,12 @@ export const DrawingEditor = forwardRef<
         };
         if (
           selectedElements.length === 1 &&
-          rotationHandleAt(selectedElements[0]!, screenPoint, viewport)
+          rotationHandleAt(
+            selectedElements[0]!,
+            screenPoint,
+            viewport,
+            canvasBounds(canvas),
+          )
         ) {
           beginRotate(event);
           return;
@@ -2357,6 +2395,14 @@ export const DrawingEditor = forwardRef<
     !editing &&
     selectedLinearElement !== null &&
     selectedBounds !== null;
+  const rotateHandle =
+    showResizeHandles && selectedElements.length === 1
+      ? rotationHandlePosition(
+          shownSelectedElements[0]!,
+          viewport,
+          canvasBounds(canvasRef.current),
+        )
+      : null;
   const bindingTarget = endpointSnap?.targetId
     ? shown.elements.find((element) => element.id === endpointSnap.targetId)
     : null;
@@ -2652,10 +2698,11 @@ export const DrawingEditor = forwardRef<
                 type="button"
                 className={styles.rotateHandle}
                 aria-label="Rotate selection"
-                style={rotationHandlePosition(
-                  shownSelectedElements[0]!,
-                  viewport,
-                )}
+                style={
+                  rotateHandle
+                    ? { left: rotateHandle.x, top: rotateHandle.y }
+                    : undefined
+                }
                 onPointerDown={beginRotate}
               >
                 <RotateCw size={12} aria-hidden="true" />

@@ -13,6 +13,22 @@ import { useBlobUrl } from "@/lib/useBlobUrl";
 import { Button, ConfirmDialog, Thumbnail, useToast } from "@/ui";
 import styles from "./LocalDesignsStrip.module.css";
 
+function openProjectPicker(input: HTMLInputElement | null): void {
+  if (!input) return;
+  const picker = input as HTMLInputElement & {
+    showPicker?: () => void;
+  };
+  if (picker.showPicker) {
+    try {
+      picker.showPicker();
+      return;
+    } catch {
+      // Some browsers only allow showPicker for visible controls; click is the compatible fallback.
+    }
+  }
+  input.click();
+}
+
 function LocalCard({
   design,
   onDelete,
@@ -63,7 +79,7 @@ function RestoreProjectButton({ quiet = false }: { quiet?: boolean }) {
         size={quiet ? "sm" : "md"}
         loading={restoring}
         leftIcon={<ArchiveRestore size={17} aria-hidden="true" />}
-        onClick={() => input.current?.click()}
+        onClick={() => openProjectPicker(input.current)}
       >
         Restore project
       </Button>
@@ -71,7 +87,8 @@ function RestoreProjectButton({ quiet = false }: { quiet?: boolean }) {
         ref={input}
         type="file"
         accept=".doory,application/vnd.doory.project+zip,application/zip"
-        hidden
+        className={styles.fileInput}
+        tabIndex={-1}
         onChange={async (event) => {
           const inputElement = event.currentTarget;
           const file = inputElement.files?.[0];

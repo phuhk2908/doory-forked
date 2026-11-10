@@ -491,17 +491,18 @@ export default function DrawingRoomPage() {
   const roomName = drawingRoomDisplayName(load.room.title);
   const currentLink = roomUrl(load.room.id, link.key);
   const isReadOnly = ended || !canEdit;
+  const otherPeerCount = realtime.peers.length;
   const statusLabel =
     ended || realtime.status === "closed"
       ? "Room ended"
       : !canEdit
         ? "View only"
         : realtime.status === "live"
-          ? realtime.peerCount > 1
+          ? otherPeerCount > 0
             ? "Live · " +
-              (realtime.peerCount - 1) +
+              otherPeerCount +
               " other" +
-              (realtime.peerCount === 2 ? "" : "s")
+              (otherPeerCount === 1 ? "" : "s")
             : "Live room"
           : realtime.status === "connecting"
             ? "Connecting…"
