@@ -188,6 +188,7 @@ export class DrawingRoomRealtime {
   private canEdit = true;
   private peerId: string | null = null;
   private peers = new Map<string, DrawingRoomPeer>();
+  private departedPeers = new Set<string>();
   private readonly recoveryStorageKey: string;
 
   constructor(
@@ -599,6 +600,7 @@ export class DrawingRoomRealtime {
 
   private replacePeers(value: unknown): void {
     this.peers.clear();
+    this.departedPeers.clear();
     if (Array.isArray(value)) {
       for (const item of value) this.applyPeer(item);
     }
@@ -607,6 +609,7 @@ export class DrawingRoomRealtime {
 
   private clearPeers(): void {
     this.peers.clear();
+    this.departedPeers.clear();
     this.callbacks.onPeers?.([]);
   }
 
@@ -617,9 +620,12 @@ export class DrawingRoomRealtime {
     if (item.peer_id === this.peerId) return;
     if (item.kind === "leave") {
       this.peers.delete(item.peer_id);
+      this.departedPeers.add(item.peer_id);
       this.callbacks.onPeers?.([...this.peers.values()]);
       return;
     }
+    if (item.kind === "join") this.departedPeers.delete(item.peer_id);
+    else if (this.departedPeers.has(item.peer_id)) return;
     const point =
       item.cursor &&
       typeof item.cursor === "object" &&

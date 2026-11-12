@@ -1,6 +1,7 @@
 import { blankDrawing, createElement } from "./model";
 import {
   eraserTrailRadius,
+  exportDrawing,
   gridLines,
   renderDrawing,
   renderSvg,
@@ -166,5 +167,126 @@ describe("text export rendering", () => {
     expect(svg).toContain('clipPath id="note-note-export"');
     expect(svg.match(/<tspan/g)?.length ?? 0).toBeGreaterThan(2);
     expect(svg).toContain("Added");
+  });
+
+  it("preserves SVG transforms, dash styles and arrowheads", () => {
+    const rectangle = createElement("rectangle", {
+      id: "rotated-rectangle",
+      x: 20,
+      y: 30,
+      width: 100,
+      height: 60,
+      angle: 30,
+      style: {
+        ...createElement("rectangle").style,
+        strokeStyle: "dashed",
+      },
+    });
+    const text = createElement("text", {
+      id: "rotated-text",
+      x: 160,
+      y: 40,
+      width: 80,
+      height: 30,
+      angle: -15,
+      text: "Hello",
+    });
+    const note = createElement("text", {
+      id: "rotated-note",
+      x: 260,
+      y: 40,
+      width: 100,
+      height: 80,
+      angle: 12,
+      text: "Note",
+      customData: { variant: "note" },
+      style: {
+        ...createElement("text").style,
+        strokeStyle: "dotted",
+      },
+    });
+    const arrow = createElement("arrow", {
+      id: "styled-arrow",
+      x: 40,
+      y: 180,
+      width: 120,
+      height: 40,
+      points: [
+        { x: 0, y: 40 },
+        { x: 60, y: 0 },
+        { x: 120, y: 40 },
+      ],
+      startArrowhead: "arrow",
+      endArrowhead: "triangle",
+    });
+    const svg = renderSvg(
+      { ...blankDrawing(), elements: [rectangle, text, note, arrow] },
+      { bounds: "content", padding: 0 },
+    );
+
+    expect(svg).toContain('transform="rotate(30 70 60)"');
+    expect(svg).toContain('transform="rotate(-15 160 40)"');
+    expect(svg).toContain('transform="rotate(12 260 40)"');
+    expect(svg).toContain("stroke-dasharray:10 8");
+    expect(svg).toContain("stroke-dasharray:2 6");
+    expect(svg.match(/<polygon/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
+    expect(svg).toContain('transform="rotate(0 100 200)"');
+  });
+
+  it("omits the SVG background and canvas fill for transparent exports", async () => {
+    const transparentSvg = renderSvg(blankDrawing(), {
+      bounds: "content",
+      padding: 0,
+      transparent: true,
+    });
+    const opaqueSvg = renderSvg(blankDrawing(), {
+      bounds: "content",
+      padding: 0,
+    });
+    expect(transparentSvg).not.toContain('fill="#ffffff"');
+    expect(opaqueSvg).toContain('fill="#ffffff"');
+
+    const fillRect = vi.fn();
+    const context = {
+      clearRect: vi.fn(),
+      fillRect,
+      restore: vi.fn(),
+      save: vi.fn(),
+      scale: vi.fn(),
+      setTransform: vi.fn(),
+      translate: vi.fn(),
+    } as unknown as CanvasRenderingContext2D;
+    const canvas = document.createElement("canvas");
+    Object.defineProperty(canvas, "clientWidth", {
+      configurable: true,
+      value: 320,
+    });
+    Object.defineProperty(canvas, "clientHeight", {
+      configurable: true,
+      value: 200,
+    });
+    vi.spyOn(canvas, "getContext").mockReturnValue(context);
+    renderDrawing(
+      canvas,
+      blankDrawing(),
+      { zoom: 1, scrollX: 0, scrollY: 0 },
+      { dpr: 1, showDots: false, transparent: true },
+    );
+    expect(fillRect).not.toHaveBeenCalled();
+
+    // The public export path also accepts the same option and returns an image blob.
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(
+      context,
+    );
+    vi.spyOn(HTMLCanvasElement.prototype, "toBlob").mockImplementation(
+      (callback) => callback(new Blob()),
+    );
+    await expect(
+      exportDrawing(
+        blankDrawing(),
+        { zoom: 1, scrollX: 0, scrollY: 0 },
+        { format: "png", bounds: "content", transparent: true },
+      ),
+    ).resolves.toBeInstanceOf(Blob);
   });
 });

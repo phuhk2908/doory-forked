@@ -45,6 +45,7 @@ describe("DrawingEditor", () => {
     clientX: number,
     clientY: number,
     pointerId = 1,
+    shiftKey = false,
   ): void {
     const event = new MouseEvent(type, {
       bubbles: true,
@@ -52,6 +53,7 @@ describe("DrawingEditor", () => {
       button: 0,
       clientX,
       clientY,
+      shiftKey,
     });
     Object.defineProperty(event, "pointerId", { value: pointerId });
     act(() => {
@@ -143,6 +145,226 @@ describe("DrawingEditor", () => {
     expect(
       screen.getByRole("button", { name: "Rotate selection" }),
     ).toBeInTheDocument();
+  });
+
+  it("selects and moves every member when clicking a grouped element", () => {
+    const first = createElement("rectangle", {
+      id: "group-first",
+      x: 20,
+      y: 30,
+      width: 80,
+      height: 50,
+      groupIds: ["group"],
+    });
+    const second = createElement("ellipse", {
+      id: "group-second",
+      x: 160,
+      y: 40,
+      width: 80,
+      height: 50,
+      groupIds: ["group"],
+    });
+    const editorRef = createRef<DrawingEditorHandle>();
+    render(
+      <DrawingEditor
+        ref={editorRef}
+        initialDocument={{ ...blankDrawing(), elements: [first, second] }}
+      />,
+    );
+    const canvas = screen.getByRole("application", {
+      name: "Whiteboard canvas",
+    });
+    Object.defineProperty(canvas, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({
+        left: 0,
+        top: 0,
+        width: 800,
+        height: 600,
+        right: 800,
+        bottom: 600,
+      }),
+    });
+    Object.defineProperty(canvas, "setPointerCapture", {
+      configurable: true,
+      value: vi.fn(),
+    });
+    Object.defineProperty(canvas, "hasPointerCapture", {
+      configurable: true,
+      value: vi.fn(() => true),
+    });
+    Object.defineProperty(canvas, "releasePointerCapture", {
+      configurable: true,
+      value: vi.fn(),
+    });
+
+    dispatchPointer(canvas, "pointerdown", 140, 140);
+    expect(screen.getAllByText("2 selected").length).toBeGreaterThan(0);
+    dispatchPointer(canvas, "pointermove", 160, 160);
+    dispatchPointer(canvas, "pointerup", 160, 160);
+
+    const moved = editorRef.current?.getDocument().elements;
+    expect(moved?.find((element) => element.id === first.id)).toMatchObject({
+      x: 40,
+      y: 50,
+    });
+    expect(moved?.find((element) => element.id === second.id)).toMatchObject({
+      x: 180,
+      y: 60,
+    });
+  });
+
+  it("supports grouping and ungrouping with undoable keyboard commands", () => {
+    const first = createElement("rectangle", {
+      id: "group-first",
+      x: 20,
+      y: 30,
+      width: 80,
+      height: 50,
+    });
+    const second = createElement("ellipse", {
+      id: "group-second",
+      x: 160,
+      y: 40,
+      width: 80,
+      height: 50,
+    });
+    const editorRef = createRef<DrawingEditorHandle>();
+    render(
+      <DrawingEditor
+        ref={editorRef}
+        initialDocument={{ ...blankDrawing(), elements: [first, second] }}
+      />,
+    );
+    fireEvent.keyDown(window, { key: "a", ctrlKey: true });
+    fireEvent.keyDown(window, { key: "g", ctrlKey: true });
+
+    const grouped = editorRef.current?.getDocument().elements;
+    expect(grouped?.every((element) => element.groupIds?.length === 1)).toBe(
+      true,
+    );
+
+    fireEvent.keyDown(window, { key: "g", ctrlKey: true, shiftKey: true });
+    const ungrouped = editorRef.current?.getDocument().elements;
+    expect(ungrouped?.every((element) => !element.groupIds?.length)).toBe(true);
+
+    fireEvent.keyDown(window, { key: "z", ctrlKey: true });
+    expect(
+      editorRef.current
+        ?.getDocument()
+        .elements.every((element) => element.groupIds?.length === 1),
+    ).toBe(true);
+  });
+
+  it("arranges a selection with bracket shortcuts", () => {
+    const first = createElement("rectangle", {
+      id: "layer-first",
+      x: 20,
+      y: 30,
+      width: 80,
+      height: 50,
+    });
+    const second = createElement("ellipse", {
+      id: "layer-second",
+      x: 160,
+      y: 40,
+      width: 80,
+      height: 50,
+    });
+    const third = createElement("diamond", {
+      id: "layer-third",
+      x: 300,
+      y: 50,
+      width: 80,
+      height: 50,
+    });
+    const editorRef = createRef<DrawingEditorHandle>();
+    render(
+      <DrawingEditor
+        ref={editorRef}
+        initialDocument={{
+          ...blankDrawing(),
+          elements: [first, second, third],
+        }}
+      />,
+    );
+    const canvas = screen.getByRole("application", {
+      name: "Whiteboard canvas",
+    });
+    Object.defineProperty(canvas, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({
+        left: 0,
+        top: 0,
+        width: 800,
+        height: 600,
+        right: 800,
+        bottom: 600,
+      }),
+    });
+    Object.defineProperty(canvas, "setPointerCapture", {
+      configurable: true,
+      value: vi.fn(),
+    });
+
+    dispatchPointer(canvas, "pointerdown", 320, 145);
+    fireEvent.keyDown(window, {
+      key: "]",
+      code: "BracketRight",
+      ctrlKey: true,
+    });
+    expect(
+      editorRef.current?.getDocument().elements.map((element) => element.id),
+    ).toEqual(["layer-first", "layer-third", "layer-second"]);
+    fireEvent.keyDown(window, {
+      key: "]",
+      code: "BracketRight",
+      ctrlKey: true,
+      shiftKey: true,
+    });
+    expect(
+      editorRef.current?.getDocument().elements.map((element) => element.id),
+    ).toEqual(["layer-first", "layer-third", "layer-second"]);
+  });
+
+  it("imports a validated source JSON document from the actions menu", async () => {
+    const editorRef = createRef<DrawingEditorHandle>();
+    const imported = createElement("rectangle", {
+      id: "imported-shape",
+      x: 40,
+      y: 50,
+      width: 120,
+      height: 80,
+    });
+    const { container } = render(
+      <DrawingEditor ref={editorRef} initialDocument={blankDrawing()} />,
+    );
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "More whiteboard actions" }),
+    );
+    await userEvent.click(
+      screen.getByRole("menuitem", { name: "Import source JSON" }),
+    );
+    const input = container.querySelector('input[type="file"]');
+    expect(input).not.toBeNull();
+    fireEvent.change(input!, {
+      target: {
+        files: [
+          new File(
+            [JSON.stringify({ ...blankDrawing(), elements: [imported] })],
+            "board.json",
+            { type: "application/json" },
+          ),
+        ],
+      },
+    });
+
+    await waitFor(() =>
+      expect(editorRef.current?.getDocument().elements).toEqual([
+        expect.objectContaining({ id: "imported-shape" }),
+      ]),
+    );
   });
 
   it("keeps the rotate handle inside the canvas when the selection is above the viewport", () => {

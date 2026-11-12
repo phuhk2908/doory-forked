@@ -297,6 +297,55 @@ describe("drawing room realtime", () => {
     realtime.stop();
   });
 
+  it("ignores a stale presence update after a peer has left", () => {
+    const socket = new FakeSocket();
+    const peers: unknown[] = [];
+    const realtime = new DrawingRoomRealtime(
+      "ws://test/ws/drawing-rooms/1/",
+      "k".repeat(43),
+      {
+        onDocument: () => undefined,
+        onSaved: () => undefined,
+        onPresence: () => undefined,
+        onStatus: () => undefined,
+        onError: () => undefined,
+        onPeers: (value) => peers.push(value),
+      },
+      () => socket,
+    );
+    realtime.start();
+    socket.open();
+    socket.receive({
+      type: "ready",
+      document: blankDrawing(),
+      revision: 1,
+      peer_id: "self",
+      peers: 2,
+      presence: [],
+    });
+    socket.receive({
+      type: "presence",
+      state: { kind: "join", peer_id: "peer-1", count: 2 },
+    });
+    socket.receive({
+      type: "presence",
+      state: { kind: "leave", peer_id: "peer-1", count: 1 },
+    });
+    socket.receive({
+      type: "presence",
+      state: {
+        kind: "update",
+        peer_id: "peer-1",
+        cursor: { x: 10, y: 20 },
+        selection: [],
+        count: 2,
+      },
+    });
+
+    expect(peers.at(-1)).toEqual([]);
+    realtime.stop();
+  });
+
   it("recovers an unsaved snapshot after reconnect and clears it after acknowledgement", () => {
     const firstSocket = new FakeSocket();
     const first = new DrawingRoomRealtime(

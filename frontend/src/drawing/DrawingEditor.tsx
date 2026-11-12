@@ -12,7 +12,11 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import {
+  ArrowDown,
+  ArrowUp,
   ChevronDown,
+  ChevronsDown,
+  ChevronsUp,
   Circle,
   Diamond,
   Download,
@@ -31,6 +35,7 @@ import {
   StickyNote,
   Type,
   Undo2,
+  Upload,
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
@@ -48,6 +53,7 @@ import {
   selectionBounds,
   textBounds,
   translateElement,
+  viewportAtPoint,
   worldToScreen,
   zoomViewport,
   type Point,
@@ -61,8 +67,12 @@ import {
   createShape,
   createText,
   bindLinearElement,
+  bringForward,
+  bringToFront,
   deleteElements,
   duplicateElements,
+  expandSelectionToGroups,
+  groupIdsInSelection,
   groupElements,
   linearEndpoint,
   linearPoint,
@@ -74,7 +84,10 @@ import {
   rotateElement,
   resizeElement,
   resizeElements,
+  sendToBack,
   syncBindings,
+  sendBackward,
+  ungroupElements,
   updateElements,
   type LinearEndpoint,
   type ResizeHandle,
@@ -417,6 +430,27 @@ function keyFor(event: KeyboardEvent): string {
 }
 
 const DRAWING_CLIPBOARD_PREFIX = "doory-drawing:v1:";
+const MAX_DRAWING_IMPORT_BYTES = 10 * 1024 * 1024;
+
+function isDrawingImport(value: unknown): value is DrawingDocument {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value) &&
+    (value as { schemaVersion?: unknown }).schemaVersion === 1 &&
+    Array.isArray((value as { elements?: unknown }).elements)
+  );
+}
+
+function fileText(file: File): Promise<string> {
+  if (typeof file.text === "function") return file.text();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(reader.error ?? new Error("read_failed"));
+    reader.readAsText(file);
+  });
+}
 
 function readClipboardElements(value: string): DrawingElement[] {
   if (!value.startsWith(DRAWING_CLIPBOARD_PREFIX)) return [];
@@ -944,6 +978,8 @@ export const DrawingEditor = forwardRef<
   const [lasso, setLasso] = useState<Rect | null>(null);
   const [editing, setEditing] = useState<TextEditing | null>(null);
   const [showGrid, setShowGrid] = useState(false);
+  const [transparentExport, setTransparentExport] = useState(false);
+  const [announcement, setAnnouncement] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const [shapeMenuOpen, setShapeMenuOpen] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
@@ -961,12 +997,34 @@ export const DrawingEditor = forwardRef<
   const titleInputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const shapeMenuRef = useRef<HTMLDivElement>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
   const clipboardRef = useRef<readonly DrawingElement[]>([]);
   const styleDefaultsRef = useRef<Partial<DrawingStyle>>({});
+  const selectedIds = useMemo(
+    () => expandSelectionToGroups(document, selection),
+    [document, selection],
+  );
+  const selectedGroupIds = useMemo(
+    () => groupIdsInSelection(document, selectedIds),
+    [document, selectedIds],
+  );
   const shown = preview ?? document;
   const selectedElements = document.elements.filter(
-    (element) => selection.has(element.id) && !element.isDeleted,
+    (element) => selectedIds.has(element.id) && !element.isDeleted,
   );
+
+  const announce = useCallback((message: string): void => {
+    setAnnouncement(message);
+  }, []);
+
+  const resetZoom = useCallback((): void => {
+    const canvas = canvasRef.current;
+    const screen = canvas
+      ? { x: canvas.clientWidth / 2, y: canvas.clientHeight / 2 }
+      : { x: 0, y: 0 };
+    setViewport((value) => viewportAtPoint(value, screen, 1));
+    announce("Zoom reset to 100%");
+  }, [announce]);
 
   useEffect(() => {
     if (!renameOpen) setTitleDraft(title);
@@ -985,13 +1043,58 @@ export const DrawingEditor = forwardRef<
     [onDocumentChange, onSaveStateChange],
   );
 
+  const groupSelected = useCallback((): void => {
+    if (readOnly || selectedIds.size < 2) return;
+    const result = groupElements(documentRef.current, selectedIds);
+    markChange(result.document, "Group selection");
+    setSelection(selectedIds);
+    announce(`Grouped ${selectedIds.size} elements`);
+  }, [announce, markChange, readOnly, selectedIds]);
+
+  const ungroupSelected = useCallback((): void => {
+    if (readOnly || selectedIds.size === 0 || selectedGroupIds.length === 0)
+      return;
+    const next = ungroupElements(documentRef.current, selectedIds);
+    if (next === documentRef.current) return;
+    markChange(next, "Ungroup selection");
+    setSelection(selectedIds);
+    announce("Ungrouped selection");
+  }, [announce, markChange, readOnly, selectedGroupIds, selectedIds]);
+
+  const changeLayer = useCallback(
+    (action: "forward" | "backward" | "front" | "back"): void => {
+      if (readOnly || selectedIds.size === 0) return;
+      const current = documentRef.current;
+      const next =
+        action === "forward"
+          ? bringForward(current, selectedIds)
+          : action === "backward"
+            ? sendBackward(current, selectedIds)
+            : action === "front"
+              ? bringToFront(current, selectedIds)
+              : sendToBack(current, selectedIds);
+      const changed = next.elements.some(
+        (element, index) => element.id !== current.elements[index]?.id,
+      );
+      if (!changed) return;
+      markChange(next, "Arrange selection");
+      setSelection(selectedIds);
+      announce(
+        action === "forward" || action === "front"
+          ? "Moved selection forward"
+          : "Moved selection backward",
+      );
+    },
+    [announce, markChange, readOnly, selectedIds],
+  );
+
   const updateSelectedStyle = useCallback(
     (patch: Partial<DrawingElement["style"]>, key: string): void => {
-      if (readOnly || selection.size === 0) return;
+      if (readOnly || selectedIds.size === 0) return;
       styleDefaultsRef.current = { ...styleDefaultsRef.current, ...patch };
       const next = updateElements(
         documentRef.current,
-        selection,
+        selectedIds,
         (element) => ({
           ...updateStyledElement(element, patch),
           version: element.version + 1,
@@ -1000,7 +1103,7 @@ export const DrawingEditor = forwardRef<
       );
       markChange(next, "Change style", "style:" + key);
     },
-    [markChange, readOnly, selection],
+    [markChange, readOnly, selectedIds],
   );
 
   const updateSelectedElement = useCallback(
@@ -1008,8 +1111,8 @@ export const DrawingEditor = forwardRef<
       patch: Partial<Pick<LinearElement, "startArrowhead" | "endArrowhead">>,
       key: string,
     ): void => {
-      if (readOnly || selection.size === 0) return;
-      const next = updateElements(documentRef.current, selection, (element) =>
+      if (readOnly || selectedIds.size === 0) return;
+      const next = updateElements(documentRef.current, selectedIds, (element) =>
         element.type === "arrow"
           ? {
               ...element,
@@ -1021,7 +1124,7 @@ export const DrawingEditor = forwardRef<
       );
       markChange(next, "Change arrowhead", "arrowhead:" + key);
     },
-    [markChange, readOnly, selection],
+    [markChange, readOnly, selectedIds],
   );
 
   function setPreviewDocument(next: DrawingDocument): void {
@@ -1126,6 +1229,7 @@ export const DrawingEditor = forwardRef<
         bounds: "content",
         padding: 40,
         scale: 2,
+        transparent: transparentExport,
       });
       download(
         blob,
@@ -1134,7 +1238,28 @@ export const DrawingEditor = forwardRef<
           (format === "json" ? "doory-drawing.json" : format),
       );
     },
-    [title, viewport],
+    [title, transparentExport, viewport],
+  );
+
+  const importDrawing = useCallback(
+    async (file: File): Promise<void> => {
+      if (readOnly) return;
+      if (file.size > MAX_DRAWING_IMPORT_BYTES) {
+        announce("That drawing file is too large to import");
+        return;
+      }
+      try {
+        const value: unknown = JSON.parse(await fileText(file));
+        if (!isDrawingImport(value)) throw new Error("invalid_drawing");
+        const next = restoreDrawing(value);
+        markChange(next, "Import drawing");
+        setSelection(new Set());
+        announce("Imported drawing");
+      } catch {
+        announce("Could not import that drawing file");
+      }
+    },
+    [announce, markChange, readOnly],
   );
 
   useImperativeHandle(
@@ -1175,7 +1300,7 @@ export const DrawingEditor = forwardRef<
     if (!canvas || !shell) return undefined;
     const draw = () =>
       renderDrawing(canvas, shown, viewport, {
-        selection,
+        selection: selectedIds,
         eraserTargets,
         eraserTrail,
         draft,
@@ -1185,7 +1310,15 @@ export const DrawingEditor = forwardRef<
     observer.observe(shell);
     draw();
     return () => observer.disconnect();
-  }, [shown, viewport, selection, eraserTargets, eraserTrail, draft, showGrid]);
+  }, [
+    shown,
+    viewport,
+    selectedIds,
+    eraserTargets,
+    eraserTrail,
+    draft,
+    showGrid,
+  ]);
 
   useEffect(() => {
     if (tool !== "eraser") {
@@ -1248,11 +1381,11 @@ export const DrawingEditor = forwardRef<
       if (
         (event.metaKey || event.ctrlKey) &&
         key === "c" &&
-        selection.size > 0
+        selectedIds.size > 0
       ) {
         event.preventDefault();
         clipboardRef.current = documentRef.current.elements.filter(
-          (element) => selection.has(element.id) && !element.isDeleted,
+          (element) => selectedIds.has(element.id) && !element.isDeleted,
         );
         if (typeof navigator !== "undefined" && navigator.clipboard) {
           void navigator.clipboard
@@ -1284,10 +1417,10 @@ export const DrawingEditor = forwardRef<
         void paste();
         return;
       }
-      if (event.key === "Enter" && selection.size === 1 && !readOnly) {
+      if (event.key === "Enter" && selectedIds.size === 1 && !readOnly) {
         const selected = documentRef.current.elements.find(
           (element): element is TextElement =>
-            selection.has(element.id) && element.type === "text",
+            selectedIds.has(element.id) && element.type === "text",
         );
         if (selected) {
           event.preventDefault();
@@ -1321,11 +1454,11 @@ export const DrawingEditor = forwardRef<
       if (
         (event.metaKey || event.ctrlKey) &&
         key === "d" &&
-        selection.size > 0 &&
+        selectedIds.size > 0 &&
         !readOnly
       ) {
         event.preventDefault();
-        const result = duplicateElements(documentRef.current, selection);
+        const result = duplicateElements(documentRef.current, selectedIds);
         markChange(result.document, "Duplicate selection");
         setSelection(new Set(result.ids));
         return;
@@ -1333,22 +1466,22 @@ export const DrawingEditor = forwardRef<
       if (
         (event.metaKey || event.ctrlKey) &&
         key === "g" &&
-        selection.size > 1 &&
+        selectedIds.size > 0 &&
         !readOnly
       ) {
         event.preventDefault();
-        const result = groupElements(documentRef.current, selection);
-        markChange(result.document, "Group selection");
+        if (event.shiftKey) ungroupSelected();
+        else groupSelected();
         return;
       }
       if (
         (event.key === "Backspace" || event.key === "Delete") &&
-        selection.size > 0 &&
+        selectedIds.size > 0 &&
         !readOnly
       ) {
         event.preventDefault();
         markChange(
-          deleteElements(documentRef.current, selection),
+          deleteElements(documentRef.current, selectedIds),
           "Delete selection",
         );
         setSelection(new Set());
@@ -1364,6 +1497,11 @@ export const DrawingEditor = forwardRef<
         zoomToContent();
         return;
       }
+      if (key === "1") {
+        event.preventDefault();
+        resetZoom();
+        return;
+      }
       if (key === "+" || key === "=") {
         event.preventDefault();
         setViewport((value) => zoomViewport(value, { x: 0, y: 0 }, "in"));
@@ -1377,7 +1515,23 @@ export const DrawingEditor = forwardRef<
       const nextTool = TOOL_KEYS[key];
       if (nextTool && !event.metaKey && !event.ctrlKey) setTool(nextTool);
       if (
-        selection.size > 0 &&
+        (event.metaKey || event.ctrlKey) &&
+        (event.code === "BracketRight" || key === "]" || key === "}")
+      ) {
+        event.preventDefault();
+        changeLayer(event.shiftKey ? "front" : "forward");
+        return;
+      }
+      if (
+        (event.metaKey || event.ctrlKey) &&
+        (event.code === "BracketLeft" || key === "[" || key === "{")
+      ) {
+        event.preventDefault();
+        changeLayer(event.shiftKey ? "back" : "backward");
+        return;
+      }
+      if (
+        selectedIds.size > 0 &&
         ["arrowup", "arrowdown", "arrowleft", "arrowright"].includes(key) &&
         !readOnly
       ) {
@@ -1388,7 +1542,7 @@ export const DrawingEditor = forwardRef<
         const dy =
           key === "arrowup" ? -amount : key === "arrowdown" ? amount : 0;
         markChange(
-          translateDocument(documentRef.current, selection, dx, dy),
+          translateDocument(documentRef.current, selectedIds, dx, dy),
           "Move selection",
           "nudge",
         );
@@ -1408,15 +1562,20 @@ export const DrawingEditor = forwardRef<
     };
   }, [
     beginTextEditing,
+    changeLayer,
     cancelInteraction,
     editing,
     exportAs,
+    groupSelected,
     markChange,
     onPresenceChange,
     readOnly,
     redo,
     saveNow,
+    resetZoom,
     selection,
+    selectedIds,
+    ungroupSelected,
     undo,
   ]);
 
@@ -1782,7 +1941,7 @@ export const DrawingEditor = forwardRef<
     }
     if (tool === "select") {
       if (!editing && canResizeSelection(selectedElements)) {
-        const bounds = selectionBounds(documentRef.current, selection);
+        const bounds = selectionBounds(documentRef.current, selectedIds);
         const screenPoint = {
           x: event.clientX - rect.left,
           y: event.clientY - rect.top,
@@ -1811,11 +1970,21 @@ export const DrawingEditor = forwardRef<
       }
       const hit = hitTestScene(documentRef.current, start, 10 / viewport.zoom);
       if (hit) {
-        const next = event.shiftKey
-          ? new Set([...selection, hit.id])
-          : selection.has(hit.id)
-            ? selection
-            : new Set([hit.id]);
+        const hitIds = expandSelectionToGroups(
+          documentRef.current,
+          new Set([hit.id]),
+        );
+        const next = new Set(selection);
+        if (event.shiftKey) {
+          const alreadySelected = [...hitIds].every((id) => next.has(id));
+          for (const id of hitIds) {
+            if (alreadySelected) next.delete(id);
+            else next.add(id);
+          }
+        } else if (![...hitIds].every((id) => next.has(id))) {
+          next.clear();
+          for (const id of hitIds) next.add(id);
+        }
         setSelection(next);
         onPresenceChange?.({ cursor: start, selection: [...next] });
         if (!readOnly)
@@ -1931,7 +2100,7 @@ export const DrawingEditor = forwardRef<
     const current = movement(event, rect, viewport);
     const interaction = interactionRef.current;
     if (interaction && interaction.pointerId !== event.pointerId) return;
-    onPresenceChange?.({ cursor: current, selection: [...selection] });
+    onPresenceChange?.({ cursor: current, selection: [...selectedIds] });
     if (!interaction) {
       if (tool === "eraser") {
         const ids = elementsHitBySegment(
@@ -2112,9 +2281,14 @@ export const DrawingEditor = forwardRef<
     setIsPanning(false);
     if (interaction.kind === "lasso") {
       const next = new Set(
-        elementsInRect(
+        expandSelectionToGroups(
           documentRef.current,
-          normalizeRect(interaction.start, interaction.current),
+          new Set(
+            elementsInRect(
+              documentRef.current,
+              normalizeRect(interaction.start, interaction.current),
+            ),
+          ),
         ),
       );
       setSelection(next);
@@ -2203,7 +2377,7 @@ export const DrawingEditor = forwardRef<
   }
 
   function pointerLeave(): void {
-    onPresenceChange?.({ cursor: null, selection: [...selection] });
+    onPresenceChange?.({ cursor: null, selection: [...selectedIds] });
     if (interactionRef.current?.kind !== "erase") {
       setEraserTargets((current) => (current.size === 0 ? current : new Set()));
       setEraserTrail((current) => (current.length === 0 ? current : []));
@@ -2224,10 +2398,9 @@ export const DrawingEditor = forwardRef<
     beginTextEditing(hit);
   }
 
-  function zoomToContent(): void {
+  function zoomToBounds(bounds: Rect): void {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const bounds = documentBounds(documentRef.current);
     const width = canvas.clientWidth;
     const height = canvas.clientHeight;
     const zoom = Math.max(
@@ -2245,6 +2418,15 @@ export const DrawingEditor = forwardRef<
       scrollX: bounds.x - (width / zoom - bounds.width) / 2,
       scrollY: bounds.y - (height / zoom - bounds.height) / 2,
     });
+  }
+
+  function zoomToContent(): void {
+    zoomToBounds(documentBounds(documentRef.current));
+  }
+
+  function zoomToSelection(): void {
+    const bounds = selectionBounds(documentRef.current, selectedIds);
+    if (bounds) zoomToBounds(bounds);
   }
 
   function editText(event: React.ChangeEvent<HTMLTextAreaElement>): void {
@@ -2359,7 +2541,7 @@ export const DrawingEditor = forwardRef<
       : "rectangle";
   const activeShapeDetails = SHAPE_LABELS[activeShape];
   const ActiveShapeIcon = activeShapeDetails.icon;
-  const selectedBounds = selectionBounds(shown, selection);
+  const selectedBounds = selectionBounds(shown, selectedIds);
   const shownSelectedElements = selectedElements.map(
     (element) =>
       shown.elements.find((candidate) => candidate.id === element.id) ??
@@ -2482,7 +2664,134 @@ export const DrawingEditor = forwardRef<
                   <span>Fit to content</span>
                   <kbd>0</kbd>
                 </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={styles.menuItem}
+                  disabled={selectedIds.size === 0}
+                  onClick={() => {
+                    zoomToSelection();
+                    setMenuOpen(false);
+                  }}
+                >
+                  <Maximize2 size={15} aria-hidden="true" />
+                  <span>Fit selection</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={styles.menuItem}
+                  onClick={() => {
+                    resetZoom();
+                    setMenuOpen(false);
+                  }}
+                >
+                  <ZoomIn size={15} aria-hidden="true" />
+                  <span>Reset zoom</span>
+                  <kbd>1</kbd>
+                </button>
                 <div className={styles.menuDivider} />
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={styles.menuItem}
+                  disabled={readOnly || selectedIds.size < 2}
+                  aria-keyshortcuts="Control+G Meta+G"
+                  onClick={() => {
+                    groupSelected();
+                    setMenuOpen(false);
+                  }}
+                >
+                  <Menu size={15} aria-hidden="true" />
+                  <span>Group selection</span>
+                  <kbd>⌘G</kbd>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={styles.menuItem}
+                  disabled={readOnly || selectedGroupIds.length === 0}
+                  aria-keyshortcuts="Control+Shift+G Meta+Shift+G"
+                  onClick={() => {
+                    ungroupSelected();
+                    setMenuOpen(false);
+                  }}
+                >
+                  <Menu size={15} aria-hidden="true" />
+                  <span>Ungroup selection</span>
+                  <kbd>⌘⇧G</kbd>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={styles.menuItem}
+                  disabled={readOnly || selectedIds.size === 0}
+                  aria-keyshortcuts="Control+] Meta+]"
+                  onClick={() => {
+                    changeLayer("forward");
+                    setMenuOpen(false);
+                  }}
+                >
+                  <ArrowUp size={15} aria-hidden="true" />
+                  <span>Bring forward</span>
+                  <kbd>⌘]</kbd>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={styles.menuItem}
+                  disabled={readOnly || selectedIds.size === 0}
+                  aria-keyshortcuts="Control+[ Meta+["
+                  onClick={() => {
+                    changeLayer("backward");
+                    setMenuOpen(false);
+                  }}
+                >
+                  <ArrowDown size={15} aria-hidden="true" />
+                  <span>Send backward</span>
+                  <kbd>⌘[</kbd>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={styles.menuItem}
+                  disabled={readOnly || selectedIds.size === 0}
+                  aria-keyshortcuts="Control+Shift+] Meta+Shift+]"
+                  onClick={() => {
+                    changeLayer("front");
+                    setMenuOpen(false);
+                  }}
+                >
+                  <ChevronsUp size={15} aria-hidden="true" />
+                  <span>Bring to front</span>
+                  <kbd>⌘⇧]</kbd>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={styles.menuItem}
+                  disabled={readOnly || selectedIds.size === 0}
+                  aria-keyshortcuts="Control+Shift+[ Meta+Shift+["
+                  onClick={() => {
+                    changeLayer("back");
+                    setMenuOpen(false);
+                  }}
+                >
+                  <ChevronsDown size={15} aria-hidden="true" />
+                  <span>Send to back</span>
+                  <kbd>⌘⇧[</kbd>
+                </button>
+                <div className={styles.menuDivider} />
+                <button
+                  type="button"
+                  role="menuitemcheckbox"
+                  className={styles.menuItem}
+                  aria-checked={transparentExport}
+                  onClick={() => setTransparentExport((value) => !value)}
+                >
+                  <Grid3x3 size={15} aria-hidden="true" />
+                  <span>Transparent background</span>
+                </button>
                 <button
                   type="button"
                   role="menuitem"
@@ -2491,6 +2800,7 @@ export const DrawingEditor = forwardRef<
                     void exportAs("png");
                     setMenuOpen(false);
                   }}
+                  aria-keyshortcuts="Control+Shift+E Meta+Shift+E"
                 >
                   <Download size={15} aria-hidden="true" />
                   <span>Download PNG</span>
@@ -2506,6 +2816,19 @@ export const DrawingEditor = forwardRef<
                 >
                   <Download size={15} aria-hidden="true" />
                   <span>Export SVG</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={styles.menuItem}
+                  disabled={readOnly}
+                  onClick={() => {
+                    importInputRef.current?.click();
+                    setMenuOpen(false);
+                  }}
+                >
+                  <Upload size={15} aria-hidden="true" />
+                  <span>Import source JSON</span>
                 </button>
                 <button
                   type="button"
@@ -2924,6 +3247,19 @@ export const DrawingEditor = forwardRef<
           onElementChange={updateSelectedElement}
         />
       </main>
+      <input
+        ref={importInputRef}
+        type="file"
+        accept="application/json,.json"
+        tabIndex={-1}
+        aria-hidden="true"
+        style={{ display: "none" }}
+        onChange={(event) => {
+          const file = event.currentTarget.files?.[0];
+          event.currentTarget.value = "";
+          if (file) void importDrawing(file);
+        }}
+      />
       <div className={styles.floatingZoom} aria-label="Zoom controls">
         <button
           type="button"
@@ -2963,6 +3299,15 @@ export const DrawingEditor = forwardRef<
         <button
           type="button"
           className={styles.zoomButton}
+          aria-label="Reset zoom"
+          data-tooltip="Reset zoom (1)"
+          onClick={resetZoom}
+        >
+          1:1
+        </button>
+        <button
+          type="button"
+          className={styles.zoomButton}
           aria-label="Zoom in"
           data-tooltip="Zoom in"
           onClick={() =>
@@ -2978,9 +3323,12 @@ export const DrawingEditor = forwardRef<
             ? "View only"
             : tool === "eraser"
               ? "Hover and drag to erase"
-              : selection.size
-                ? selection.size + " selected"
+              : selectedIds.size
+                ? selectedIds.size + " selected"
                 : "Click and drag to draw"}
+        </span>
+        <span className={styles.srOnly} aria-live="polite">
+          {announcement}
         </span>
         <button
           type="button"

@@ -27,6 +27,8 @@ export interface RenderOptions {
   draft?: DrawingElement | null;
   showGrid?: boolean;
   showDots?: boolean;
+  /** Leave the artwork background transparent when rendering an export. */
+  transparent?: boolean;
 }
 
 function dash(
@@ -422,8 +424,10 @@ export function renderDrawing(
   if (!ctx) return;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, width, height);
-  ctx.fillStyle = document.background;
-  ctx.fillRect(0, 0, width, height);
+  if (!options.transparent) {
+    ctx.fillStyle = document.background;
+    ctx.fillRect(0, 0, width, height);
+  }
   if (options.showDots !== false && !options.showGrid)
     drawDots(ctx, width, height);
   ctx.save();
@@ -443,25 +447,29 @@ export function renderDrawing(
   };
   for (const element of document.elements) {
     const erasing = options.eraserTargets?.has(element.id) === true;
-    if (
-      (erasing || !element.isDeleted) &&
-      elementBounds(element).x < visible.x + visible.width + 100 &&
-      elementBounds(element).x + elementBounds(element).width >
-        visible.x - 100 &&
-      elementBounds(element).y < visible.y + visible.height + 100 &&
-      elementBounds(element).y + elementBounds(element).height > visible.y - 100
-    )
-      drawElement(
-        ctx,
-        roughCanvas,
-        erasing
-          ? {
-              ...element,
-              isDeleted: false,
-              style: { ...element.style, opacity: element.style.opacity * 0.3 },
-            }
-          : element,
-      );
+    if (erasing || !element.isDeleted) {
+      const bounds = elementBounds(element);
+      if (
+        bounds.x < visible.x + visible.width + 100 &&
+        bounds.x + bounds.width > visible.x - 100 &&
+        bounds.y < visible.y + visible.height + 100 &&
+        bounds.y + bounds.height > visible.y - 100
+      )
+        drawElement(
+          ctx,
+          roughCanvas,
+          erasing
+            ? {
+                ...element,
+                isDeleted: false,
+                style: {
+                  ...element.style,
+                  opacity: element.style.opacity * 0.3,
+                },
+              }
+            : element,
+        );
+    }
   }
   if (options.draft) drawElement(ctx, roughCanvas, options.draft);
   if (options.eraserTrail)
@@ -507,11 +515,54 @@ function escapeXml(value: string): string {
   );
 }
 
+function svgTransform(element: DrawingElement): string {
+  const centreX =
+    element.type === "text" ? element.x : element.x + element.width / 2;
+  const centreY =
+    element.type === "text" ? element.y : element.y + element.height / 2;
+  return `rotate(${element.angle} ${centreX} ${centreY})`;
+}
+
+function svgStrokeDash(style: DrawingElement["style"]): string {
+  const values = dash(style.strokeStyle);
+  return values ? `;stroke-dasharray:${values.join(" ")}` : "";
+}
+
+function arrowheadPoints(
+  from: Point,
+  to: Point,
+  element: DrawingElement,
+): string {
+  const size = Math.max(8, element.style.strokeWidth * 4);
+  const angle = Math.atan2(to.y - from.y, to.x - from.x);
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  const local = [
+    [0, 0],
+    [-size, size * 0.55],
+    [-size * 0.65, 0],
+    [-size, -size * 0.55],
+  ];
+  return local
+    .map(([x, y]) =>
+      [to.x + x * cos - y * sin, to.y + x * sin + y * cos].join(","),
+    )
+    .join(" ");
+}
+
+function svgClipId(elementId: string): string {
+  if (/^[a-zA-Z0-9_-]+$/u.test(elementId)) return `note-${elementId}`;
+  const encoded = Array.from(elementId)
+    .map((character) => character.codePointAt(0)!.toString(16))
+    .join("-");
+  return `note-${encoded || "text"}`;
+}
+
 function svgElement(element: DrawingElement): string {
-  const style = `stroke:${escapeXml(element.style.stroke)};stroke-width:${element.style.strokeWidth};fill:${escapeXml(element.style.fill)};opacity:${element.style.opacity}`;
-  const transform = `rotate(${element.angle} ${element.x + element.width / 2} ${element.y + element.height / 2})`;
+  const style = `stroke:${escapeXml(element.style.stroke)};stroke-width:${element.style.strokeWidth};fill:${escapeXml(element.style.fill)};opacity:${element.style.opacity};stroke-linecap:round;stroke-linejoin:round${svgStrokeDash(element.style)}`;
+  const transform = svgTransform(element);
   if (element.type === "rectangle")
-    return `<rect x="${element.x}" y="${element.y}" width="${element.width}" height="${element.height}" rx="${element.style.roundness}" style="${style}"/>`;
+    return `<rect x="${element.x}" y="${element.y}" width="${element.width}" height="${element.height}" rx="${element.style.roundness}" transform="${transform}" style="${style}"/>`;
   if (element.type === "ellipse")
     return `<ellipse cx="${element.x + element.width / 2}" cy="${element.y + element.height / 2}" rx="${element.width / 2}" ry="${element.height / 2}" transform="${transform}" style="${style}"/>`;
   if (element.type === "diamond")
@@ -523,7 +574,7 @@ function svgElement(element: DrawingElement): string {
       ? Math.max(40, element.width - padding * 2)
       : textBounds(element).width;
     const noteBackground = isNote
-      ? `<rect x="${element.x}" y="${element.y}" width="${element.width}" height="${element.height}" rx="${element.style.roundness}" style="${style}"/>`
+      ? `<rect x="${element.x}" y="${element.y}" width="${element.width}" height="${element.height}" rx="${element.style.roundness}" transform="${transform}" style="${style}"/>`
       : "";
     const textY = element.y + padding + element.style.fontSize;
     const textX =
@@ -546,9 +597,9 @@ function svgElement(element: DrawingElement): string {
           `<tspan x="${textX}" dy="${index === 0 ? 0 : lineHeight}">${escapeXml(line)}</tspan>`,
       )
       .join("");
-    const clipId = `note-${element.id.replace(/[^a-zA-Z0-9_-]/gu, "") || "text"}`;
+    const clipId = svgClipId(element.id);
     const noteClip = isNote
-      ? `<clipPath id="${clipId}"><rect x="${element.x + padding}" y="${element.y + padding}" width="${Math.max(0, element.width - padding * 2)}" height="${Math.max(0, element.height - padding * 2 - DRAWING_NOTE_DATE_FONT_SIZE - 8)}"/></clipPath>`
+      ? `<clipPath id="${clipId}"><rect x="${element.x + padding}" y="${element.y + padding}" width="${Math.max(0, element.width - padding * 2)}" height="${Math.max(0, element.height - padding * 2 - DRAWING_NOTE_DATE_FONT_SIZE - 8)}" transform="${transform}"/></clipPath>`
       : "";
     const date =
       isNote &&
@@ -558,9 +609,9 @@ function svgElement(element: DrawingElement): string {
         : null;
     const dateLabel =
       date && !Number.isNaN(date.getTime())
-        ? `<text x="${element.x + element.width - padding}" y="${element.y + element.height - padding}" text-anchor="end" font-family="${escapeXml(element.style.fontFamily)}" font-size="${DRAWING_NOTE_DATE_FONT_SIZE}" fill="${escapeXml(element.style.stroke)}" opacity="${element.style.opacity * 0.68}">Added ${escapeXml(new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" }).format(date))}</text>`
+        ? `<text x="${element.x + element.width - padding}" y="${element.y + element.height - padding}" text-anchor="end" font-family="${escapeXml(element.style.fontFamily)}" font-size="${DRAWING_NOTE_DATE_FONT_SIZE}" fill="${escapeXml(element.style.stroke)}" opacity="${element.style.opacity * 0.68}" transform="${transform}">Added ${escapeXml(new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" }).format(date))}</text>`
         : "";
-    return `${noteClip}${noteBackground}<text x="${textX}" y="${textY}" text-anchor="${textAnchor}" font-family="${escapeXml(element.style.fontFamily)}" font-size="${element.style.fontSize}" fill="${escapeXml(element.style.stroke)}" opacity="${element.style.opacity}"${isNote ? ` clip-path="url(#${clipId})"` : ""}>${textContent}</text>${dateLabel}`;
+    return `${noteClip}${noteBackground}<text x="${textX}" y="${textY}" text-anchor="${textAnchor}" font-family="${escapeXml(element.style.fontFamily)}" font-size="${element.style.fontSize}" fill="${escapeXml(element.style.stroke)}" opacity="${element.style.opacity}" transform="${transform}"${isNote ? ` clip-path="url(#${clipId})"` : ""}>${textContent}</text>${dateLabel}`;
   }
   if (
     element.type !== "line" &&
@@ -574,23 +625,56 @@ function svgElement(element: DrawingElement): string {
         String(element.x + point.x) + "," + String(element.y + point.y),
     )
     .join(" ");
-  return `<polyline points="${points}" fill="none" style="${style}"/>`;
+  const linear = element as LinearElement;
+  const worldPoints = linear.points.map((point) => ({
+    x: element.x + point.x,
+    y: element.y + point.y,
+  }));
+  const arrowheads =
+    element.type === "arrow" && worldPoints.length > 1
+      ? [
+          linear.startArrowhead
+            ? `<polygon points="${arrowheadPoints(worldPoints[1]!, worldPoints[0]!, element)}" transform="${transform}" fill="${escapeXml(element.style.stroke)}" opacity="${element.style.opacity}"/>`
+            : "",
+          linear.endArrowhead !== null
+            ? `<polygon points="${arrowheadPoints(worldPoints[worldPoints.length - 2]!, worldPoints[worldPoints.length - 1]!, element)}" transform="${transform}" fill="${escapeXml(element.style.stroke)}" opacity="${element.style.opacity}"/>`
+            : "",
+        ].join("")
+      : "";
+  return `<polyline points="${points}" transform="${transform}" fill="none" style="${style}"/>${arrowheads}`;
+}
+
+function exportPadding(document: DrawingDocument, requested: number): number {
+  let padding = Math.max(0, requested);
+  for (const element of document.elements) {
+    if (element.isDeleted) continue;
+    padding = Math.max(padding, element.style.strokeWidth / 2);
+    if (element.type === "arrow")
+      padding = Math.max(padding, Math.max(8, element.style.strokeWidth * 4));
+  }
+  return padding;
 }
 
 export function renderSvg(
   document: DrawingDocument,
-  options: Pick<DrawingExportOptions, "bounds" | "padding"> = {},
+  options: Pick<
+    DrawingExportOptions,
+    "bounds" | "padding" | "transparent"
+  > = {},
 ): string {
   const bounds =
     options.bounds === "viewport"
       ? { x: 0, y: 0, width: 1200, height: 800 }
       : documentBounds(document);
-  const padding = options.padding ?? 32;
+  const padding = exportPadding(document, options.padding ?? 32);
   const x = bounds.x - padding;
   const y = bounds.y - padding;
   const width = Math.max(1, bounds.width + padding * 2);
   const height = Math.max(1, bounds.height + padding * 2);
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${x} ${y} ${width} ${height}" width="${width}" height="${height}"><rect x="${x}" y="${y}" width="${width}" height="${height}" fill="${escapeXml(document.background)}"/>${document.elements
+  const background = options.transparent
+    ? ""
+    : `<rect x="${x}" y="${y}" width="${width}" height="${height}" fill="${escapeXml(document.background)}"/>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${x} ${y} ${width} ${height}" width="${width}" height="${height}">${background}${document.elements
     .filter((element) => !element.isDeleted)
     .map(svgElement)
     .join("")}</svg>`;
@@ -616,7 +700,7 @@ export async function exportDrawing(
           height: 800 / viewport.zoom,
         }
       : documentBounds(drawing);
-  const padding = options.padding ?? 32;
+  const padding = exportPadding(drawing, options.padding ?? 32);
   const scale = options.scale ?? 1;
   const canvas = document.createElement("canvas");
   canvas.width = Math.max(1, Math.ceil((bounds.width + padding * 2) * scale));
@@ -626,7 +710,11 @@ export async function exportDrawing(
     scrollX: bounds.x - padding,
     scrollY: bounds.y - padding,
   };
-  renderDrawing(canvas, drawing, nextViewport, { dpr: 1, showDots: false });
+  renderDrawing(canvas, drawing, nextViewport, {
+    dpr: 1,
+    showDots: false,
+    transparent: options.transparent === true,
+  });
   return new Promise<Blob>((resolve, reject) =>
     canvas.toBlob(
       (blob) =>

@@ -718,7 +718,111 @@ export function pasteElements(
   };
 }
 
+/** Expand a selection to include every live element sharing any selected group level. */
+export function expandSelectionToGroups(
+  document: DrawingDocument,
+  ids: ReadonlySet<string>,
+): Set<string> {
+  const selected = new Set(
+    document.elements
+      .filter((element) => !element.isDeleted && ids.has(element.id))
+      .map((element) => element.id),
+  );
+  let changed = true;
+  while (changed) {
+    changed = false;
+    const groups = new Set(
+      document.elements
+        .filter((element) => selected.has(element.id))
+        .flatMap((element) => element.groupIds ?? []),
+    );
+    if (groups.size === 0) break;
+    for (const element of document.elements) {
+      if (
+        element.isDeleted ||
+        selected.has(element.id) ||
+        !(element.groupIds ?? []).some((groupId) => groups.has(groupId))
+      )
+        continue;
+      selected.add(element.id);
+      changed = true;
+    }
+  }
+  return selected;
+}
+
+/** Return group ids shared by every live element in a selection, in document order. */
+export function groupIdsInSelection(
+  document: DrawingDocument,
+  ids: ReadonlySet<string>,
+): string[] {
+  const selected = document.elements.filter(
+    (element) => !element.isDeleted && ids.has(element.id),
+  );
+  if (selected.length === 0) return [];
+  const common = new Set(selected[0]?.groupIds ?? []);
+  for (const element of selected.slice(1)) {
+    const groups = new Set(element.groupIds ?? []);
+    for (const groupId of common)
+      if (!groups.has(groupId)) common.delete(groupId);
+  }
+  return document.elements
+    .flatMap((element) => element.groupIds ?? [])
+    .filter((groupId, index, groups) => groups.indexOf(groupId) === index)
+    .filter((groupId) => common.has(groupId));
+}
+
 export function bringForward(
+  document: DrawingDocument,
+  ids: ReadonlySet<string>,
+): DrawingDocument {
+  const elements = [...document.elements];
+  let index = 0;
+  while (index < elements.length) {
+    if (!ids.has(elements[index]?.id ?? "")) {
+      index += 1;
+      continue;
+    }
+    const start = index;
+    while (index + 1 < elements.length && ids.has(elements[index + 1]!.id))
+      index += 1;
+    if (index + 1 < elements.length) {
+      const next = elements[index + 1]!;
+      elements.splice(index + 1, 1);
+      elements.splice(start, 0, next);
+      index += 1;
+    }
+    index += 1;
+  }
+  return replaceElements(document, elements);
+}
+
+export function sendBackward(
+  document: DrawingDocument,
+  ids: ReadonlySet<string>,
+): DrawingDocument {
+  const elements = [...document.elements];
+  let index = elements.length - 1;
+  while (index >= 0) {
+    if (!ids.has(elements[index]?.id ?? "")) {
+      index -= 1;
+      continue;
+    }
+    const end = index;
+    while (index - 1 >= 0 && ids.has(elements[index - 1]!.id)) index -= 1;
+    if (index > 0) {
+      const previous = elements[index - 1]!;
+      elements.splice(index - 1, 1);
+      elements.splice(end, 0, previous);
+      index -= 1;
+    }
+    index -= 1;
+  }
+  return replaceElements(document, elements);
+}
+
+/** Move the selected elements to the top while preserving their relative order. */
+export function bringToFront(
   document: DrawingDocument,
   ids: ReadonlySet<string>,
 ): DrawingDocument {
@@ -727,7 +831,8 @@ export function bringForward(
   return replaceElements(document, [...rest, ...selected]);
 }
 
-export function sendBackward(
+/** Move the selected elements to the bottom while preserving their relative order. */
+export function sendToBack(
   document: DrawingDocument,
   ids: ReadonlySet<string>,
 ): DrawingDocument {
@@ -735,6 +840,10 @@ export function sendBackward(
   const rest = document.elements.filter((element) => !ids.has(element.id));
   return replaceElements(document, [...selected, ...rest]);
 }
+
+// Short aliases keep command wiring readable at call sites.
+export const bringFront = bringToFront;
+export const sendBack = sendToBack;
 
 export function groupElements(
   document: DrawingDocument,
@@ -755,18 +864,20 @@ export function groupElements(
 export function ungroupElements(
   document: DrawingDocument,
   ids: ReadonlySet<string>,
+  groupId?: string,
 ): DrawingDocument {
   const groups = new Set(
-    document.elements
-      .filter((element) => ids.has(element.id))
-      .flatMap((element) => element.groupIds ?? []),
+    groupId ? [groupId] : groupIdsInSelection(document, ids).slice(-1),
   );
+  if (groups.size === 0) return document;
   return updateElements(
     document,
     new Set(
       document.elements
-        .filter((element) =>
-          (element.groupIds ?? []).some((group) => groups.has(group)),
+        .filter(
+          (element) =>
+            !element.isDeleted &&
+            (element.groupIds ?? []).some((group) => groups.has(group)),
         )
         .map((element) => element.id),
     ),

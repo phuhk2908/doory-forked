@@ -10,6 +10,18 @@
   background: var(--color-bg-subtle);
 }
 
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .toolbar {
   position: absolute;
   top: 16px;
@@ -840,6 +852,16 @@ input:focus-visible {
 }
 
 @media (max-width: 600px) {
+  .moreMenu {
+    width: min(280px, calc(100vw - 16px));
+    max-height: min(70vh, 520px);
+    overflow-y: auto;
+  }
+
+  .menuItem {
+    min-height: 42px;
+  }
+
   .toolGroup {
     right: 8px;
     left: 56px;

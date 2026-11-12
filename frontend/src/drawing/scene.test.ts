@@ -4,6 +4,8 @@ import {
   createLinear,
   deleteElements,
   duplicateElements,
+  expandSelectionToGroups,
+  groupIdsInSelection,
   groupElements,
   insertLinearWaypoint,
   linearPoint,
@@ -14,6 +16,11 @@ import {
   resizeElement,
   resizeElements,
   syncBindings,
+  bringForward,
+  bringToFront,
+  sendBackward,
+  sendToBack,
+  ungroupElements,
   updateElements,
 } from "./scene";
 
@@ -65,6 +72,95 @@ describe("drawing scene operations", () => {
         element.groupIds?.includes(grouped.groupId),
       ),
     ).toBe(true);
+  });
+
+  it("expands a selection across nested group levels", () => {
+    const nested = {
+      ...document,
+      elements: [
+        { ...document.elements[0], groupIds: ["inner", "outer"] },
+        { ...document.elements[1], groupIds: ["outer"] },
+        createElement("diamond", { id: "three", groupIds: ["inner"] }),
+        createElement("line", { id: "four", groupIds: ["unrelated"] }),
+      ],
+    };
+
+    expect(expandSelectionToGroups(nested, new Set(["three"]))).toEqual(
+      new Set(["one", "two", "three"]),
+    );
+    expect(groupIdsInSelection(nested, new Set(["one", "two"]))).toEqual([
+      "outer",
+    ]);
+  });
+
+  it("ungroups one level while preserving nested membership", () => {
+    const nested = {
+      ...document,
+      elements: document.elements.map((element) => ({
+        ...element,
+        groupIds: ["inner", "outer"],
+      })),
+    };
+
+    const ungrouped = ungroupElements(nested, new Set(["one", "two"]));
+    expect(
+      ungrouped.elements.every((element) =>
+        element.groupIds?.includes("inner"),
+      ),
+    ).toBe(true);
+    expect(
+      ungrouped.elements.every(
+        (element) => !element.groupIds?.includes("outer"),
+      ),
+    ).toBe(true);
+  });
+
+  it("does not ungroup a selection spanning unrelated groups", () => {
+    const mixed = {
+      ...document,
+      elements: [
+        { ...document.elements[0], groupIds: ["first"] },
+        { ...document.elements[1], groupIds: ["second"] },
+      ],
+    };
+
+    expect(ungroupElements(mixed, new Set(["one", "two"]))).toBe(mixed);
+    expect(groupIdsInSelection(mixed, new Set(["one", "two"]))).toEqual([]);
+  });
+
+  it("moves layers by one step or to an edge without mutating elements", () => {
+    const layers = {
+      ...document,
+      elements: [
+        createElement("rectangle", { id: "a" }),
+        createElement("rectangle", { id: "b" }),
+        createElement("rectangle", { id: "c" }),
+        createElement("rectangle", { id: "d" }),
+      ],
+    };
+    const selection = new Set(["b", "c"]);
+    expect(
+      bringForward(layers, selection).elements.map((element) => element.id),
+    ).toEqual(["a", "d", "b", "c"]);
+    expect(
+      sendBackward(layers, selection).elements.map((element) => element.id),
+    ).toEqual(["b", "c", "a", "d"]);
+    expect(
+      bringToFront(layers, new Set(["b", "d"])).elements.map(
+        (element) => element.id,
+      ),
+    ).toEqual(["a", "c", "b", "d"]);
+    expect(
+      sendToBack(layers, new Set(["b", "d"])).elements.map(
+        (element) => element.id,
+      ),
+    ).toEqual(["b", "d", "a", "c"]);
+    expect(layers.elements.map((element) => element.id)).toEqual([
+      "a",
+      "b",
+      "c",
+      "d",
+    ]);
   });
 
   it("resizes a shape from a handle with a minimum size", () => {
