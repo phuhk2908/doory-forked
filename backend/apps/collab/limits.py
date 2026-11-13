@@ -126,7 +126,13 @@ def acquire_guest_room_slot(room_id: object) -> bool:
 def release_guest_room_slot(room_id: object) -> None:
     room_key = f"guest-room-members:{room_id}"
     lock_key = f"{room_key}:lock"
-    if not cache.add(lock_key, 1, 1):
+    acquired = False
+    for _ in range(5):
+        if cache.add(lock_key, 1, 1):
+            acquired = True
+            break
+        time.sleep(0.002)
+    if not acquired:
         return
     try:
         count = int(cache.get(room_key, 0))
@@ -136,6 +142,14 @@ def release_guest_room_slot(room_id: object) -> None:
             cache.set(room_key, count - 1, settings.DRAWING_ROOM_MEMBER_TTL_SECONDS)
     finally:
         cache.delete(lock_key)
+
+
+def guest_room_member_count(room_id: object) -> int:
+    """Return the cross-worker member count maintained by the room slot lease."""
+    try:
+        return max(0, int(cache.get(f"guest-room-members:{room_id}", 0)))
+    except (TypeError, ValueError):
+        return 0
 
 
 def refresh_guest_room_slot(room_id: object) -> None:

@@ -17,6 +17,7 @@ export type DrawingRoomRealtimeStatus =
 
 export interface DrawingRoomPeer {
   id: string;
+  clientId?: string;
   userId?: string;
   name?: string;
   avatarUrl?: string | null;
@@ -185,6 +186,10 @@ export class DrawingRoomRealtime {
     cursor: { x: number; y: number } | null;
     selection: string[];
   } | null = null;
+  private latestPresence: {
+    cursor: { x: number; y: number } | null;
+    selection: string[];
+  } | null = null;
   private canEdit = true;
   private peerId: string | null = null;
   private peers = new Map<string, DrawingRoomPeer>();
@@ -230,6 +235,8 @@ export class DrawingRoomRealtime {
     this.clearFlush();
     this.clearPing();
     this.clearPresence();
+    this.pendingPresence = null;
+    this.latestPresence = null;
     const socket = this.socket;
     this.socket = null;
     this.resolvePendingWaiters();
@@ -253,10 +260,12 @@ export class DrawingRoomRealtime {
     cursor: { x: number; y: number } | null;
     selection: string[];
   }): void {
+    this.latestPresence = presence;
     this.pendingPresence = presence;
     if (this.presenceTimer !== null) return;
     this.presenceTimer = setTimeout(() => {
       this.presenceTimer = null;
+      if (!this.authenticated || this.socket?.readyState !== OPEN) return;
       const next = this.pendingPresence;
       this.pendingPresence = null;
       if (next) this.send({ type: "presence", state: next });
@@ -343,8 +352,9 @@ export class DrawingRoomRealtime {
         if (!this.pending && !this.inFlight)
           this.restoreRecovery(value.document, value.revision);
       }
-      if (validRevision(value.peers)) this.callbacks.onPresence(value.peers);
       this.replacePeers(value.presence);
+      this.callbacks.onPresence(this.peers.size);
+      this.flushPendingPresence();
       this.flushPending();
       return;
     }
@@ -420,8 +430,7 @@ export class DrawingRoomRealtime {
       if (state && typeof state === "object" && !Array.isArray(state)) {
         const presence = state as Record<string, unknown>;
         this.applyPeer(presence);
-        const count = presence.count;
-        if (validRevision(count)) this.callbacks.onPresence(count);
+        this.callbacks.onPresence(this.peers.size);
       }
       return;
     }
@@ -434,6 +443,8 @@ export class DrawingRoomRealtime {
       this.clearFlush();
       this.clearPing();
       this.clearPresence();
+      this.pendingPresence = null;
+      this.latestPresence = null;
       const socket = this.socket;
       this.socket = null;
       this.resolvePendingWaiters();
@@ -458,6 +469,14 @@ export class DrawingRoomRealtime {
   private send(message: Record<string, unknown>): void {
     if (this.socket?.readyState !== OPEN) return;
     this.socket.send(JSON.stringify(message));
+  }
+
+  private flushPendingPresence(): void {
+    if (!this.authenticated || this.socket?.readyState !== OPEN) return;
+    const presence = this.pendingPresence ?? this.latestPresence;
+    if (!presence) return;
+    this.pendingPresence = null;
+    this.send({ type: "presence", state: presence });
   }
 
   private restoreRecovery(
@@ -509,7 +528,8 @@ export class DrawingRoomRealtime {
       delta &&
       (delta.elements.length > 0 ||
         delta.background !== undefined ||
-        delta.files !== undefined),
+        delta.files !== undefined ||
+        delta.order !== undefined),
     );
     if (!hasDelta && delta) {
       const waiters = this.inFlightWaiters;
@@ -602,7 +622,21 @@ export class DrawingRoomRealtime {
     this.peers.clear();
     this.departedPeers.clear();
     if (Array.isArray(value)) {
-      for (const item of value) this.applyPeer(item);
+      const seenClientIds = new Set<string>();
+      const latestFirst: unknown[] = [];
+      for (let index = value.length - 1; index >= 0; index -= 1) {
+        const item = value[index];
+        const clientId =
+          item && typeof item === "object" && !Array.isArray(item)
+            ? (item as Record<string, unknown>).client_id
+            : undefined;
+        if (typeof clientId === "string") {
+          if (seenClientIds.has(clientId)) continue;
+          seenClientIds.add(clientId);
+        }
+        latestFirst.unshift(item);
+      }
+      for (const item of latestFirst) this.applyPeer(item);
     }
     this.callbacks.onPeers?.([...this.peers.values()]);
   }
@@ -617,15 +651,29 @@ export class DrawingRoomRealtime {
     if (!value || typeof value !== "object" || Array.isArray(value)) return;
     const item = value as Record<string, unknown>;
     if (typeof item.peer_id !== "string") return;
-    if (item.peer_id === this.peerId) return;
+    const clientId =
+      typeof item.client_id === "string" ? item.client_id : undefined;
+    if (item.peer_id === this.peerId || clientId === this.clientId) return;
     if (item.kind === "leave") {
-      this.peers.delete(item.peer_id);
+      const current = this.peers.get(item.peer_id);
+      if (!clientId || current?.clientId === clientId)
+        this.peers.delete(item.peer_id);
       this.departedPeers.add(item.peer_id);
       this.callbacks.onPeers?.([...this.peers.values()]);
       return;
     }
     if (item.kind === "join") this.departedPeers.delete(item.peer_id);
     else if (this.departedPeers.has(item.peer_id)) return;
+    if (clientId) {
+      const existing = [...this.peers.entries()].find(
+        ([peerId, peer]) =>
+          peerId !== item.peer_id && peer.clientId === clientId,
+      );
+      if (existing) {
+        if (item.kind !== "join") return;
+        this.peers.delete(existing[0]);
+      }
+    }
     const point =
       item.cursor &&
       typeof item.cursor === "object" &&
@@ -651,6 +699,7 @@ export class DrawingRoomRealtime {
           : null,
       selection,
     };
+    if (clientId) peer.clientId = clientId;
     if (typeof item.user_id === "string") peer.userId = item.user_id;
     if (typeof item.name === "string") peer.name = item.name;
     if (typeof item.avatar_url === "string") peer.avatarUrl = item.avatar_url;

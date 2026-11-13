@@ -51,6 +51,7 @@ interface DrawingElementBase {
   style: DrawingStyle;
   groupIds?: string[];
   isDeleted?: boolean;
+  locked?: boolean;
   version: number;
   versionNonce: number;
   customData?: Record<string, unknown>;
@@ -80,11 +81,18 @@ export type TextElement = DrawingElementBase & {
   originalText?: string;
 };
 
+export type ImageElement = DrawingElementBase & {
+  type: "image";
+  /** References a metadata entry in `DrawingDocument.files`; image bytes stay outside the document. */
+  fileId: string;
+};
+
 export type DrawingElement =
   | ShapeElement
   | LinearElement
   | FreedrawElement
-  | TextElement;
+  | TextElement
+  | ImageElement;
 
 export interface DrawingBinding {
   elementId: string;
@@ -106,6 +114,10 @@ export interface DrawingDocument {
   elements: DrawingElement[];
   files?: Record<string, DrawingFile>;
   background: string;
+  /** Explicit z-order metadata; omitted for legacy documents that never reordered layers. */
+  order?: string[];
+  orderVersion?: number;
+  orderVersionNonce?: number;
 }
 
 /** A version-aware partial document used by the realtime transport. */
@@ -115,6 +127,10 @@ export interface DrawingDelta {
   background?: string;
   /** Files are sent as a complete map because file removal is not element-mergeable. */
   files?: Record<string, DrawingFile>;
+  /** Versioned z-order metadata, sent only when the layer order changed. */
+  order?: string[];
+  orderVersion?: number;
+  orderVersionNonce?: number;
 }
 
 export interface DrawingChange {
@@ -249,6 +265,79 @@ function safeStyle(value: unknown): DrawingStyle {
   });
 }
 
+function safeFile(value: unknown): DrawingFile | null {
+  if (
+    !record(value) ||
+    typeof value.id !== "string" ||
+    typeof value.mime !== "string" ||
+    typeof value.name !== "string" ||
+    typeof value.url !== "string" ||
+    value.id.length === 0 ||
+    value.mime.length === 0 ||
+    value.name.length === 0 ||
+    value.url.length === 0 ||
+    /^data:/iu.test(value.url)
+  )
+    return null;
+  const width =
+    finite(value.width) && value.width >= 0 ? value.width : undefined;
+  const height =
+    finite(value.height) && value.height >= 0 ? value.height : undefined;
+  return {
+    id: value.id.slice(0, 128),
+    mime: value.mime.slice(0, 128),
+    name: value.name.slice(0, 256),
+    url: value.url.slice(0, 4096),
+    ...(width !== undefined ? { width } : {}),
+    ...(height !== undefined ? { height } : {}),
+  };
+}
+
+function restoreFiles(value: unknown): Record<string, DrawingFile> | undefined {
+  if (!record(value)) return undefined;
+  const files: Record<string, DrawingFile> = {};
+  for (const [key, candidate] of Object.entries(value)) {
+    if (key.length === 0 || key.length > 128) continue;
+    const file = safeFile(candidate);
+    if (file) files[key] = file;
+  }
+  return Object.keys(files).length > 0 ? files : undefined;
+}
+
+function restoreOrder(
+  value: unknown,
+  elements: readonly DrawingElement[],
+): Pick<DrawingDocument, "order" | "orderVersion" | "orderVersionNonce"> {
+  if (!record(value) || !Array.isArray(value.order)) return {};
+  const ids = new Set(elements.map((element) => element.id));
+  const seen = new Set<string>();
+  const order = value.order
+    .filter(
+      (id): id is string =>
+        typeof id === "string" && id.length > 0 && id.length <= 128,
+    )
+    .filter((id) => {
+      if (!ids.has(id) || seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    })
+    .slice(0, MAX_DRAWING_ELEMENTS);
+  for (const element of elements)
+    if (!seen.has(element.id)) order.push(element.id);
+  if (order.length !== elements.length) return {};
+  return {
+    order,
+    orderVersion:
+      finite(value.orderVersion) && value.orderVersion >= 0
+        ? Math.floor(value.orderVersion)
+        : 0,
+    orderVersionNonce:
+      finite(value.orderVersionNonce) && value.orderVersionNonce >= 0
+        ? Math.floor(value.orderVersionNonce)
+        : 0,
+  };
+}
+
 function restoreElement(value: unknown): DrawingElement | null {
   if (
     !record(value) ||
@@ -266,6 +355,7 @@ function restoreElement(value: unknown): DrawingElement | null {
       "arrow",
       "freedraw",
       "text",
+      "image",
     ].includes(value.type)
   )
     return null;
@@ -296,6 +386,7 @@ function restoreElement(value: unknown): DrawingElement | null {
           .slice(0, 32)
       : undefined,
     isDeleted: value.isDeleted === true,
+    ...(value.locked === true ? { locked: true } : {}),
     version: finite(value.version) ? Math.max(1, Math.floor(value.version)) : 1,
     versionNonce: finite(value.versionNonce)
       ? Math.floor(value.versionNonce)
@@ -312,6 +403,15 @@ function restoreElement(value: unknown): DrawingElement | null {
       originalText:
         typeof value.originalText === "string" ? value.originalText : undefined,
     };
+  }
+  if (value.type === "image") {
+    if (
+      typeof value.fileId !== "string" ||
+      value.fileId.length === 0 ||
+      value.fileId.length > 128
+    )
+      return null;
+    return { ...common, type: "image", fileId: value.fileId };
   }
   if (
     value.type === "freedraw" ||
@@ -376,15 +476,131 @@ export function restoreDrawing(value: unknown): DrawingDocument {
       ids.add(item.id);
       return true;
     });
+  const order = restoreOrder(value, elements);
   return {
     schemaVersion: DRAWING_SCHEMA_VERSION,
     elements,
     background:
       typeof value.background === "string" ? value.background : "#ffffff",
-    ...(record(value.files)
-      ? { files: value.files as Record<string, DrawingFile> }
-      : {}),
+    ...(restoreFiles(value.files) ? { files: restoreFiles(value.files) } : {}),
+    ...order,
   };
+}
+
+/** Returns a complete, duplicate-free z-order for both legacy and new documents. */
+export function drawingOrder(document: DrawingDocument): string[] {
+  const ids = new Set(document.elements.map((element) => element.id));
+  const seen = new Set<string>();
+  const order = (document.order ?? [])
+    .filter((id) => ids.has(id) && !seen.has(id))
+    .map((id) => {
+      seen.add(id);
+      return id;
+    });
+  for (const element of document.elements)
+    if (!seen.has(element.id)) order.push(element.id);
+  return order;
+}
+
+/** Records a layer reorder as a versioned document-level mutation. */
+export function updateDrawingOrder(
+  document: DrawingDocument,
+  elements: readonly DrawingElement[],
+): DrawingDocument {
+  const order = elements.map((element) => element.id);
+  if (sameJson(drawingOrder(document), order)) return document;
+  return {
+    ...document,
+    elements: [...elements],
+    order,
+    orderVersion: (document.orderVersion ?? 0) + 1,
+    orderVersionNonce: versionNonce(),
+  };
+}
+
+function sameDrawingFile(left: DrawingFile, right: DrawingFile): boolean {
+  return (
+    left.id === right.id &&
+    left.mime === right.mime &&
+    left.name === right.name &&
+    left.url === right.url &&
+    left.width === right.width &&
+    left.height === right.height
+  );
+}
+
+function reconcileIncomingFiles(
+  localFiles: Readonly<Record<string, DrawingFile>> | undefined,
+  incomingFiles: Readonly<Record<string, DrawingFile>> | undefined,
+  incomingElements: readonly DrawingElement[],
+): { files?: Record<string, DrawingFile>; elements: DrawingElement[] } {
+  const files: Record<string, DrawingFile> = {};
+  for (const [fileId, file] of Object.entries(localFiles ?? {}))
+    files[fileId] = file.id === fileId ? file : { ...file, id: fileId };
+
+  const fileIdMap = new Map<string, string>();
+  for (const [fileId, file] of Object.entries(incomingFiles ?? {})) {
+    const incoming = file.id === fileId ? file : { ...file, id: fileId };
+    const existing = files[fileId];
+    if (!existing) {
+      files[fileId] = incoming;
+      continue;
+    }
+    if (sameDrawingFile(existing, incoming)) continue;
+    let nextId = newElementId();
+    while (files[nextId] || fileIdMap.has(nextId)) nextId = newElementId();
+    fileIdMap.set(fileId, nextId);
+    files[nextId] = { ...incoming, id: nextId };
+  }
+
+  const elements = fileIdMap.size
+    ? incomingElements.map((element) => {
+        if (element.type !== "image") return element;
+        const fileId = fileIdMap.get(element.fileId);
+        return fileId ? { ...element, fileId } : element;
+      })
+    : [...incomingElements];
+  return {
+    ...(Object.keys(files).length > 0 ? { files } : {}),
+    elements,
+  };
+}
+
+function orderVersion(document: DrawingDocument): readonly [number, number] {
+  return [document.orderVersion ?? 0, document.orderVersionNonce ?? 0];
+}
+
+function newerOrder(
+  incoming: DrawingDocument,
+  current: DrawingDocument,
+): boolean {
+  const [incomingVersion, incomingNonce] = orderVersion(incoming);
+  const [currentVersion, currentNonce] = orderVersion(current);
+  return (
+    incomingVersion > currentVersion ||
+    (incomingVersion === currentVersion && incomingNonce >= currentNonce)
+  );
+}
+
+function orderElements(
+  order: readonly string[],
+  elements: readonly DrawingElement[],
+): DrawingElement[] {
+  const byId = new Map(elements.map((element) => [element.id, element]));
+  const seen = new Set<string>();
+  const ordered: DrawingElement[] = [];
+  for (const id of order) {
+    const element = byId.get(id);
+    if (!element || seen.has(id)) continue;
+    seen.add(id);
+    ordered.push(element);
+  }
+  for (const element of elements) {
+    if (seen.has(element.id)) continue;
+    seen.add(element.id);
+    ordered.push(element);
+  }
+  return ordered;
 }
 
 /** Merge independent room snapshots without resurrecting a deleted element. */
@@ -394,8 +610,13 @@ export function mergeDrawingDocuments(
 ): DrawingDocument {
   const local = restoreDrawing(current);
   const remote = restoreDrawing(incoming);
+  const reconciled = reconcileIncomingFiles(
+    local.files,
+    remote.files,
+    remote.elements,
+  );
   const remoteById = new Map(
-    remote.elements.map((element) => [element.id, element]),
+    reconciled.elements.map((element) => [element.id, element]),
   );
   const localIds = new Set(local.elements.map((element) => element.id));
   const elements = local.elements.map((element) => {
@@ -410,20 +631,147 @@ export function mergeDrawingDocuments(
       : element;
   });
   elements.push(
-    ...remote.elements.filter((element) => !localIds.has(element.id)),
+    ...reconciled.elements.filter((element) => !localIds.has(element.id)),
   );
-  return {
+  const incomingHasOrder = remote.order !== undefined;
+  const currentHasOrder = local.order !== undefined;
+  const selectedOrderDocument =
+    incomingHasOrder && (!currentHasOrder || newerOrder(remote, local))
+      ? remote
+      : currentHasOrder
+        ? local
+        : null;
+  const selectedOrder = selectedOrderDocument
+    ? drawingOrder({ ...selectedOrderDocument, elements })
+    : undefined;
+  const orderedElements = selectedOrder
+    ? orderElements(selectedOrder, elements)
+    : elements;
+  const merged: DrawingDocument = {
     ...remote,
-    elements,
-    files:
-      local.files || remote.files
-        ? { ...(local.files ?? {}), ...(remote.files ?? {}) }
-        : undefined,
+    elements: orderedElements,
+    files: reconciled.files,
   };
+  if (selectedOrder && selectedOrderDocument) {
+    merged.order = selectedOrder;
+    merged.orderVersion = selectedOrderDocument.orderVersion ?? 0;
+    merged.orderVersionNonce = selectedOrderDocument.orderVersionNonce ?? 0;
+  } else {
+    delete merged.order;
+    delete merged.orderVersion;
+    delete merged.orderVersionNonce;
+  }
+  return merged;
 }
 
 function sameJson(left: unknown, right: unknown): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function sameElementContent(
+  left: DrawingElement,
+  right: DrawingElement,
+): boolean {
+  const {
+    version: _leftVersion,
+    versionNonce: _leftNonce,
+    ...leftContent
+  } = left;
+  const {
+    version: _rightVersion,
+    versionNonce: _rightNonce,
+    ...rightContent
+  } = right;
+  return sameJson(leftContent, rightContent);
+}
+
+/**
+ * Applies a history snapshot as a new collaborative mutation.
+ *
+ * History stores old immutable snapshots, while room merging only accepts a
+ * newer element version and keeps ids omitted from an incoming document. A
+ * direct history restore would therefore be invisible remotely (or fail to
+ * delete a newly-created element). Rebase the desired values onto the current
+ * document, advancing every changed element and emitting tombstones for live
+ * ids that the target snapshot no longer contains.
+ */
+export function rebaseDrawingHistory(
+  current: DrawingDocument,
+  target: DrawingDocument,
+): DrawingDocument {
+  const currentDocument = restoreDrawing(current);
+  const targetDocument = restoreDrawing(target);
+  const currentById = new Map(
+    currentDocument.elements.map((element) => [element.id, element]),
+  );
+  const targetIds = new Set(
+    targetDocument.elements.map((element) => element.id),
+  );
+  const elements = targetDocument.elements.map((targetElement) => {
+    const currentElement = currentById.get(targetElement.id);
+    if (!currentElement) {
+      return {
+        ...targetElement,
+        version: targetElement.version + 1,
+        versionNonce: versionNonce(),
+      };
+    }
+    if (sameElementContent(currentElement, targetElement))
+      return currentElement;
+    return {
+      ...targetElement,
+      version: Math.max(currentElement.version, targetElement.version) + 1,
+      versionNonce: versionNonce(),
+    };
+  });
+
+  for (const currentElement of currentDocument.elements) {
+    if (targetIds.has(currentElement.id)) continue;
+    if (currentElement.isDeleted) {
+      elements.push(currentElement);
+      continue;
+    }
+    elements.push({
+      ...currentElement,
+      isDeleted: true,
+      version: currentElement.version + 1,
+      versionNonce: versionNonce(),
+    });
+  }
+
+  const files = {
+    ...(currentDocument.files ?? {}),
+    ...(targetDocument.files ?? {}),
+  };
+  const currentOrder = drawingOrder(currentDocument);
+  const targetOrder = drawingOrder(targetDocument);
+  const orderChanged = !sameJson(currentOrder, targetOrder);
+  const rebasedOrder = orderChanged ? targetOrder : currentOrder;
+  const rebasedElements = orderElements(rebasedOrder, elements);
+  const result: DrawingDocument = {
+    ...targetDocument,
+    elements: rebasedElements,
+    ...(Object.keys(files).length > 0 ? { files } : {}),
+  };
+  if (
+    rebasedOrder.length > 0 ||
+    currentDocument.order !== undefined ||
+    targetDocument.order !== undefined
+  ) {
+    result.order = rebasedOrder;
+    result.orderVersion = orderChanged
+      ? Math.max(
+          currentDocument.orderVersion ?? 0,
+          targetDocument.orderVersion ?? 0,
+        ) + 1
+      : (currentDocument.orderVersion ?? targetDocument.orderVersion ?? 0);
+    result.orderVersionNonce = orderChanged
+      ? versionNonce()
+      : (currentDocument.orderVersionNonce ??
+        targetDocument.orderVersionNonce ??
+        0);
+  }
+  return result;
 }
 
 export function computeDrawingDelta(
@@ -446,6 +794,14 @@ export function computeDrawingDelta(
   if (!sameJson(current.files ?? {}, incoming.files ?? {})) {
     delta.files = incoming.files ?? {};
   }
+  const currentOrder = drawingOrder(current);
+  const incomingOrder = drawingOrder(incoming);
+  if (!sameJson(currentOrder, incomingOrder)) {
+    delta.order = incomingOrder;
+    delta.orderVersion = incoming.orderVersion ?? current.orderVersion ?? 0;
+    delta.orderVersionNonce =
+      incoming.orderVersionNonce ?? current.orderVersionNonce ?? 0;
+  }
   return delta;
 }
 
@@ -453,15 +809,34 @@ export function applyDrawingDelta(
   current: DrawingDocument,
   delta: DrawingDelta,
 ): DrawingDocument {
-  const merged = mergeDrawingDocuments(current, {
+  const incoming: DrawingDocument = {
     schemaVersion: DRAWING_SCHEMA_VERSION,
     elements: delta.elements,
     background: delta.background ?? current.background,
-    ...(delta.files ? { files: delta.files } : {}),
-  });
-  if (!("files" in delta)) return merged;
+    // A delta's file map is authoritative and complete. Apply it after the
+    // element merge so a coincident ID cannot be remapped and then disappear
+    // from the authoritative map.
+  };
+  const merged = mergeDrawingDocuments(current, incoming);
+  const withOrder = { ...merged };
+  if ("order" in delta && Array.isArray(delta.order)) {
+    const candidate = {
+      ...merged,
+      order: delta.order,
+      orderVersion: delta.orderVersion ?? 0,
+      orderVersionNonce: delta.orderVersionNonce ?? 0,
+    };
+    if (current.order === undefined || newerOrder(candidate, current)) {
+      const order = drawingOrder(candidate);
+      withOrder.order = order;
+      withOrder.orderVersion = candidate.orderVersion;
+      withOrder.orderVersionNonce = candidate.orderVersionNonce;
+      withOrder.elements = orderElements(order, merged.elements);
+    }
+  }
+  if (!("files" in delta)) return withOrder;
   return {
-    ...merged,
+    ...withOrder,
     files:
       delta.files && Object.keys(delta.files).length > 0
         ? delta.files

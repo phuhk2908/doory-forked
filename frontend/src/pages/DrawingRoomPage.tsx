@@ -4,6 +4,7 @@ import {
   DrawingEditor,
   type DrawingEditorHandle,
 } from "@/drawing/DrawingEditor";
+import { resolveDrawingImage, uploadDrawingImage } from "@/drawing/imageAssets";
 import { colorCollaborators } from "@/drawing/collaboratorColors";
 import { mergeDrawingDocuments, type DrawingDocument } from "@/drawing/model";
 import {
@@ -550,6 +551,10 @@ export default function DrawingRoomPage() {
         ref={editorRef}
         initialDocument={load.room.document}
         title={load.room.title}
+        onUploadImage={
+          status === "authenticated" && canEdit ? uploadDrawingImage : undefined
+        }
+        onResolveImage={resolveDrawingImage}
         onTitleChange={
           ownerKey ? (title) => manageRoom("rename", title) : undefined
         }

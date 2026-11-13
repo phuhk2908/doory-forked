@@ -1,6 +1,8 @@
 import rough from "roughjs";
 import {
   documentBounds,
+  elementCorners,
+  elementFrame,
   elementBounds,
   selectionBounds,
   textLines,
@@ -13,8 +15,10 @@ import type {
   DrawingDocument,
   DrawingElement,
   DrawingExportOptions,
+  DrawingFile,
   DrawingPoint,
   DrawingViewport,
+  ImageElement,
   LinearElement,
   TextElement,
 } from "./model";
@@ -29,6 +33,10 @@ export interface RenderOptions {
   showDots?: boolean;
   /** Leave the artwork background transparent when rendering an export. */
   transparent?: boolean;
+  /** Called once when a previously unavailable image finishes loading. */
+  onImageLoaded?: () => void;
+  /** Resolved URLs for files whose document URL is local or otherwise indirect. */
+  imageUrls?: ReadonlyMap<string, string>;
 }
 
 function dash(
@@ -41,6 +49,95 @@ function dash(
 
 function colour(value: string): string | undefined {
   return value === "transparent" ? undefined : value;
+}
+
+type CachedImage = {
+  image: HTMLImageElement;
+  promise: Promise<HTMLImageElement | null>;
+  listeners: Set<() => void>;
+  notifying: boolean;
+};
+
+const imageCache = new Map<string, CachedImage>();
+
+function imageUrl(
+  files: Readonly<Record<string, DrawingFile>> | undefined,
+  element: ImageElement,
+  imageUrls?: ReadonlyMap<string, string>,
+): string | null {
+  const value = (
+    imageUrls?.get(element.fileId) ?? files?.[element.fileId]?.url
+  )?.trim();
+  if (!value || /^data:/iu.test(value) || /^idb:/iu.test(value)) return null;
+  return value;
+}
+
+function loadImage(url: string): CachedImage | null {
+  const cached = imageCache.get(url);
+  if (cached) return cached;
+  if (typeof Image === "undefined") return null;
+  const image = new Image();
+  const promise = new Promise<HTMLImageElement | null>((resolve) => {
+    image.onload = () => resolve(image);
+    image.onerror = () => resolve(null);
+  });
+  const next = {
+    image,
+    promise,
+    listeners: new Set<() => void>(),
+    notifying: false,
+  };
+  imageCache.set(url, next);
+  image.crossOrigin = "anonymous";
+  image.src = url;
+  return next;
+}
+
+function cachedImage(url: string): HTMLImageElement | null {
+  const cached = imageCache.get(url)?.image;
+  return cached && cached.complete && cached.naturalWidth > 0 ? cached : null;
+}
+
+function imageForRender(
+  url: string,
+  onImageLoaded: (() => void) | undefined,
+): HTMLImageElement | null {
+  const ready = cachedImage(url);
+  if (ready) return ready;
+  const cached = loadImage(url);
+  if (cached && onImageLoaded) {
+    cached.listeners.add(onImageLoaded);
+    if (!cached.notifying) {
+      cached.notifying = true;
+      void cached.promise
+        .then(() => {
+          const listeners = [...cached.listeners];
+          cached.listeners.clear();
+          for (const listener of listeners) listener();
+        })
+        .catch(() => cached.listeners.clear());
+    }
+  }
+  return null;
+}
+
+function drawImagePlaceholder(
+  ctx: CanvasRenderingContext2D,
+  element: ImageElement,
+): void {
+  ctx.fillStyle = colour(element.style.fill) ?? "#eef2f7";
+  ctx.fillRect(element.x, element.y, element.width, element.height);
+  ctx.strokeStyle = element.style.stroke;
+  ctx.lineWidth = element.style.strokeWidth;
+  ctx.setLineDash(dash(element.style.strokeStyle) ?? []);
+  ctx.strokeRect(element.x, element.y, element.width, element.height);
+  ctx.setLineDash([]);
+  ctx.beginPath();
+  ctx.moveTo(element.x, element.y);
+  ctx.lineTo(element.x + element.width, element.y + element.height);
+  ctx.moveTo(element.x + element.width, element.y);
+  ctx.lineTo(element.x, element.y + element.height);
+  ctx.stroke();
 }
 
 function drawLine(
@@ -91,12 +188,15 @@ function drawArrowhead(
 function drawText(ctx: CanvasRenderingContext2D, element: TextElement): void {
   const isNote = element.customData?.variant === "note";
   const padding = isNote ? DRAWING_NOTE_PADDING : 0;
+  const frame = elementFrame(element);
   const contentWidth = isNote
     ? Math.max(40, element.width - padding * 2)
-    : textBounds(element).width;
+    : frame.width;
   ctx.save();
-  ctx.translate(element.x, element.y);
+  ctx.translate(frame.x + frame.width / 2, frame.y + frame.height / 2);
   ctx.rotate((element.angle * Math.PI) / 180);
+  ctx.translate(-(frame.x + frame.width / 2), -(frame.y + frame.height / 2));
+  ctx.translate(element.x, element.y);
   if (isNote) {
     ctx.fillStyle = element.style.fill;
     ctx.strokeStyle = element.style.stroke;
@@ -175,6 +275,9 @@ function drawElement(
   ctx: CanvasRenderingContext2D,
   roughCanvas: ReturnType<typeof rough.canvas>,
   element: DrawingElement,
+  files: Readonly<Record<string, DrawingFile>> | undefined,
+  onImageLoaded: (() => void) | undefined,
+  imageUrls: ReadonlyMap<string, string> | undefined,
 ): void {
   if (element.isDeleted) return;
   if (element.type === "text") {
@@ -187,6 +290,27 @@ function drawElement(
   ctx.translate(centreX, centreY);
   ctx.rotate((element.angle * Math.PI) / 180);
   ctx.translate(-centreX, -centreY);
+  if (element.type === "image") {
+    const url = imageUrl(files, element, imageUrls);
+    const image = url ? imageForRender(url, onImageLoaded) : null;
+    ctx.globalAlpha = element.style.opacity;
+    if (image) {
+      try {
+        ctx.drawImage(
+          image,
+          element.x,
+          element.y,
+          element.width,
+          element.height,
+        );
+      } catch {
+        drawImagePlaceholder(ctx, element);
+      }
+    } else drawImagePlaceholder(ctx, element);
+    ctx.restore();
+    ctx.globalAlpha = 1;
+    return;
+  }
   const options = {
     stroke: element.style.stroke,
     strokeWidth: element.style.strokeWidth,
@@ -468,10 +592,21 @@ export function renderDrawing(
                 },
               }
             : element,
+          document.files,
+          options.onImageLoaded,
+          options.imageUrls,
         );
     }
   }
-  if (options.draft) drawElement(ctx, roughCanvas, options.draft);
+  if (options.draft)
+    drawElement(
+      ctx,
+      roughCanvas,
+      options.draft,
+      document.files,
+      options.onImageLoaded,
+      options.imageUrls,
+    );
   if (options.eraserTrail)
     drawEraserTrail(ctx, options.eraserTrail, viewport.zoom);
   ctx.restore();
@@ -479,23 +614,52 @@ export function renderDrawing(
   if (selection && selection.size > 0) {
     const bounds = selectionBounds(document, selection);
     if (bounds) {
+      const selected = document.elements.filter(
+        (element) => selection.has(element.id) && !element.isDeleted,
+      );
+      const rotatedElement =
+        selected.length === 1 && selected[0]!.angle % 360 !== 0
+          ? selected[0]!
+          : null;
+      const corners = rotatedElement
+        ? elementCorners(rotatedElement).map((point) =>
+            worldToScreen(point, viewport),
+          )
+        : null;
       const topLeft = worldToScreen({ x: bounds.x, y: bounds.y }, viewport);
       const bottomRight = worldToScreen(
         { x: bounds.x + bounds.width, y: bounds.y + bounds.height },
         viewport,
       );
-      const padding = 6;
-      const x = topLeft.x - padding;
-      const y = topLeft.y - padding;
-      const selectionWidth = bottomRight.x - topLeft.x + padding * 2;
-      const selectionHeight = bottomRight.y - topLeft.y + padding * 2;
+      const padding = corners ? 0 : 6;
       ctx.setLineDash([5, 4]);
       ctx.strokeStyle = "#fffdf8";
       ctx.lineWidth = 5;
-      ctx.strokeRect(x, y, selectionWidth, selectionHeight);
+      if (corners) {
+        ctx.beginPath();
+        ctx.moveTo(corners[0]!.x, corners[0]!.y);
+        for (const corner of corners.slice(1)) ctx.lineTo(corner.x, corner.y);
+        ctx.closePath();
+        ctx.stroke();
+      } else {
+        ctx.strokeRect(
+          topLeft.x - padding,
+          topLeft.y - padding,
+          bottomRight.x - topLeft.x + padding * 2,
+          bottomRight.y - topLeft.y + padding * 2,
+        );
+      }
       ctx.strokeStyle = "#6a52d9";
       ctx.lineWidth = 1.5;
-      ctx.strokeRect(x, y, selectionWidth, selectionHeight);
+      if (corners) ctx.stroke();
+      else {
+        ctx.strokeRect(
+          topLeft.x - padding,
+          topLeft.y - padding,
+          bottomRight.x - topLeft.x + padding * 2,
+          bottomRight.y - topLeft.y + padding * 2,
+        );
+      }
       ctx.setLineDash([]);
     }
   }
@@ -516,10 +680,9 @@ function escapeXml(value: string): string {
 }
 
 function svgTransform(element: DrawingElement): string {
-  const centreX =
-    element.type === "text" ? element.x : element.x + element.width / 2;
-  const centreY =
-    element.type === "text" ? element.y : element.y + element.height / 2;
+  const frame = elementFrame(element);
+  const centreX = frame.x + frame.width / 2;
+  const centreY = frame.y + frame.height / 2;
   return `rotate(${element.angle} ${centreX} ${centreY})`;
 }
 
@@ -558,7 +721,21 @@ function svgClipId(elementId: string): string {
   return `note-${encoded || "text"}`;
 }
 
-function svgElement(element: DrawingElement): string {
+function svgMissingImage(
+  element: ImageElement,
+  transform: string,
+  style: string,
+): string {
+  const right = element.x + element.width;
+  const bottom = element.y + element.height;
+  return `<rect data-missing-image="true" x="${element.x}" y="${element.y}" width="${element.width}" height="${element.height}" transform="${transform}" style="${style.replace(/fill:[^;]*/u, "fill:#eef2f7")}"/><path d="M ${element.x} ${element.y} L ${right} ${bottom} M ${right} ${element.y} L ${element.x} ${bottom}" transform="${transform}" fill="none" style="stroke:${escapeXml(element.style.stroke)};stroke-width:${element.style.strokeWidth};opacity:${element.style.opacity}"/>`;
+}
+
+function svgElement(
+  element: DrawingElement,
+  files: Readonly<Record<string, DrawingFile>> | undefined,
+  imageUrls?: ReadonlyMap<string, string>,
+): string {
   const style = `stroke:${escapeXml(element.style.stroke)};stroke-width:${element.style.strokeWidth};fill:${escapeXml(element.style.fill)};opacity:${element.style.opacity};stroke-linecap:round;stroke-linejoin:round${svgStrokeDash(element.style)}`;
   const transform = svgTransform(element);
   if (element.type === "rectangle")
@@ -567,6 +744,12 @@ function svgElement(element: DrawingElement): string {
     return `<ellipse cx="${element.x + element.width / 2}" cy="${element.y + element.height / 2}" rx="${element.width / 2}" ry="${element.height / 2}" transform="${transform}" style="${style}"/>`;
   if (element.type === "diamond")
     return `<polygon points="${element.x + element.width / 2},${element.y} ${element.x + element.width},${element.y + element.height / 2} ${element.x + element.width / 2},${element.y + element.height} ${element.x},${element.y + element.height / 2}" transform="${transform}" style="${style}"/>`;
+  if (element.type === "image") {
+    const url = imageUrl(files, element, imageUrls);
+    return url
+      ? `<image href="${escapeXml(url)}" x="${element.x}" y="${element.y}" width="${element.width}" height="${element.height}" preserveAspectRatio="none" transform="${transform}" opacity="${element.style.opacity}"/>`
+      : svgMissingImage(element, transform, style);
+  }
   if (element.type === "text") {
     const isNote = element.customData?.variant === "note";
     const padding = isNote ? DRAWING_NOTE_PADDING : 0;
@@ -661,6 +844,7 @@ export function renderSvg(
     DrawingExportOptions,
     "bounds" | "padding" | "transparent"
   > = {},
+  imageUrls?: ReadonlyMap<string, string>,
 ): string {
   const bounds =
     options.bounds === "viewport"
@@ -676,7 +860,7 @@ export function renderSvg(
     : `<rect x="${x}" y="${y}" width="${width}" height="${height}" fill="${escapeXml(document.background)}"/>`;
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${x} ${y} ${width} ${height}" width="${width}" height="${height}">${background}${document.elements
     .filter((element) => !element.isDeleted)
-    .map(svgElement)
+    .map((element) => svgElement(element, document.files, imageUrls))
     .join("")}</svg>`;
 }
 
@@ -684,13 +868,27 @@ export async function exportDrawing(
   drawing: DrawingDocument,
   viewport: DrawingViewport,
   options: DrawingExportOptions,
+  runtime: Pick<RenderOptions, "imageUrls"> = {},
 ): Promise<Blob> {
   if (options.format === "json")
     return new Blob([JSON.stringify(drawing, null, 2)], {
       type: "application/vnd.doory.drawing+json",
     });
   if (options.format === "svg")
-    return new Blob([renderSvg(drawing, options)], { type: "image/svg+xml" });
+    return new Blob([renderSvg(drawing, options, runtime.imageUrls)], {
+      type: "image/svg+xml",
+    });
+  await Promise.all(
+    drawing.elements
+      .filter(
+        (element): element is ImageElement =>
+          element.type === "image" && !element.isDeleted,
+      )
+      .map((element) => {
+        const url = imageUrl(drawing.files, element, runtime.imageUrls);
+        return url ? loadImage(url) : null;
+      }),
+  );
   const bounds =
     options.bounds === "viewport"
       ? {
@@ -714,6 +912,7 @@ export async function exportDrawing(
     dpr: 1,
     showDots: false,
     transparent: options.transparent === true,
+    imageUrls: runtime.imageUrls,
   });
   return new Promise<Blob>((resolve, reject) =>
     canvas.toBlob(

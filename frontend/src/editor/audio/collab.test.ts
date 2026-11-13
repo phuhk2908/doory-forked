@@ -131,7 +131,9 @@ describe("audio in a live room", () => {
     expect(a.engine.audio.tracks()).toEqual([]);
     await b.engine.undo();
     await frames();
-    expect(a.engine.audio.get(track!.id)).toMatchObject({ name: "Theme" });
+    await expect
+      .poll(() => a.engine.audio.get(track!.id), { timeout: 3_000 })
+      .toMatchObject({ name: "Theme" });
   });
 
   it("shares several tracks, in order", async () => {

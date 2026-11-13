@@ -36,6 +36,59 @@ describe("grid rendering", () => {
   });
 });
 
+describe("selection rendering", () => {
+  it("rotates the selection outline with a rotated element", () => {
+    const strokeRect = vi.fn();
+    const moveTo = vi.fn<(x: number, y: number) => void>();
+    const context = {
+      beginPath: vi.fn(),
+      clearRect: vi.fn(),
+      closePath: vi.fn(),
+      fillRect: vi.fn(),
+      lineTo: vi.fn(),
+      moveTo,
+      restore: vi.fn(),
+      rotate: vi.fn(),
+      save: vi.fn(),
+      scale: vi.fn(),
+      setLineDash: vi.fn(),
+      setTransform: vi.fn(),
+      stroke: vi.fn(),
+      strokeRect,
+      translate: vi.fn(),
+    } as unknown as CanvasRenderingContext2D;
+    const canvas = document.createElement("canvas");
+    Object.defineProperty(canvas, "clientWidth", {
+      configurable: true,
+      value: 800,
+    });
+    Object.defineProperty(canvas, "clientHeight", {
+      configurable: true,
+      value: 600,
+    });
+    vi.spyOn(canvas, "getContext").mockReturnValue(context);
+
+    const rectangle = createElement("rectangle", {
+      id: "rotated-selection",
+      x: 10,
+      y: 20,
+      width: 100,
+      height: 40,
+      angle: 90,
+    });
+    renderDrawing(
+      canvas,
+      { ...blankDrawing(), elements: [rectangle] },
+      { zoom: 1, scrollX: 0, scrollY: 0 },
+      { dpr: 1, showDots: false, selection: new Set([rectangle.id]) },
+    );
+
+    expect(strokeRect).not.toHaveBeenCalled();
+    expect(moveTo.mock.calls[0]![0]).toBeCloseTo(80);
+    expect(moveTo.mock.calls[0]![1]).toBeCloseTo(-10);
+  });
+});
+
 describe("eraser preview rendering", () => {
   it("keeps the eraser largest at the cursor and tapers the trail behind it", () => {
     expect(eraserTrailRadius(0, 100, 1)).toBe(3);
@@ -225,8 +278,8 @@ describe("text export rendering", () => {
     );
 
     expect(svg).toContain('transform="rotate(30 70 60)"');
-    expect(svg).toContain('transform="rotate(-15 160 40)"');
-    expect(svg).toContain('transform="rotate(12 260 40)"');
+    expect(svg).toContain('transform="rotate(-15 190.416015625 55)"');
+    expect(svg).toContain('transform="rotate(12 310 80)"');
     expect(svg).toContain("stroke-dasharray:10 8");
     expect(svg).toContain("stroke-dasharray:2 6");
     expect(svg.match(/<polygon/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
@@ -288,5 +341,59 @@ describe("text export rendering", () => {
         { format: "png", bounds: "content", transparent: true },
       ),
     ).resolves.toBeInstanceOf(Blob);
+  });
+});
+
+describe("image rendering", () => {
+  it("exports image references without embedding image bytes", () => {
+    const image = createElement("image", {
+      id: "image-export",
+      fileId: "asset-1",
+      x: 20,
+      y: 30,
+      width: 160,
+      height: 100,
+      angle: 12,
+    });
+    const svg = renderSvg(
+      {
+        ...blankDrawing(),
+        files: {
+          "asset-1": {
+            id: "asset-1",
+            mime: "image/png",
+            name: "diagram.png",
+            url: "https://cdn.example.test/diagram.png?x=1&y=2",
+          },
+        },
+        elements: [image],
+      },
+      { bounds: "content", padding: 0 },
+    );
+
+    expect(svg).toContain(
+      'href="https://cdn.example.test/diagram.png?x=1&amp;y=2"',
+    );
+    expect(svg).toContain('preserveAspectRatio="none"');
+    expect(svg).toContain('transform="rotate(12 100 80)"');
+    expect(svg).not.toContain("data:image");
+  });
+
+  it("renders a safe placeholder for missing image assets", () => {
+    const image = createElement("image", {
+      id: "missing-image",
+      fileId: "missing",
+      x: 20,
+      y: 30,
+      width: 160,
+      height: 100,
+    });
+    const svg = renderSvg(
+      { ...blankDrawing(), elements: [image] },
+      { bounds: "content", padding: 0 },
+    );
+
+    expect(svg).toContain('data-missing-image="true"');
+    expect(svg).toContain("M 20 30 L 180 130");
   });
 });

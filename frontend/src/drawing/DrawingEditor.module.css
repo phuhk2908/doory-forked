@@ -198,17 +198,35 @@
   position: absolute;
   top: calc(100% + 8px);
   min-width: 190px;
+  max-height: min(70vh, 560px);
   padding: 5px;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-md);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   z-index: 10;
 }
 
 .moreMenu,
 .shapeMenu {
   left: 0;
+}
+
+.contextMenu {
+  position: absolute;
+  min-width: 220px;
+  max-width: min(300px, calc(100% - 16px));
+  max-height: min(78vh, 620px);
+  padding: 5px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  z-index: 20;
 }
 
 .menuItem {
@@ -247,6 +265,21 @@
 .menuItem kbd {
   color: var(--color-text-subtle);
   font-size: 10px;
+}
+
+.menuItem input[type="color"] {
+  width: 24px;
+  height: 22px;
+  padding: 1px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.menuItem input[type="color"]:disabled {
+  cursor: default;
+  opacity: 0.45;
 }
 
 .menuDivider {
@@ -520,6 +553,65 @@
   font-size: 10px;
   font-weight: 700;
   line-height: 1;
+  white-space: nowrap;
+}
+
+.snapGuide {
+  position: absolute;
+  z-index: 2;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--selection-color) 72%, transparent);
+}
+
+.snapGuide[data-axis="vertical"] {
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  transform: translateX(-0.5px);
+}
+
+.snapGuide[data-axis="horizontal"] {
+  left: 0;
+  right: 0;
+  height: 1px;
+  transform: translateY(-0.5px);
+}
+
+.spacingGuide {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  color: var(--selection-color);
+}
+
+.spacingGuideLine {
+  position: absolute;
+  display: block;
+  border-color: currentColor;
+  border-style: dashed;
+}
+
+.spacingGuideLine[data-axis="horizontal"] {
+  height: 1px;
+  border-top-width: 1px;
+}
+
+.spacingGuideLine[data-axis="vertical"] {
+  width: 1px;
+  border-left-width: 1px;
+}
+
+.spacingGuideLabel {
+  position: absolute;
+  padding: 2px 4px;
+  color: var(--color-on-brand);
+  background: var(--selection-color);
+  border-radius: var(--radius-full);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  transform: translate(-50%, -50%);
   white-space: nowrap;
 }
 
@@ -856,6 +948,11 @@ input:focus-visible {
     width: min(280px, calc(100vw - 16px));
     max-height: min(70vh, 520px);
     overflow-y: auto;
+  }
+
+  .contextMenu {
+    min-width: min(220px, calc(100% - 16px));
+    max-height: min(70vh, 520px);
   }
 
   .menuItem {

@@ -1,3 +1,4 @@
+import asyncio
 from unittest.mock import AsyncMock, call, patch
 
 import pytest
@@ -46,7 +47,7 @@ def test_guest_room_ping_rechecks_access_for_processes_without_shared_events():
     consumer._load = AsyncMock(return_value={"mode": "view"})
 
     with patch("apps.drawings.realtime.refresh_guest_room_slot", return_value=None):
-        async_to_sync(consumer.receive_json)({"type": "ping"})
+        asyncio.run(consumer.receive_json({"type": "ping"}))
 
     assert consumer.send_json.await_args_list == [
         call({"type": "access", "mode": "view", "can_edit": False}),

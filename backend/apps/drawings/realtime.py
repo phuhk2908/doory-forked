@@ -20,6 +20,7 @@ from apps.collab.limits import (
     allow_guest_room_fanout,
     allow_guest_room_join,
     guest_room_client_ip,
+    guest_room_member_count,
     refresh_guest_room_slot,
     release_guest_room_slot,
 )
@@ -28,6 +29,13 @@ from .events import drawing_group
 from .exceptions import RevisionConflict
 from .metrics import guest_room_metrics
 from .models import Drawing
+from .presence import (
+    list_room_presence,
+    remove_room_presence,
+    set_room_presence,
+    touch_room_presence,
+    update_room_presence,
+)
 from .services import (
     drawing_room_member_profile,
     get_drawing_room_access,
@@ -46,7 +54,6 @@ def _protocol_version(value: Any) -> int:
 
 _members: dict[str, set[str]] = defaultdict(set)
 _room_members: dict[str, set[str]] = defaultdict(set)
-_room_presence: dict[str, dict[str, dict[str, Any]]] = defaultdict(dict)
 
 
 class DrawingConsumer(AsyncJsonWebsocketConsumer):
@@ -267,6 +274,7 @@ class DrawingRoomConsumer(AsyncJsonWebsocketConsumer):
         self.peer_id = secrets.token_urlsafe(6)
         self.room_mode: str | None = None
         self.client_id: str | None = None
+        self.presence_state: dict[str, Any] | None = None
         self.user = self.scope.get("user")
         self.member_profile: dict[str, Any] | None = None
         self.protocol_version = 1
@@ -301,25 +309,29 @@ class DrawingRoomConsumer(AsyncJsonWebsocketConsumer):
         if self.member_slot:
             await database_sync_to_async(release_guest_room_slot)(self.room_id)
             self.member_slot = False
+        await database_sync_to_async(remove_room_presence)(self.room_id, self.peer_id)
         guest_room_metrics.close_connection(self.room_id)
         members = _room_members.get(self.group)
-        if members is None:
+        if members is not None:
+            members.discard(self.channel_name)
+            if not members:
+                _room_members.pop(self.group, None)
+        member_count = await database_sync_to_async(guest_room_member_count)(self.room_id)
+        if member_count <= 0:
             return
-        members.discard(self.channel_name)
-        presence = _room_presence.get(self.group)
-        if presence is not None:
-            presence.pop(self.peer_id, None)
-        if not members:
-            _room_members.pop(self.group, None)
-            _room_presence.pop(self.group, None)
-            return
+        leave_state = {
+            "kind": "leave",
+            "peer_id": self.peer_id,
+            "count": member_count,
+            **self._presence_identity(),
+        }
         await self._fanout(
             {
                 "type": "drawing.room_presence",
                 "source": self.channel_name,
-                "state": {"kind": "leave", "peer_id": self.peer_id, "count": len(members)},
+                "state": leave_state,
             },
-            len(members),
+            member_count,
         )
 
     async def receive(
@@ -364,6 +376,18 @@ class DrawingRoomConsumer(AsyncJsonWebsocketConsumer):
             if snapshot is None:
                 await self._close_room("closed_or_expired")
                 return
+            presence_state = getattr(self, "presence_state", None)
+            if presence_state is not None:
+                presence_live = await database_sync_to_async(touch_room_presence)(
+                    self.room_id,
+                    self.peer_id,
+                )
+                if not presence_live:
+                    await database_sync_to_async(set_room_presence)(
+                        self.room_id,
+                        self.peer_id,
+                        presence_state,
+                    )
             await self._sync_room_access(snapshot["mode"])
             await self.send_json({"type": "pong"})
             return
@@ -375,13 +399,20 @@ class DrawingRoomConsumer(AsyncJsonWebsocketConsumer):
                     "kind": "update",
                     "peer_id": self.peer_id,
                     "mode": self.room_mode,
-                    "count": len(_room_members.get(self.group, set())),
+                    **self._presence_identity(),
                     **(self.member_profile or {}),
                 }
-                _room_presence[self.group][self.peer_id] = state
+                self.presence_state = state
+                member_count = await database_sync_to_async(guest_room_member_count)(self.room_id)
+                state["count"] = member_count
+                await database_sync_to_async(update_room_presence)(
+                    self.room_id,
+                    self.peer_id,
+                    state,
+                )
                 await self._fanout(
                     {"type": "drawing.room_presence", "source": self.channel_name, "state": state},
-                    len(_room_members.get(self.group, set())) - 1,
+                    max(0, member_count - 1),
                 )
             return
         if kind not in {"update", "publish"}:
@@ -398,7 +429,10 @@ class DrawingRoomConsumer(AsyncJsonWebsocketConsumer):
             guest_room_metrics.record_dropped("read_only_update")
             await self.send_json({"type": "error", "code": "read_only", "message": "This room is view-only."})
             return
-        recipients = max(0, len(_room_members.get(self.group, set())) - 1)
+        recipients = max(
+            0,
+            await database_sync_to_async(guest_room_member_count)(self.room_id) - 1,
+        )
         if not await self._allow_fanout(recipients):
             guest_room_metrics.record_dropped("update")
             await self._reject(
@@ -494,18 +528,25 @@ class DrawingRoomConsumer(AsyncJsonWebsocketConsumer):
         await self.channel_layer.group_add(self.group, self.channel_name)
         members.add(self.channel_name)
         self.member_slot = True
+        member_count = await database_sync_to_async(guest_room_member_count)(self.room_id)
         self.room_mode = snapshot["mode"]
         self.member_profile = await database_sync_to_async(drawing_room_member_profile)(
             self.room_id, self.user
         )
         presence_profile = self.member_profile or {}
-        _room_presence[self.group][self.peer_id] = {
+        self.presence_state = {
             "peer_id": self.peer_id,
             "mode": self.room_mode,
             "cursor": None,
             "selection": [],
+            **self._presence_identity(),
             **presence_profile,
         }
+        await database_sync_to_async(set_room_presence)(
+            self.room_id,
+            self.peer_id,
+            self.presence_state,
+        )
         self.state = "active"
         await database_sync_to_async(record_drawing_room_event)(
             self.room_id,
@@ -523,14 +564,16 @@ class DrawingRoomConsumer(AsyncJsonWebsocketConsumer):
                 "type": "ready",
                 "document": snapshot["document"],
                 "revision": snapshot["revision"],
-                "peers": len(members),
+                "peers": member_count,
                 "peer_id": self.peer_id,
                 "mode": self.room_mode,
                 "can_edit": self.room_mode == "edit",
                 "expires_at": snapshot["expires_at"],
                 "user": presence_profile or None,
                 "presence": [
-                    value for key, value in _room_presence[self.group].items() if key != self.peer_id
+                    value
+                    for value in await database_sync_to_async(list_room_presence)(self.room_id)
+                    if value.get("peer_id") != self.peer_id
                 ],
             }
         )
@@ -544,11 +587,12 @@ class DrawingRoomConsumer(AsyncJsonWebsocketConsumer):
                     "mode": self.room_mode,
                     "cursor": None,
                     "selection": [],
-                    "count": len(members),
+                    "count": member_count,
+                    **self._presence_identity(),
                     **presence_profile,
                 },
             },
-            len(members) - 1,
+            max(0, member_count - 1),
         )
 
     async def _allow_fanout(self, recipients: int) -> bool:
@@ -602,14 +646,22 @@ class DrawingRoomConsumer(AsyncJsonWebsocketConsumer):
         if not force and self.room_mode == mode:
             return
         self.room_mode = mode
-        presence = _room_presence.get(self.group, {}).get(self.peer_id)
-        if presence is not None:
-            presence["mode"] = mode
+        presence_state = getattr(self, "presence_state", None)
+        if presence_state is not None:
+            self.presence_state = {**presence_state, "mode": mode}
+            await database_sync_to_async(update_room_presence)(
+                self.room_id,
+                self.peer_id,
+                self.presence_state,
+            )
         await self.send_json({"type": "access", "mode": mode, "can_edit": mode == "edit"})
 
     async def _close_room(self, reason: str) -> None:
         await self.send_json({"type": "closed", "reason": reason})
         await self.close(code=4403)
+
+    def _presence_identity(self) -> dict[str, str]:
+        return {"client_id": self.client_id} if self.client_id else {}
 
     @staticmethod
     def _clean_presence(value: Any) -> dict[str, Any] | None:

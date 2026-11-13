@@ -9,6 +9,7 @@ from apps.collab.limits import (
     allow_guest_room_fanout,
     allow_guest_room_join,
     guest_room_client_ip,
+    guest_room_member_count,
     release_guest_room_slot,
 )
 from apps.drawings.throttling import GuestRoomCreateThrottle
@@ -51,8 +52,10 @@ def test_guest_room_collaborator_slots_release_and_reuse():
     ):
         assert acquire_guest_room_slot("room-a")
         assert acquire_guest_room_slot("room-a")
+        assert guest_room_member_count("room-a") == 2
         assert not acquire_guest_room_slot("room-a")
         release_guest_room_slot("room-a")
+        assert guest_room_member_count("room-a") == 1
         assert acquire_guest_room_slot("room-a")
 
 

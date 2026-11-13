@@ -36,19 +36,15 @@ export interface NewLocalAssetInput {
 
 type StoreOpener = () => Promise<{ store: LocalStore; mode: StorageMode }>;
 
-/** Default opener: IndexedDB when it works, otherwise an in-memory store (flagged as non-persistent). */
+/** Default opener: IndexedDB when available, otherwise an in-memory store (flagged as non-persistent). */
 export async function openBrowserStore(): Promise<{
   store: LocalStore;
   mode: StorageMode;
 }> {
-  try {
-    if (typeof indexedDB === "undefined")
-      throw new Error("IndexedDB unavailable");
-    const db = await openDatabase();
-    return { store: createIndexedDbStore(db), mode: "indexeddb" };
-  } catch {
+  if (typeof indexedDB === "undefined")
     return { store: createMemoryStore(), mode: "memory" };
-  }
+  const db = await openDatabase();
+  return { store: createIndexedDbStore(db), mode: "indexeddb" };
 }
 
 /**
@@ -68,14 +64,36 @@ export class LocalRepository {
   constructor(private readonly openStore: StoreOpener = openBrowserStore) {}
 
   private async store(): Promise<LocalStore> {
-    this.storePromise ??= this.openStore().then((opened) => {
-      if (opened.mode !== this.mode) {
-        this.mode = opened.mode;
-        this.listeners.forEach((listener) => listener());
-      }
-      return opened;
-    });
+    if (this.storePromise === null) {
+      this.storePromise = this.openStore()
+        .then((opened) => {
+          if (opened.mode !== this.mode) {
+            this.mode = opened.mode;
+            this.listeners.forEach((listener) => listener());
+          }
+          return opened;
+        })
+        .catch((error: unknown) => {
+          // A blocked or temporarily unavailable database must not poison Retry/restore forever.
+          this.storePromise = null;
+          throw error;
+        });
+    }
     return (await this.storePromise).store;
+  }
+
+  private async withStore<T>(
+    operation: (store: LocalStore) => Promise<T>,
+  ): Promise<T> {
+    const store = await this.store();
+    try {
+      return await operation(store);
+    } catch (error) {
+      // A database can close after opening (for example after a version change).
+      // Drop the cached handle so the next restore/retry can reopen it.
+      this.storePromise = null;
+      throw error;
+    }
   }
 
   /** `memory` means designs will be lost when the tab closes: the UI must warn the user. */
@@ -95,25 +113,25 @@ export class LocalRepository {
   }
 
   async listDesigns(): Promise<LocalDesignSummary[]> {
-    const store = await this.store();
-    const designs = await store.listDesigns();
-    return designs
-      .map((design) => ({
-        id: design.id,
-        title: design.title,
-        thumbnail: design.thumbnail,
-        width: design.document.width,
-        height: design.document.height,
-        pageCount: design.document.pages.length,
-        createdAt: design.createdAt,
-        updatedAt: design.updatedAt,
-      }))
-      .sort((a, b) => b.updatedAt - a.updatedAt);
+    return this.withStore(async (store) => {
+      const designs = await store.listDesigns();
+      return designs
+        .map((design) => ({
+          id: design.id,
+          title: design.title,
+          thumbnail: design.thumbnail,
+          width: design.document.width,
+          height: design.document.height,
+          pageCount: design.document.pages.length,
+          createdAt: design.createdAt,
+          updatedAt: design.updatedAt,
+        }))
+        .sort((a, b) => b.updatedAt - a.updatedAt);
+    });
   }
 
   async getDesign(id: string): Promise<LocalDesign | null> {
-    const store = await this.store();
-    return (await store.getDesign(id)) ?? null;
+    return (await this.withStore((store) => store.getDesign(id))) ?? null;
   }
 
   async createDesign(input: {
@@ -131,31 +149,34 @@ export class LocalRepository {
 
   /** Upsert. Keeps `createdAt` and any previous thumbnail when none is supplied. */
   async saveDesign(input: SaveLocalDesignInput): Promise<LocalDesign> {
-    const store = await this.store();
-    const existing = await store.getDesign(input.id);
-    const now = Date.now();
-    const design: LocalDesign = {
-      id: input.id,
-      title: input.title,
-      document: input.document,
-      thumbnail: input.thumbnail ?? existing?.thumbnail,
-      createdAt: existing?.createdAt ?? now,
-      updatedAt: now,
-    };
-    try {
-      await store.putDesign(design);
-    } catch (error) {
-      throw mapStorageError(error);
-    }
-    void this.requestPersistence();
-    return design;
+    return this.withStore(async (store) => {
+      const existing = await store.getDesign(input.id);
+      const now = Date.now();
+      const design: LocalDesign = {
+        id: input.id,
+        title: input.title,
+        document: input.document,
+        thumbnail: input.thumbnail ?? existing?.thumbnail,
+        createdAt: existing?.createdAt ?? now,
+        updatedAt: now,
+      };
+      try {
+        await store.putDesign(design);
+      } catch (error) {
+        throw mapStorageError(error);
+      }
+      void this.requestPersistence();
+      return design;
+    });
   }
 
   /** Deletes the design and any uploaded image that no other local design still uses. */
   async deleteDesign(id: string): Promise<void> {
-    const store = await this.store();
-    const design = await store.getDesign(id);
-    await store.deleteDesign(id);
+    const design = await this.withStore(async (store) => {
+      const design = await store.getDesign(id);
+      await store.deleteDesign(id);
+      return design;
+    });
     if (design)
       await this.deleteAssetsIfUnused(collectLocalAssetIds(design.document));
   }
@@ -163,58 +184,72 @@ export class LocalRepository {
   /** Removes the given assets unless a remaining local design still references them. */
   async deleteAssetsIfUnused(assetIds: readonly string[]): Promise<void> {
     if (assetIds.length === 0) return;
-    const store = await this.store();
-    const stillUsed = new Set<string>();
-    for (const other of await store.listDesigns())
-      collectLocalAssetIds(other.document).forEach((assetId) =>
-        stillUsed.add(assetId),
+    await this.withStore(async (store) => {
+      const stillUsed = new Set<string>();
+      for (const other of await store.listDesigns())
+        collectLocalAssetIds(other.document).forEach((assetId) =>
+          stillUsed.add(assetId),
+        );
+      await Promise.all(
+        assetIds
+          .filter((assetId) => !stillUsed.has(assetId.toLowerCase()))
+          .map(async (assetId) => {
+            const key = assetId.toLowerCase();
+            await store.deleteAsset(key);
+            const url = this.objectUrls.get(key);
+            if (url) {
+              URL.revokeObjectURL(url);
+              this.objectUrls.delete(key);
+            }
+          }),
       );
-    await Promise.all(
-      assetIds
-        .filter((assetId) => !stillUsed.has(assetId.toLowerCase()))
-        .map((assetId) => this.deleteAsset(assetId)),
-    );
+    });
   }
 
   async putAsset(input: NewLocalAssetInput): Promise<LocalAsset> {
-    const store = await this.store();
-    const asset: LocalAsset = {
-      id: (input.id ?? newId()).toLowerCase(),
-      blob: input.blob,
-      name: input.name,
-      mime: input.mime ?? input.blob.type,
-      width: input.width,
-      height: input.height,
-      createdAt: Date.now(),
-    };
-    try {
-      await store.putAsset(asset);
-    } catch (error) {
-      throw mapStorageError(error);
-    }
-    void this.requestPersistence();
-    return asset;
+    return this.withStore(async (store) => {
+      const asset: LocalAsset = {
+        id: (input.id ?? newId()).toLowerCase(),
+        blob: input.blob,
+        name: input.name,
+        mime: input.mime ?? input.blob.type,
+        width: input.width,
+        height: input.height,
+        createdAt: Date.now(),
+      };
+      try {
+        await store.putAsset(asset);
+      } catch (error) {
+        throw mapStorageError(error);
+      }
+      void this.requestPersistence();
+      return asset;
+    });
   }
 
   async getAsset(id: string): Promise<LocalAsset | null> {
-    const store = await this.store();
-    return (await store.getAsset(id.toLowerCase())) ?? null;
+    return (
+      (await this.withStore((store) => store.getAsset(id.toLowerCase()))) ??
+      null
+    );
   }
 
   async listAssets(): Promise<LocalAsset[]> {
-    const store = await this.store();
-    return (await store.listAssets()).sort((a, b) => b.createdAt - a.createdAt);
+    return this.withStore(async (store) =>
+      (await store.listAssets()).sort((a, b) => b.createdAt - a.createdAt),
+    );
   }
 
   async deleteAsset(id: string): Promise<void> {
     const key = id.toLowerCase();
-    const store = await this.store();
-    await store.deleteAsset(key);
-    const url = this.objectUrls.get(key);
-    if (url) {
-      URL.revokeObjectURL(url);
-      this.objectUrls.delete(key);
-    }
+    await this.withStore(async (store) => {
+      await store.deleteAsset(key);
+      const url = this.objectUrls.get(key);
+      if (url) {
+        URL.revokeObjectURL(url);
+        this.objectUrls.delete(key);
+      }
+    });
   }
 
   /** A cached `blob:` URL for a stored asset (or null when it no longer exists). */
@@ -272,9 +307,10 @@ export class LocalRepository {
   }
 
   async clear(): Promise<void> {
-    const store = await this.store();
-    await store.clear();
-    this.revokeObjectUrls();
+    await this.withStore(async (store) => {
+      await store.clear();
+      this.revokeObjectUrls();
+    });
   }
 }
 

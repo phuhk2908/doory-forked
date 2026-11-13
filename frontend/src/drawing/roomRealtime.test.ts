@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { blankDrawing, createElement, type DrawingDocument } from "./model";
 import {
   DrawingRoomRealtime,
@@ -94,6 +94,69 @@ describe("drawing room realtime", () => {
     });
     await expect(published).resolves.toBeUndefined();
     realtime.stop();
+  });
+
+  it("publishes a reorder-only update instead of resolving it as a no-op", async () => {
+    vi.useFakeTimers();
+    try {
+      const socket = new FakeSocket();
+      const realtime = new DrawingRoomRealtime(
+        "ws://test/ws/drawing-rooms/1/",
+        "k".repeat(43),
+        {
+          onDocument: () => undefined,
+          onSaved: () => undefined,
+          onPresence: () => undefined,
+          onStatus: () => undefined,
+          onError: () => undefined,
+        },
+        () => socket,
+      );
+      const one = { ...createElement("rectangle"), id: "one" };
+      const two = { ...createElement("ellipse"), id: "two" };
+      const current = {
+        ...blankDrawing(),
+        elements: [one, two],
+        order: [one.id, two.id],
+        orderVersion: 1,
+        orderVersionNonce: 10,
+      };
+      const reordered = {
+        ...current,
+        elements: [two, one],
+        order: [two.id, one.id],
+        orderVersion: 2,
+        orderVersionNonce: 20,
+      };
+
+      realtime.start();
+      socket.open();
+      socket.receive({ type: "ready", document: current, revision: 1 });
+      const published = realtime.publish(reordered);
+      vi.advanceTimersByTime(250);
+
+      const update = JSON.parse(socket.sent[1]!);
+      expect(update).toMatchObject({
+        type: "update",
+        delta: {
+          schemaVersion: 1,
+          elements: [],
+          order: [two.id, one.id],
+          orderVersion: 2,
+          orderVersionNonce: 20,
+        },
+      });
+      socket.receive({
+        type: "saved",
+        document: reordered,
+        revision: 2,
+        client_id: update.client_id,
+      });
+      await expect(published).resolves.toBeUndefined();
+      realtime.stop();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("keeps view access read-only and tracks volatile peer state", () => {
@@ -289,12 +352,110 @@ describe("drawing room realtime", () => {
       ],
     });
 
+    expect(counts.at(-1)).toBe(1);
+
     socket.close();
 
     expect(peers.at(-1)).toEqual([]);
     expect(counts.at(-1)).toBe(0);
     expect(statuses.at(-1)).toBe("offline");
     realtime.stop();
+  });
+
+  it("resends the latest presence after authentication finishes", () => {
+    vi.useFakeTimers();
+    try {
+      const socket = new FakeSocket();
+      const realtime = new DrawingRoomRealtime(
+        "ws://test/ws/drawing-rooms/1/",
+        "k".repeat(43),
+        {
+          onDocument: () => undefined,
+          onSaved: () => undefined,
+          onPresence: () => undefined,
+          onStatus: () => undefined,
+          onError: () => undefined,
+        },
+        () => socket,
+      );
+
+      realtime.start();
+      socket.open();
+      realtime.publishPresence({
+        cursor: { x: 12, y: 24 },
+        selection: ["one"],
+      });
+      vi.advanceTimersByTime(33);
+
+      expect(socket.sent).toHaveLength(1);
+      socket.receive({ type: "ready", document: blankDrawing(), revision: 1 });
+
+      expect(JSON.parse(socket.sent[1]!)).toEqual({
+        type: "presence",
+        state: { cursor: { x: 12, y: 24 }, selection: ["one"] },
+      });
+      realtime.stop();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("resends the latest presence after a reconnect", () => {
+    vi.useFakeTimers();
+    try {
+      const firstSocket = new FakeSocket();
+      const secondSocket = new FakeSocket();
+      const createSocket = vi
+        .fn<() => FakeSocket>()
+        .mockReturnValueOnce(firstSocket)
+        .mockReturnValueOnce(secondSocket);
+      const realtime = new DrawingRoomRealtime(
+        "ws://test/ws/drawing-rooms/1/",
+        "k".repeat(43),
+        {
+          onDocument: () => undefined,
+          onSaved: () => undefined,
+          onPresence: () => undefined,
+          onStatus: () => undefined,
+          onError: () => undefined,
+        },
+        createSocket,
+      );
+
+      realtime.start();
+      firstSocket.open();
+      firstSocket.receive({
+        type: "ready",
+        document: blankDrawing(),
+        revision: 1,
+      });
+      realtime.publishPresence({
+        cursor: { x: 8, y: 16 },
+        selection: ["shape-1"],
+      });
+      vi.advanceTimersByTime(33);
+      expect(JSON.parse(firstSocket.sent[1]!)).toEqual({
+        type: "presence",
+        state: { cursor: { x: 8, y: 16 }, selection: ["shape-1"] },
+      });
+
+      firstSocket.close();
+      vi.advanceTimersByTime(1_000);
+      secondSocket.open();
+      secondSocket.receive({
+        type: "ready",
+        document: blankDrawing(),
+        revision: 1,
+      });
+
+      expect(JSON.parse(secondSocket.sent[1]!)).toEqual({
+        type: "presence",
+        state: { cursor: { x: 8, y: 16 }, selection: ["shape-1"] },
+      });
+      realtime.stop();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("ignores a stale presence update after a peer has left", () => {
@@ -343,6 +504,90 @@ describe("drawing room realtime", () => {
     });
 
     expect(peers.at(-1)).toEqual([]);
+    realtime.stop();
+  });
+
+  it("deduplicates reconnecting peers by their stable client id", () => {
+    const socket = new FakeSocket();
+    const peers: unknown[] = [];
+    const realtime = new DrawingRoomRealtime(
+      "ws://test/ws/drawing-rooms/1/",
+      "k".repeat(43),
+      {
+        onDocument: () => undefined,
+        onSaved: () => undefined,
+        onPresence: () => undefined,
+        onStatus: () => undefined,
+        onError: () => undefined,
+        onPeers: (value) => peers.push(value),
+      },
+      () => socket,
+    );
+    realtime.start();
+    socket.open();
+    const clientId = JSON.parse(socket.sent[0]!).client_id as string;
+    socket.receive({
+      type: "ready",
+      document: blankDrawing(),
+      revision: 1,
+      peer_id: "self",
+      presence: [
+        {
+          kind: "update",
+          peer_id: "old-self",
+          client_id: clientId,
+          mode: "edit",
+          cursor: null,
+          selection: [],
+        },
+        {
+          kind: "update",
+          peer_id: "old-peer",
+          client_id: "stable-client",
+          mode: "edit",
+          cursor: null,
+          selection: [],
+        },
+        {
+          kind: "update",
+          peer_id: "new-peer",
+          client_id: "stable-client",
+          mode: "edit",
+          cursor: null,
+          selection: [],
+        },
+      ],
+    });
+    socket.receive({
+      type: "presence",
+      state: {
+        kind: "leave",
+        peer_id: "old-peer",
+        client_id: "stable-client",
+        count: 1,
+      },
+    });
+    socket.receive({
+      type: "presence",
+      state: {
+        kind: "update",
+        peer_id: "old-peer",
+        client_id: "stable-client",
+        mode: "edit",
+        cursor: { x: 99, y: 99 },
+        selection: [],
+      },
+    });
+
+    expect(peers.at(-1)).toEqual([
+      {
+        id: "new-peer",
+        clientId: "stable-client",
+        mode: "edit",
+        cursor: null,
+        selection: [],
+      },
+    ]);
     realtime.stop();
   });
 

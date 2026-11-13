@@ -133,7 +133,7 @@ export function createIndexedDbStore(db: IDBDatabase): LocalStore {
   };
 }
 
-/** Used when IndexedDB is unavailable (private mode, blocked storage): data lives until the tab closes. */
+/** Used when IndexedDB is unavailable: data lives until the tab closes. */
 export function createMemoryStore(): LocalStore {
   const designs = new Map<string, LocalDesign>();
   const assets = new Map<string, LocalAsset>();

@@ -71,6 +71,13 @@ export class DrawingHistory {
     return this.current;
   }
 
+  /** Replaces the active snapshot without creating a new undo step. */
+  replaceCurrent(document: DrawingDocument, label = "Edit drawing"): void {
+    this.entries[this.index] = { document, label, at: Date.now() };
+    this.entries = this.entries.slice(0, this.index + 1);
+    this.sealed = false;
+  }
+
   clear(document: DrawingDocument): void {
     this.entries = [{ document, label: "Initial", at: Date.now() }];
     this.index = 0;

@@ -9,7 +9,7 @@ MAX_ELEMENTS = 10_000
 MAX_POINTS = 20_000
 MAX_TEXT = 100_000
 MAX_DOCUMENT_BYTES = 12 * 1024 * 1024
-ELEMENT_TYPES = frozenset({"rectangle", "ellipse", "diamond", "line", "arrow", "freedraw", "text"})
+ELEMENT_TYPES = frozenset({"rectangle", "ellipse", "diamond", "line", "arrow", "freedraw", "text", "image"})
 
 
 class InvalidDrawing(ValueError):
@@ -64,6 +64,8 @@ def _validate_element(element: Any) -> None:
         raise InvalidDrawing("Drawing element version nonces must be non-negative integers.")
     if "isDeleted" in element and not isinstance(element["isDeleted"], bool):
         raise InvalidDrawing("Drawing element deletion markers must be booleans.")
+    if "locked" in element and not isinstance(element["locked"], bool):
+        raise InvalidDrawing("Drawing element lock markers must be booleans.")
     if "groupIds" in element:
         group_ids = element["groupIds"]
         if (
@@ -96,6 +98,10 @@ def _validate_element(element: Any) -> None:
             raise InvalidDrawing("Drawing text is too long.")
         if "originalText" in element and not isinstance(element["originalText"], str):
             raise InvalidDrawing("Original drawing text must be a string.")
+    if element["type"] == "image":
+        file_id = element.get("fileId")
+        if not isinstance(file_id, str) or not file_id or len(file_id) > 128:
+            raise InvalidDrawing("Drawing images need a valid file id.")
 
 
 def _validate_elements(elements: Any) -> None:
@@ -109,9 +115,35 @@ def _validate_elements(elements: Any) -> None:
         ids.add(element["id"])
 
 
-def _validate_document_metadata(document: dict) -> None:
+def _validate_order_metadata(document: dict, elements: Any, *, allow_unknown: bool) -> None:
+    order_keys = {"order", "orderVersion", "orderVersionNonce"}
+    if not any(key in document for key in order_keys):
+        return
+    order = document.get("order")
+    if not isinstance(order, list) or len(order) > MAX_ELEMENTS:
+        raise InvalidDrawing("Drawing order must be a bounded list of ids.")
+    seen: set[str] = set()
+    for element_id in order:
+        if not isinstance(element_id, str) or not element_id or len(element_id) > 128:
+            raise InvalidDrawing("Drawing order entries must be valid ids.")
+        if element_id in seen:
+            raise InvalidDrawing("Drawing order ids must be unique.")
+        seen.add(element_id)
+    if not allow_unknown:
+        element_ids = {element["id"] for element in elements}
+        if seen != element_ids:
+            raise InvalidDrawing("Drawing order must include every element exactly once.")
+    for key in ("orderVersion", "orderVersionNonce"):
+        if key in document and (
+            not isinstance(document[key], int) or isinstance(document[key], bool) or document[key] < 0
+        ):
+            raise InvalidDrawing("Drawing order versions must be non-negative integers.")
+
+
+def _validate_document_metadata(document: dict, elements: Any, *, allow_unknown_order: bool) -> None:
     if "background" in document and not isinstance(document["background"], str):
         raise InvalidDrawing("Drawing backgrounds must be strings.")
+    _validate_order_metadata(document, elements, allow_unknown=allow_unknown_order)
     files = document.get("files")
     if files is None:
         return
@@ -120,9 +152,19 @@ def _validate_document_metadata(document: dict) -> None:
     for file_id, file in files.items():
         if not isinstance(file_id, str) or not file_id or len(file_id) > 128 or not _record(file):
             raise InvalidDrawing("Drawing files need valid ids and metadata.")
+        max_lengths = {"id": 128, "mime": 128, "name": 256, "url": 4096}
         for key in ("id", "mime", "name", "url"):
-            if key in file and not isinstance(file[key], str):
+            if key in file and (
+                not isinstance(file[key], str) or not file[key] or len(file[key]) > max_lengths[key]
+            ):
                 raise InvalidDrawing("Drawing file metadata must use strings.")
+        if not all(key in file for key in ("id", "mime", "name", "url")):
+            raise InvalidDrawing("Drawing files need complete metadata.")
+        if file["url"].lower().startswith(("data:", "blob:", "idb:")):
+            raise InvalidDrawing("Drawing files cannot embed image data.")
+        for key in ("width", "height"):
+            if key in file and (not _finite(file[key]) or file[key] < 0):
+                raise InvalidDrawing("Drawing file dimensions must be finite and non-negative.")
 
 
 def _validate_json_size(value: dict, *, max_bytes: int, label: str) -> None:
@@ -141,7 +183,7 @@ def validate_drawing_document(document: Any, *, max_bytes: int = MAX_DOCUMENT_BY
     if document.get("schemaVersion") != SCHEMA_VERSION:
         raise InvalidDrawing("The drawing schema version is not supported.")
     _validate_elements(document.get("elements"))
-    _validate_document_metadata(document)
+    _validate_document_metadata(document, document["elements"], allow_unknown_order=False)
     return document
 
 
@@ -153,5 +195,5 @@ def validate_drawing_delta(delta: Any, *, max_bytes: int = MAX_DOCUMENT_BYTES) -
     if delta.get("schemaVersion") != SCHEMA_VERSION:
         raise InvalidDrawing("The drawing schema version is not supported.")
     _validate_elements(delta.get("elements"))
-    _validate_document_metadata(delta)
+    _validate_document_metadata(delta, delta["elements"], allow_unknown_order=True)
     return delta

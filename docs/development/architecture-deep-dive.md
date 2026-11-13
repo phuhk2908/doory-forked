@@ -263,8 +263,43 @@ elements by `version`/`versionNonce` under a row lock before broadcasting the ac
 A `saved` acknowledgement lets the source client clear its pending state. While a save is in flight, the latest
 document is also kept as a session-scoped recovery snapshot without the room key; a reconnect merges and resubmits it
 before clearing the recovery entry. Cursor and selection presence are volatile, bounded, and sent separately at
-33ms. Room close and expiry reject new access; heartbeats also detect a close when API and realtime processes do not
-share an in-memory channel layer.
+33ms. The client retains the latest local presence outside that throttle queue and resends it after authentication,
+so a socket drop does not require another pointer move to restore the cursor. The latest bounded presence state is
+also kept in the shared cache for a short TTL, so a reconnect handled by another realtime worker receives the current
+peer list; it is never written to the drawing database. Presence events echo the stable auth `client_id`, so a
+reconnect with a new transient `peer_id` is displayed as one collaborator and stale leave/update events cannot inflate
+the “others” count. Room close and expiry reject new access; heartbeats also detect a close when API and realtime
+processes do not share an in-memory channel layer.
+
+Layer order is a document-level exception to element-only merging. Reordering actions write a complete `order` list
+of element ids plus `orderVersion` and `orderVersionNonce`; the tuple is compared like an element version, and the
+winning order is applied after element content is merged. Deltas therefore carry a reorder even when `elements` is
+empty, while legacy documents without order metadata keep their array order and gain metadata on the first reorder.
+
+Undo, redo and Escape-to-cancel are also collaborative mutations rather than raw history rewinds. The editor rebases
+the requested history snapshot onto the current document, advances changed elements with a fresh version nonce, and
+emits tombstones for live ids omitted by the target. This keeps a room merge monotonic while preserving the local
+history cursor and preventing a canceled or undone draft from reappearing after reconnect.
+
+Images use the same snapshot seam as other elements, but their bytes stay outside the drawing document. The document
+stores bounded file metadata and an image element's `fileId`; account/room pages resolve durable server URLs, while a
+local board resolves `idb://` references from the browser asset store. Before a local board is saved to an account or
+room, those references are uploaded and rewritten so peers never receive browser-only URLs. Missing files render as a
+placeholder instead of blocking restore.
+
+Clipboard envelopes follow the same separation: copy serializes selected elements plus only the referenced file
+metadata, never image bytes. Paste prefers a valid system clipboard envelope, then checks for a system `image/*` item
+before falling back to the in-editor clipboard, so an external image is not masked by stale selection data. It merges
+file metadata without deleting unrelated destination files and remaps a file id when the destination already uses the
+id for different metadata. Legacy element-only clipboard text remains readable, so an image without metadata safely
+falls back to the renderer placeholder. Replacing an image uploads new metadata and updates only its `fileId`; the
+selected frame, rotation and visual style remain part of the element. File drops use the same host upload seam and place
+the image at the pointer location. System clipboard/drop image bytes still never enter the document.
+
+Realtime snapshot merges also treat file IDs as references rather than authority: when a remote snapshot reuses an
+existing local ID for different metadata, the remote file and its image elements receive a fresh ID instead of silently
+changing the local image's source. Versioned deltas keep their complete file map authoritative after merging changed
+elements, so a coincident ID cannot leave an image pointing at a missing remapped entry.
 
 Sources: [guest room model](../../backend/apps/drawings/models.py), [guest room service](../../backend/apps/drawings/services.py), [guest room WebSocket](../../backend/apps/drawings/realtime.py), [room page](../../frontend/src/pages/DrawingRoomPage.tsx), [Excalidraw room research](./excalidraw-guest-collaboration.md).
 

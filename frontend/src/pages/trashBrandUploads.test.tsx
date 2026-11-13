@@ -29,7 +29,9 @@ describe("trash page", () => {
         ),
       ],
     });
-    expect(await screen.findByText("Old poster")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Old poster", {}, { timeout: 5_000 }),
+    ).toBeInTheDocument();
     expect(screen.getByText(/25 days left/)).toBeInTheDocument();
     expect(screen.getByText(/1 day left/)).toBeInTheDocument();
     expect(

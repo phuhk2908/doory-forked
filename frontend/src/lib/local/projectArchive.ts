@@ -105,7 +105,9 @@ function parseAsset(value: unknown): ArchivedAsset {
     value.mime.length > 200 ||
     !FILE_TYPE.test(value.mime) ||
     !finiteNumber(value.width) ||
-    !finiteNumber(value.height)
+    !finiteNumber(value.height) ||
+    value.width < 0 ||
+    value.height < 0
   ) {
     throw new ProjectArchiveError(
       "This project backup has invalid asset information.",
@@ -190,11 +192,11 @@ export async function exportLocalProject(
     exportedAt: new Date().toISOString(),
     title: design.title,
     document: design.document,
-    ...(design.thumbnail
+    ...(design.thumbnail && THUMBNAIL_TYPE.test(design.thumbnail.type)
       ? {
           thumbnail: {
             path: THUMBNAIL,
-            mime: design.thumbnail.type || "application/octet-stream",
+            mime: design.thumbnail.type,
           },
         }
       : {}),
@@ -215,7 +217,7 @@ export async function exportLocalProject(
   const entries: Record<string, Uint8Array | [Uint8Array, { level: 0 | 6 }]> = {
     [MANIFEST]: [strToU8(JSON.stringify(manifest, null, 2)), { level: 6 }],
   };
-  if (design.thumbnail)
+  if (design.thumbnail && THUMBNAIL_TYPE.test(design.thumbnail.type))
     entries[THUMBNAIL] = [await readBytes(design.thumbnail), { level: 0 }];
   for (let index = 0; index < ids.length; index += 1)
     entries[`assets/${ids[index]}`] = [

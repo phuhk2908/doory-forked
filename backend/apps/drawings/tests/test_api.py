@@ -325,7 +325,13 @@ def test_guest_room_delta_update_uses_the_same_revisioned_mutation_seam(db):
     )
 
     assert mutation is not None and mutation.changed and mutation.revision == 3
-    assert mutation.delta == {"schemaVersion": 1, "elements": [second]}
+    assert mutation.delta == {
+        "schemaVersion": 1,
+        "elements": [second],
+        "order": ["one", "two"],
+        "orderVersion": 0,
+        "orderVersionNonce": 0,
+    }
     assert {element["id"] for element in mutation.document["elements"]} == {"one", "two"}
 
 

@@ -114,6 +114,42 @@ def _normalise_element(element: dict) -> dict:
     return {**element, "version": version, "versionNonce": nonce}
 
 
+def _order_version(document: dict) -> tuple[int, int]:
+    version = document.get("orderVersion")
+    nonce = document.get("orderVersionNonce")
+    return (
+        version if isinstance(version, int) and not isinstance(version, bool) else 0,
+        nonce if isinstance(nonce, int) and not isinstance(nonce, bool) else 0,
+    )
+
+
+def _complete_order(order: object, elements: list[dict]) -> list[str]:
+    element_ids = {element["id"] for element in elements}
+    seen: set[str] = set()
+    complete: list[str] = []
+    if isinstance(order, list):
+        for element_id in order:
+            if not isinstance(element_id, str) or element_id not in element_ids or element_id in seen:
+                continue
+            seen.add(element_id)
+            complete.append(element_id)
+    for element in elements:
+        element_id = element["id"]
+        if element_id in seen:
+            continue
+        seen.add(element_id)
+        complete.append(element_id)
+    return complete
+
+
+def _order_elements(order: list[str], elements: list[dict]) -> list[dict]:
+    by_id = {element["id"]: element for element in elements}
+    ordered = [by_id[element_id] for element_id in order if element_id in by_id]
+    seen = {element["id"] for element in ordered}
+    ordered.extend(element for element in elements if element["id"] not in seen)
+    return ordered
+
+
 def _create_drawing_room(*, account_owner=None, title: str, document: dict) -> tuple[DrawingRoom, str, str]:
     validate_drawing_document(document, max_bytes=settings.MAX_DRAWING_DOCUMENT_BYTES)
     spam_score, spam_reasons = score_drawing_document(document)
@@ -477,11 +513,23 @@ def merge_drawing_documents(current: dict, incoming: dict) -> dict:
         for element in incoming["elements"]
         if element["id"] not in current_elements
     )
+    current_has_order = isinstance(current.get("order"), list)
+    incoming_has_order = isinstance(incoming.get("order"), list)
+    if incoming_has_order and (not current_has_order or _order_version(incoming) >= _order_version(current)):
+        order_document = incoming
+    elif current_has_order:
+        order_document = current
+    else:
+        order_document = None
+    order = _complete_order(order_document.get("order"), merged_elements) if order_document else None
     merged = {
         "schemaVersion": incoming["schemaVersion"],
-        "elements": merged_elements,
+        "elements": _order_elements(order, merged_elements) if order is not None else merged_elements,
         "background": incoming.get("background", current.get("background", "#ffffff")),
     }
+    if order is not None and order_document is not None:
+        merged["order"] = order
+        merged["orderVersion"], merged["orderVersionNonce"] = _order_version(order_document)
     current_files = current.get("files") if isinstance(current.get("files"), dict) else {}
     incoming_files = incoming.get("files") if isinstance(incoming.get("files"), dict) else {}
     files = {**current_files, **incoming_files}
@@ -502,6 +550,15 @@ def compute_drawing_delta(current: dict, incoming: dict) -> dict:
     incoming_files = incoming.get("files") if isinstance(incoming.get("files"), dict) else {}
     if current_files != incoming_files:
         delta["files"] = incoming_files
+    current_order = _complete_order(current.get("order"), current.get("elements", []))
+    incoming_order = _complete_order(incoming.get("order"), incoming.get("elements", []))
+    if current_order != incoming_order:
+        delta["order"] = incoming_order
+        incoming_order_version = _order_version(incoming)
+        current_order_version = _order_version(current)
+        delta["orderVersion"], delta["orderVersionNonce"] = (
+            incoming_order_version if "order" in incoming else current_order_version
+        )
     return delta
 
 
@@ -514,6 +571,13 @@ def apply_drawing_delta(current: dict, delta: dict) -> dict:
     if "files" in delta:
         incoming["files"] = delta["files"]
     merged = merge_drawing_documents(current, incoming)
+    if "order" in delta and isinstance(delta["order"], list):
+        incoming_order_version = _order_version(delta)
+        if "order" not in current or incoming_order_version >= _order_version(current):
+            order = _complete_order(delta["order"], merged["elements"])
+            merged["elements"] = _order_elements(order, merged["elements"])
+            merged["order"] = order
+            merged["orderVersion"], merged["orderVersionNonce"] = incoming_order_version
     if "files" in delta:
         if delta["files"]:
             merged["files"] = delta["files"]

@@ -6,7 +6,11 @@ import type {
   LinearElement,
   TextElement,
 } from "./model";
-import { DRAWING_NOTE_DATE_FONT_SIZE, DRAWING_NOTE_PADDING } from "./model";
+import {
+  DRAWING_NOTE_DATE_FONT_SIZE,
+  DRAWING_NOTE_PADDING,
+  versionNonce,
+} from "./model";
 
 export interface Point {
   x: number;
@@ -23,6 +27,16 @@ export interface Rect {
 export const rectRight = (rect: Rect): number => rect.x + rect.width;
 export const rectBottom = (rect: Rect): number => rect.y + rect.height;
 export const DRAWING_ZOOM_STEP = 1.1;
+export const DRAWING_GRID_SIZE = 40;
+
+export function snapToGrid(point: Point, gridSize = DRAWING_GRID_SIZE): Point {
+  const size =
+    Number.isFinite(gridSize) && gridSize > 0 ? gridSize : DRAWING_GRID_SIZE;
+  return {
+    x: Number.isFinite(point.x) ? Math.round(point.x / size) * size : point.x,
+    y: Number.isFinite(point.y) ? Math.round(point.y / size) * size : point.y,
+  };
+}
 
 let textMeasureContext: CanvasRenderingContext2D | null | undefined;
 
@@ -139,6 +153,59 @@ export function textBounds(element: TextElement): Rect {
   };
 }
 
+/**
+ * Return the unrotated frame used by the renderer for an element.
+ *
+ * Keeping this frame in one place is important for selection chrome: text and
+ * path elements can have a visual frame that differs from their stored
+ * width/height, while shapes use their stored rectangle directly.
+ */
+export function elementFrame(element: DrawingElement): Rect {
+  if (element.type === "text") return textBounds(element);
+  if ("points" in element && element.points.length > 0) {
+    const xs = element.points.map((point) => point.x);
+    const ys = element.points.map((point) => point.y);
+    const minX = Math.min(...xs);
+    const minY = Math.min(...ys);
+    return {
+      x: element.x + minX,
+      y: element.y + minY,
+      width: Math.max(...xs) - minX,
+      height: Math.max(...ys) - minY,
+    };
+  }
+  return {
+    x: element.x,
+    y: element.y,
+    width: element.width,
+    height: element.height,
+  };
+}
+
+/**
+ * Return the four visual corners in clockwise order after applying rotation.
+ */
+export function elementCorners(
+  element: DrawingElement,
+): [Point, Point, Point, Point] {
+  const frame = elementFrame(element);
+  const centre = {
+    x: frame.x + frame.width / 2,
+    y: frame.y + frame.height / 2,
+  };
+  return [
+    { x: frame.x, y: frame.y },
+    { x: rectRight(frame), y: frame.y },
+    { x: rectRight(frame), y: rectBottom(frame) },
+    { x: frame.x, y: rectBottom(frame) },
+  ].map((corner) => rotatePoint(corner, centre, element.angle)) as [
+    Point,
+    Point,
+    Point,
+    Point,
+  ];
+}
+
 export function normalizeRect(a: Point, b: Point): Rect {
   return {
     x: Math.min(a.x, b.x),
@@ -229,25 +296,7 @@ function rotatedRectBounds(rect: Rect, angle: number): Rect {
 }
 
 export function elementBounds(element: DrawingElement): Rect {
-  let bounds: Rect;
-  if (element.type === "text") bounds = textBounds(element);
-  else if ("points" in element && element.points.length > 0) {
-    const xs = element.points.map((point) => point.x);
-    const ys = element.points.map((point) => point.y);
-    bounds = {
-      x: element.x + Math.min(...xs),
-      y: element.y + Math.min(...ys),
-      width: Math.max(...xs) - Math.min(...xs),
-      height: Math.max(...ys) - Math.min(...ys),
-    };
-  } else
-    bounds = {
-      x: element.x,
-      y: element.y,
-      width: element.width,
-      height: element.height,
-    };
-  return rotatedRectBounds(bounds, element.angle);
+  return rotatedRectBounds(elementFrame(element), element.angle);
 }
 
 export function documentBounds(document: DrawingDocument): Rect {
@@ -323,12 +372,13 @@ export function hitTest(
   point: Point,
   tolerance: number,
 ): boolean {
-  if (element.isDeleted) return false;
+  if (element.isDeleted || element.locked) return false;
   if (
     element.type === "text" ||
     element.type === "rectangle" ||
     element.type === "ellipse" ||
-    element.type === "diamond"
+    element.type === "diamond" ||
+    element.type === "image"
   ) {
     const bounds = element.type === "text" ? textBounds(element) : element;
     return (
@@ -383,7 +433,9 @@ export function elementsHitBySegment(
   };
   const candidates = document.elements.filter(
     (element) =>
-      !element.isDeleted && rectsIntersect(elementBounds(element), sweep),
+      !element.isDeleted &&
+      !element.locked &&
+      rectsIntersect(elementBounds(element), sweep),
   );
   const steps = Math.max(
     1,
@@ -435,7 +487,9 @@ export function elementsInRect(
   return document.elements
     .filter(
       (element) =>
-        !element.isDeleted && rectsIntersect(elementBounds(element), rect),
+        !element.isDeleted &&
+        !element.locked &&
+        rectsIntersect(elementBounds(element), rect),
     )
     .map((element) => element.id);
 }
@@ -450,7 +504,7 @@ export function translateElement(
     x: element.x + dx,
     y: element.y + dy,
     version: element.version + 1,
-    versionNonce: element.versionNonce + 1,
+    versionNonce: versionNonce(),
   } as DrawingElement;
 }
 

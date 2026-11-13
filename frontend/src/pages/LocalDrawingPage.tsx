@@ -4,6 +4,14 @@ import {
   DrawingEditor,
   type DrawingEditorHandle,
 } from "@/drawing/DrawingEditor";
+import {
+  hasLocalDrawingImages,
+  localDrawingAssetIds,
+  migrateLocalDrawingFiles,
+  resolveDrawingImage,
+  storeLocalDrawingImage,
+} from "@/drawing/imageAssets";
+import { deleteLocalAsset } from "@/lib/local";
 import { drawingLocalRepository, type LocalDrawing } from "@/drawing/local";
 import { useDrawingSession } from "@/drawing/session";
 import {
@@ -101,12 +109,14 @@ export default function LocalDrawingPage() {
     try {
       await editorRef.current?.saveNow();
       const current = await drawingLocalRepository.get(localId);
+      const sourceDocument =
+        editorRef.current?.getDocument() ??
+        current?.document ??
+        load.drawing.document;
+      const document = await migrateLocalDrawingFiles(sourceDocument);
       const drawing = await drawingsApi.create({
         title: load.drawing.title,
-        document:
-          editorRef.current?.getDocument() ??
-          current?.document ??
-          load.drawing.document,
+        document,
       });
       if (current?.thumbnail) {
         try {
@@ -116,6 +126,19 @@ export default function LocalDrawingPage() {
         }
       }
       await drawingLocalRepository.remove(localId);
+      try {
+        const remaining = await drawingLocalRepository.list();
+        const used = new Set(
+          remaining.flatMap((item) => localDrawingAssetIds(item.document)),
+        );
+        await Promise.all(
+          localDrawingAssetIds(sourceDocument)
+            .filter((assetId) => !used.has(assetId))
+            .map((assetId) => deleteLocalAsset(assetId)),
+        );
+      } catch {
+        // Asset cleanup is best-effort; the migrated board is already safe.
+      }
       navigate("/drawings/" + drawing.id, { replace: true });
     } catch (cause) {
       setError(
@@ -150,9 +173,19 @@ export default function LocalDrawingPage() {
     setActionBusy(true);
     try {
       await editorRef.current?.saveNow();
+      const sourceDocument =
+        editorRef.current?.getDocument() ?? load.drawing.document;
+      if (hasLocalDrawingImages(sourceDocument) && status !== "authenticated") {
+        const signedIn = await openAuthModal({
+          reason: "share",
+          tab: "signup",
+        });
+        if (!signedIn) return;
+      }
+      const document = await migrateLocalDrawingFiles(sourceDocument);
       const room = await drawingRoomsApi.create({
         title: drawingRoomDisplayName(load.drawing.title),
-        document: editorRef.current?.getDocument() ?? load.drawing.document,
+        document,
       });
       if (!room.key || !room.owner_key)
         throw new Error("missing_room_credentials");
@@ -216,6 +249,8 @@ export default function LocalDrawingPage() {
         title={load.drawing.title}
         onSaveToAccount={() => void saveToAccount()}
         onTitleChange={renameDrawing}
+        onUploadImage={storeLocalDrawingImage}
+        onResolveImage={resolveDrawingImage}
         onDocumentChange={(document) => session.queue(document)}
         onSaveNow={session.saveNow}
       />

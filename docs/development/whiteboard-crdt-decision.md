@@ -33,6 +33,12 @@ deterministic tie-breaker. Deleted elements remain as tombstones, so an omitted 
 not resurrect it. See [`services.py`](../../backend/apps/drawings/services.py#L277-L344) and
 [`roomRealtime.ts`](../../frontend/src/drawing/roomRealtime.ts#L350-L410).
 
+Layer order is carried separately because an array reorder has no element version to compare. A document that has
+been reordered includes a complete `order` id list and a document-level `(orderVersion, orderVersionNonce)` tuple.
+Reorder-only deltas can therefore contain zero changed elements; merges choose the newer order tuple and append ids
+created by a concurrent legacy client. Documents without the metadata remain valid and use their existing element
+array order until a reorder is made.
+
 This gives the current protocol useful guarantees:
 
 - Two users adding or editing different element IDs are retained in one committed document.
@@ -50,12 +56,21 @@ according to the version/nonce ordering. The other edit is lost. The same applie
 changing different properties if the frontend submits each change as a new whole element: the
 winning element snapshot carries only one side's property values.
 
-The room page also applies the merged document through `applyRemoteDocument()`, which clears the
-local text-editing state and history. A remote winner arriving while a user is typing can therefore
-replace the textarea state and end the local editing session. See
-[`DrawingRoomPage.tsx`](../../frontend/src/pages/DrawingRoomPage.tsx#L129-L153) and
-[`DrawingEditor.tsx`](../../frontend/src/drawing/DrawingEditor.tsx#L335-L348). This is a concrete
-text-editing UX risk, independent of transport correctness.
+The room page applies the merged document through `applyRemoteDocument()`, which now preserves a
+live selection and an active textarea when the edited element still exists. An unrelated remote
+update no longer closes the editor; if the same element has a remote winning value, Escape uses
+that value as its cancel baseline, while blur still commits the local draft as a newer element
+version. A remote deletion closes the textarea without resurrecting the tombstone. See
+[`DrawingRoomPage.tsx`](../../frontend/src/pages/DrawingRoomPage.tsx#L201-L225) and
+[`DrawingEditor.tsx`](../../frontend/src/drawing/DrawingEditor.tsx#L2227-L2278). The remaining
+limitation is text intent, not editor interruption: concurrent character edits are still whole
+string last-writer-wins.
+
+Local undo, redo and Escape cancellation follow the same ordering rule. They rebase the selected
+history snapshot onto the current document, increment changed element versions, and add tombstones
+for ids that the target snapshot omits. A history action therefore remains visible to the room even
+when the previous draft was already published; a raw older snapshot would lose to the room's newer
+version and an omitted id could not delete an element under additive merging.
 
 The current backend tests cover independent element merging and delta application, but do not
 establish a same-element concurrent text policy. See
@@ -106,8 +121,8 @@ updates rather than adopting a CRDT for the scene. See
 
 This supports keeping Doory's current approach for canvas objects, but it does not solve concurrent
 typing. Excalidraw's local-text guard is a conflict policy: it protects the active local editor;
-it is not a character-level merge of two users' edits. Doory currently clears the active editor when
-applying a remote document, so it does not yet have the equivalent protection.
+it is not a character-level merge of two users' edits. Doory now has the equivalent editor-stability
+guard, while the versioned element merge remains whole-string last-writer-wins.
 
 ## Trade-offs
 
@@ -125,9 +140,11 @@ Advantages:
 Costs:
 
 - Same-element concurrent edits are last-writer-wins at snapshot granularity.
-- Text editing loses intent under concurrent typing and can interrupt the local editor.
-- Background, ordering and file metadata still need explicit document-level policies; a versioned
-  element tuple cannot make the whole JSON document semantically conflict-free.
+- Text editing loses intent under concurrent typing, although remote updates no longer interrupt an
+  active local editor unless its element is deleted.
+- Background and file metadata still need explicit document-level policies; a versioned element
+  tuple cannot make the whole JSON document semantically conflict-free. Layer ordering now has its own
+  document-level version tuple so reorder-only edits survive delta transport and reconnects.
 
 ### Migrate the whole guest room to Yjs
 

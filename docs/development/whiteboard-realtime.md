@@ -55,8 +55,10 @@ observed without assuming that every room or browser has the same scene shape.
 
 The client queue coalesces local changes behind a 250ms durable-save quiet period. While a save is in flight, the
 latest document is also kept as a session-scoped recovery snapshot without the room key; a reconnect merges and
-resubmits it before clearing the recovery entry. Each accepted room mutation still persists under the row lock, but
-rapid pointer changes no longer create a durable write for every local snapshot.
+resubmits it before clearing the recovery entry. Cursor and selection state remains volatile and is kept in the shared
+cache for a short TTL so a reconnect on another realtime worker can rebuild the current peer list without writing
+presence into the drawing row. Each accepted room mutation still persists under the row lock, but rapid pointer changes
+no longer create a durable write for every local snapshot.
 
 ## Verification boundary
 

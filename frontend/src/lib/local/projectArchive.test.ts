@@ -84,6 +84,21 @@ describe("local project backups", () => {
     );
   });
 
+  it("keeps the project restorable when an old thumbnail has no supported MIME", async () => {
+    const source = repository();
+    const saved = await source.createDesign({
+      title: "Legacy thumbnail",
+      document: createBlankDocument(100, 100),
+      thumbnail: blob(["unknown preview"], ""),
+    });
+
+    const backup = await exportLocalProject(saved.id, source);
+    const restored = await importLocalProject(backup.blob, repository());
+
+    expect(restored.title).toBe("Legacy thumbnail");
+    expect(restored.thumbnail).toBeUndefined();
+  });
+
   it("takes only the file types an upload may have", async () => {
     const repo = repository();
     const document = createBlankDocument(10, 10);
@@ -114,6 +129,43 @@ describe("local project backups", () => {
       archive.byteOffset,
       archive.byteOffset + archive.byteLength,
     ) as ArrayBuffer;
+    await expect(importLocalProject(new Blob([bytes]), repo)).rejects.toThrow(
+      /invalid asset information/,
+    );
+    expect(await repo.listAssets()).toEqual([]);
+  });
+
+  it("rejects asset metadata with impossible dimensions", async () => {
+    const repo = repository();
+    const document = createBlankDocument(10, 10);
+    document.pages[0].objects = [
+      { id: "page", type: "image", src: `idb://${ASSET_ID}` },
+    ];
+    const manifest = {
+      format: "doory-project",
+      version: 1,
+      title: "Page",
+      document,
+      assets: [
+        {
+          id: ASSET_ID,
+          path: `assets/${ASSET_ID}`,
+          name: "page.png",
+          mime: "image/png",
+          width: -1,
+          height: 1,
+        },
+      ],
+    };
+    const archive = zipSync({
+      "project.json": strToU8(JSON.stringify(manifest)),
+      [`assets/${ASSET_ID}`]: strToU8("image"),
+    });
+    const bytes = archive.buffer.slice(
+      archive.byteOffset,
+      archive.byteOffset + archive.byteLength,
+    ) as ArrayBuffer;
+
     await expect(importLocalProject(new Blob([bytes]), repo)).rejects.toThrow(
       /invalid asset information/,
     );

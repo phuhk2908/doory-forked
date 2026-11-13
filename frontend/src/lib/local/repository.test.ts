@@ -166,6 +166,66 @@ describe("LocalRepository assets", () => {
 });
 
 describe("LocalRepository resilience", () => {
+  it("allows a retry after the backing store fails to open", async () => {
+    const store = createMemoryStore();
+    let attempts = 0;
+    const repo = new LocalRepository(async () => {
+      attempts += 1;
+      if (attempts === 1) throw new Error("database temporarily blocked");
+      return { store, mode: "indexeddb" };
+    });
+
+    await expect(repo.getDesign("d1")).rejects.toThrow(
+      "database temporarily blocked",
+    );
+    await expect(repo.getDesign("d1")).resolves.toBeNull();
+    expect(attempts).toBe(2);
+  });
+
+  it("reopens after an already-open backing store fails an operation", async () => {
+    const memory = createMemoryStore();
+    let opens = 0;
+    let fail = true;
+    const failing: LocalStore = {
+      ...memory,
+      getDesign: async (id) => {
+        if (fail) {
+          fail = false;
+          throw new Error("database connection closed");
+        }
+        return memory.getDesign(id);
+      },
+    };
+    const repo = new LocalRepository(async () => {
+      opens += 1;
+      return { store: failing, mode: "indexeddb" };
+    });
+
+    await expect(repo.getDesign("d1")).rejects.toThrow(
+      "database connection closed",
+    );
+    await expect(repo.getDesign("d1")).resolves.toBeNull();
+    expect(opens).toBe(2);
+  });
+
+  it("does not hide an IndexedDB opener failure behind an empty memory store", async () => {
+    const original = globalThis.indexedDB;
+    const failure = new Error("database temporarily blocked");
+    // @ts-expect-error simulate an IndexedDB opener failure
+    globalThis.indexedDB = {
+      open: () => {
+        throw failure;
+      },
+    };
+    try {
+      await expect(openBrowserStore()).rejects.toThrow(
+        "database temporarily blocked",
+      );
+    } finally {
+      globalThis.indexedDB = original;
+    }
+  });
+
   it("maps QuotaExceededError to LocalStorageFullError", async () => {
     const memory = createMemoryStore();
     const failing: LocalStore = {

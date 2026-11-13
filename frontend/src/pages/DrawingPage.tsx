@@ -5,6 +5,7 @@ import {
   DrawingEditor,
   type DrawingEditorHandle,
 } from "@/drawing/DrawingEditor";
+import { resolveDrawingImage, uploadDrawingImage } from "@/drawing/imageAssets";
 import type { DrawingDocument } from "@/drawing/model";
 import { useDrawingRealtime } from "@/drawing/realtime";
 import { useDrawingSession } from "@/drawing/session";
@@ -172,6 +173,10 @@ export default function DrawingPage() {
         ref={editorRef}
         initialDocument={drawing.document}
         title={drawingTitle}
+        onUploadImage={
+          status === "authenticated" ? uploadDrawingImage : undefined
+        }
+        onResolveImage={resolveDrawingImage}
         onTitleChange={renameDrawing}
         onDocumentChange={(document) => {
           setSaveError(null);

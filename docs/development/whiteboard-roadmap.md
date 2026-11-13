@@ -23,7 +23,7 @@ The guest room MVP is live. The next work is split by room safety first, then ed
 
 ## P1: editor and collaboration quality
 
-1. [x] Add fast keyboard actions: tool keys (`V`, `H`, `R`, `O`, `D`, `L`, `A`, `P`, `T`, `N`, `E`), undo/redo, save, delete, nudge, duplicate, grouping, zoom, and fit-to-content.
+1. [x] Add fast keyboard actions and discoverable menu actions: tool keys (`V`, `H`, `R`, `O`, `D`, `L`, `A`, `P`, `T`, `N`, `E`), undo/redo, save, delete, nudge, duplicate, grouping, zoom, fit-to-content, and fit-selection.
 2. [x] Hold `Space` to pan. The canvas shows a grab cursor, temporarily pans with the pointer, and restores the selected tool after release.
 3. [x] Use a non-passive native wheel listener. `Ctrl`/`Command` + wheel zooms the board without browser zoom; plain wheel pans the board.
 4. [x] Relay volatile cursor and selection presence separately from the document. Presence is throttled at 33ms, bounded, and never persisted.
@@ -39,23 +39,43 @@ The guest room MVP is live. The next work is split by room safety first, then ed
     - Rename whiteboard (uses the title editor from item 11).
     - Toggle grid (uses the grid setting from item 12).
     - Fit to content.
+    - Fit selection and reset zoom.
+    - Undo and redo the latest edit.
+    - Select all live, unlocked elements.
+    - Clear the current selection.
+    - Copy and paste the current selection, including paste in place.
+    - Cut the current selection with undoable soft-delete semantics.
+    - Group, duplicate, delete, lock, style, alignment, connector, and layer actions for a selection.
     - Download PNG.
     - Export SVG.
+    - Change the board background color with undo support.
+    - Download selection PNG, export selection SVG/JSON, and copy the selection as an image.
     - Export JSON/source file.
     - Save to account when the board is still local and the visitor is a guest.
     - Keep Share, Rotate link, and End room in the collaboration controls because they change access for other people.
+    - Open the same core actions from a canvas context menu, with element/group targeting, keyboard Context Menu/
+      Shift+F10 access, focus navigation, outside-click dismissal, and viewport clamping.
 14. [x] Add consistent tooltips for every tool and action on hover and keyboard focus, including the action name and its shortcut when one exists. Cover the shape dropdown, More menu, zoom pill, Eraser, and Note.
 
 ## P1: Excalidraw-style editor fidelity
 
 1. [x] Use one text layout path for the canvas, textarea overlay, PNG and SVG export. Notes wrap against their inner
-   width, keep padding, show a creation date, and retain a visible default label while editing.
+   width, keep padding, show a creation date, and retain a visible default label while editing. Selection dragging also
+   snaps to nearby object edges/centres and near-equal neighbour spacing, with transient measurement guides. Remote
+   room snapshots preserve live selection and text editing when the element still exists, while deleted active text
+   closes without resurrecting it. Undo, redo and Escape cancellation rebase onto the current document so their
+   versioned mutations remain visible after room merges and reconnects.
 2. [x] Add single- and multi-selection transform handles for shapes, notes, lines, arrows and freehand strokes, with
-   Shift-constrained resize, rotation, rotated bounds and one history entry per gesture.
+   Shift-constrained resize, shared-centre multi-rotation, 15° Shift-snapped rotation, reset-rotation action, rotated
+   bounds, live object-edge/centre snapping guides, and one history entry per gesture. Hold Alt/Option to move freely
+   without object or grid snapping.
 3. [x] Add a floating selection inspector for stroke/fill/opacity/line style, text font/size/line-height/alignment,
-   shape roundness/roughness and arrowhead choices. Inspector changes also become defaults for new elements.
+   shape roundness/roughness, rotation angle and arrowhead choices. Inspector changes also become defaults for new
+   elements; visual styles can be copied from one selection and pasted across another with one undoable change,
+   including arrowheads when the source is an arrow; selected styles can also be reset to defaults.
 4. [x] Add canvas-native Ctrl/Cmd+A and copy/paste. Pasted elements receive fresh IDs, remapped groups and safe
-   connector metadata.
+   connector metadata; clipboard envelopes also carry only the referenced image metadata and accept legacy
+   element-only payloads; system clipboard images are uploaded through the same metadata-only seam.
 5. [x] Bind line/arrow endpoints to nearby shapes and notes, keep endpoints attached as targets move or resize, and
    detach bindings when their target is deleted.
 6. [x] Add explicit endpoint handles, connector snapping guides and a user-facing binding affordance. Binding remains
@@ -63,7 +83,17 @@ The guest room MVP is live. The next work is split by room safety first, then ed
    detached by dragging away.
 7. [x] Add connector path editing with midpoint handles and draggable waypoints while preserving endpoint bindings and
    one undo entry per path gesture.
-8. [ ] Add optional orthogonal routing after endpoint and waypoint behavior has product-level usage data.
+8. [x] Add one-shot connector and selection tools after endpoint and waypoint editing: orthogonalize a path, reverse
+   its direction, or flip supported visual elements while preserving endpoints, bindings, and arrowheads.
+   Obstacle-avoiding or persistent auto-routing remains deferred until product-level usage data exists.
+9. [x] Add image placement from a file picker with external file metadata, aspect-ratio initial sizing, local asset
+   resolution, resilient placeholders, selection transforms and PNG/SVG export. The editor can also replace a selected
+   image while preserving its frame, rotation and visual style, paste an image from the system clipboard, or drop an
+   image directly onto the canvas at the pointer location. Crop, filters and search remain deferred until the image
+   workflow has product usage data.
+10. [x] Persist layer order as versioned document metadata. Bring/send layer actions publish reorder-only deltas,
+   merges compare the order tuple independently of element versions, and legacy documents retain their existing array
+   order until the first explicit reorder.
 
 ## P1: creation entry UX
 
@@ -117,6 +147,7 @@ These items are recorded separately from the completed P1 scope because they wer
 - **Browser verification is green on the supported runtime.** Under Node.js 22, the mocked landing smoke suite, the real
   Chromium 25-collaborator room-full/rejoin scenario, the guest-room render/reconnect spec, and the full collaboration
   suite pass. The full collaboration run completed with 55 passed and 5 intentionally skipped visual-light tests.
-- **Full frontend unit-suite verification is green.** Vitest under Node.js 22 passed 284 files and 3,856 tests, with one
-  skipped test.
+- **Full frontend unit-suite verification is timing-sensitive.** A prior Vitest run under Node.js 22 passed 287 files and
+  3,993 tests, with one skipped test; one existing `CommentPinsLoader` timing test failed in the full run but passed
+  when run in isolation. The current image/rotation work has focused editor, renderer, geometry and asset tests.
 - **Optional MCP proxy has a runtime DNS warning.** The web container logs `doory-mcp could not be resolved`; API, web, realtime, and `/api/v1/health/` remain healthy. MCP-specific checks should be run after the optional `doory-mcp` service/network is available.
