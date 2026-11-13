@@ -1,13 +1,13 @@
-import { IText } from 'fabric'
-import type { EditorEngine } from '../engine/editor'
+import { IText } from "fabric";
+import type { EditorEngine } from "../engine/editor";
 
 export interface FontPreview {
   /** Shows `stack` on the selected text without a history step. */
-  preview(stack: string, family: string): void
+  preview(stack: string, family: string): void;
   /** Puts the original font back (the picker was dismissed without a choice). */
-  cancel(): void
+  cancel(): void;
   /** The choice was made through the normal style command: forget the original. */
-  commit(): void
+  commit(): void;
 }
 
 /**
@@ -17,44 +17,44 @@ export interface FontPreview {
  *style`.
  */
 export function createFontPreview(editor: EditorEngine): FontPreview {
-  let original: string | null = null
-  let token = 0
+  let original: string | null = null;
+  let token = 0;
 
   const target = (): IText | null => {
-    const obj = editor.activeView()?.canvas.getActiveObject()
-    return obj instanceof IText && !obj.isEditing ? obj : null
-  }
+    const obj = editor.activeView()?.canvas.getActiveObject();
+    return obj instanceof IText && !obj.isEditing ? obj : null;
+  };
   const refit = (obj: IText): void => {
-    obj.initDimensions()
-    obj.setCoords()
-    obj.canvas?.requestRenderAll()
-  }
+    obj.initDimensions();
+    obj.setCoords();
+    obj.canvas?.requestRenderAll();
+  };
 
   return {
     preview(stack, family) {
-      const obj = target()
-      if (!obj) return
-      if (original === null) original = String(obj.fontFamily)
-      const mine = ++token
+      const obj = target();
+      if (!obj) return;
+      if (original === null) original = String(obj.fontFamily);
+      const mine = ++token;
       void editor.fonts.load(family, obj.fontWeight, obj.fontStyle).then(() => {
-        const live = target()
-        if (mine !== token || !live) return
-        live.set('fontFamily', stack)
-        refit(live)
-      })
+        const live = target();
+        if (mine !== token || !live) return;
+        live.set("fontFamily", stack);
+        refit(live);
+      });
     },
     cancel() {
-      token += 1
-      const obj = target()
+      token += 1;
+      const obj = target();
       if (obj && original !== null) {
-        obj.set('fontFamily', original)
-        refit(obj)
+        obj.set("fontFamily", original);
+        refit(obj);
       }
-      original = null
+      original = null;
     },
     commit() {
-      token += 1
-      original = null
+      token += 1;
+      original = null;
     },
-  }
+  };
 }

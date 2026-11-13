@@ -7,9 +7,11 @@ in this process (`VIDEO_MAX_CONCURRENCY`, less one kept for rewrapping). One per
 `VIDEO_MAX_PROCESSING_PER_USER` clips converting at once. The editor polls the asset until it turns `ready` or
 `failed`.
 
-There is no job queue to survive a restart: a conversion that dies with its process is noticed by its age
-(`fail_stale`, called when the owner lists or opens their uploads, and by `manage.py sweep_video_jobs`) and
-marked failed, so the upload never spins forever. Its work directory is removed then too, or by the sweep.
+The conversion source is copied to asset storage before the request answers, so a separate worker can pick
+up a queued conversion after an API restart. The in-process pool still handles the common case immediately;
+`manage.py process_video_jobs` is the durable fallback. A conversion without a persisted source is still
+marked failed by age (`fail_stale`, called when the owner lists or opens their uploads, and by the sweep).
+Temporary work directories are removed by the worker or the sweep.
 """
 
 from __future__ import annotations
@@ -27,7 +29,7 @@ from django.contrib.auth import get_user_model
 from django.core.files import File
 from django.core.files.base import ContentFile
 from django.db import connections, transaction
-from django.db.models import Sum
+from django.db.models import Q, Sum
 from django.utils import timezone
 
 from . import video
@@ -133,11 +135,13 @@ def store(asset: Asset, converted: Converted, *, new: bool, same: dict | None = 
 
     The files go up first so the owner's row is never locked while hundreds of megabytes travel to storage.
     A new clip made from a source the owner already has (`same`, see `_claim`) raises `Duplicate` instead.
-    A background job (`new=False`) only updates a row that is still `processing`: a clip deleted, or given up
-    on as interrupted (`fail_stale`), while it was being converted must not come back, and its files are
-    removed again.
+    A background job (`new=False`) only updates a row that is still `processing`: a clip deleted, or a legacy
+    job given up on as interrupted (`fail_stale`), while it was being converted must not come back, and its
+    files are removed again.
     """
     stored = _save_files(asset, converted)
+    processing_source_name = asset.processing_source.name
+    processing_source_storage = asset.processing_source.storage
     _describe(asset, converted, _stored_size(converted))
     try:
         with transaction.atomic():
@@ -151,33 +155,54 @@ def store(asset: Asset, converted: Converted, *, new: bool, same: dict | None = 
             else:
                 fields = ("file", "poster", "thumbnail", "filmstrip", "audio", "width", "height", "size")
                 values = {name: getattr(asset, name) for name in fields}
-                values.update(mime=asset.mime, meta=asset.meta, status=asset.status, error="")
+                values.update(
+                    mime=asset.mime,
+                    meta=asset.meta,
+                    status=asset.status,
+                    error="",
+                    processing_source="",
+                    processing_started_at=None,
+                )
                 rows = Asset.objects.filter(pk=asset.pk, status=Asset.Status.PROCESSING)
                 if not rows.update(**values, updated_at=timezone.now()):
                     delete_files(asset.file.storage, stored)
+                elif processing_source_name:
+                    transaction.on_commit(
+                        lambda: delete_files(processing_source_storage, [processing_source_name])
+                    )
     except Exception:
         delete_files(asset.file.storage, stored)
         raise
     return asset
 
 
-def reserve(asset: Asset, same: dict | None = None) -> Asset:
+def reserve(asset: Asset, same: dict | None = None, *, source: Path | None = None) -> Asset:
     """Register a clip that still has to be converted, holding its source size against the quota. An owner
     has at most `VIDEO_MAX_PROCESSING_PER_USER` clips converting at once (0: no limit)."""
-    with transaction.atomic():
-        get_user_model().objects.select_for_update().get(pk=asset.owner_id)
-        _claim(asset, same)
-        limit = settings.VIDEO_MAX_PROCESSING_PER_USER
-        if limit > 0:
-            converting = Asset.objects.filter(owner=asset.owner_id, status=Asset.Status.PROCESSING)
-            fail_stale(converting)  # a conversion whose process died doesn't hold a place
-            if converting.count() >= limit:
-                raise TooManyConversions()
-        used = Asset.objects.filter(owner=asset.owner_id).aggregate(total=Sum("size"))["total"] or 0
-        if used + asset.size > settings.USER_STORAGE_QUOTA_BYTES:
-            raise QuotaExceeded()
-        asset.status = Asset.Status.PROCESSING
-        asset.save()
+    stored: list[str] = []
+    try:
+        with transaction.atomic():
+            get_user_model().objects.select_for_update().get(pk=asset.owner_id)
+            _claim(asset, same)
+            limit = settings.VIDEO_MAX_PROCESSING_PER_USER
+            if limit > 0:
+                converting = Asset.objects.filter(owner=asset.owner_id, status=Asset.Status.PROCESSING)
+                fail_stale(converting)  # a conversion whose process died doesn't hold a place
+                if converting.count() >= limit:
+                    raise TooManyConversions()
+            used = Asset.objects.filter(owner=asset.owner_id).aggregate(total=Sum("size"))["total"] or 0
+            if used + asset.size > settings.USER_STORAGE_QUOTA_BYTES:
+                raise QuotaExceeded()
+            if source is not None:
+                with source.open("rb") as handle:
+                    asset.processing_source.save(f"{asset.id}.source", File(handle), save=False)
+                stored.append(asset.processing_source.name)
+            asset.status = Asset.Status.PROCESSING
+            asset.processing_started_at = None
+            asset.save()
+    except Exception:
+        delete_files(asset.processing_source.storage, stored)
+        raise
     return asset
 
 
@@ -211,12 +236,11 @@ def create_video_asset(
     workdir = source.parent
     if not info.web_ready:
         try:
-            reserve(asset, same)
-        except Exception:
+            reserve(asset, same, source=source)
+            transaction.on_commit(lambda: submit(asset.pk))
+            return asset
+        finally:
             shutil.rmtree(workdir, ignore_errors=True)
-            raise
-        transaction.on_commit(lambda: submit(asset.pk, source, info))
-        return asset
     try:
         try:
             with video.slot():
@@ -247,34 +271,87 @@ def _executor() -> ThreadPoolExecutor:
         return _pool
 
 
-def submit(asset_id, source: Path, info: video.VideoInfo) -> None:
-    _executor().submit(run, asset_id, source, info)
+def submit(asset_id) -> None:
+    """Queue a persisted conversion in this process; the management command is the durable fallback."""
+    _executor().submit(run, asset_id)
 
 
 def _fail(asset_id, message: str) -> None:
     # A failed clip keeps no files, so it no longer counts against the quota.
-    Asset.objects.filter(pk=asset_id, status=Asset.Status.PROCESSING).update(
-        status=Asset.Status.FAILED, error=message[:255], size=0, updated_at=timezone.now()
+    asset = Asset.objects.filter(pk=asset_id, status=Asset.Status.PROCESSING).first()
+    if asset is None:
+        return
+    source_name = asset.processing_source.name
+    source_storage = asset.processing_source.storage
+    updated = Asset.objects.filter(pk=asset_id, status=Asset.Status.PROCESSING).update(
+        status=Asset.Status.FAILED,
+        error=message[:255],
+        size=0,
+        processing_source="",
+        processing_started_at=None,
+        updated_at=timezone.now(),
     )
+    if updated and source_name:
+        delete_files(source_storage, [source_name])
 
 
-def _start(asset_id) -> bool:
-    """Mark a conversion as started, so `fail_stale` counts its age from now rather than from the upload (it
-    may have waited behind others). False when the clip was deleted or given up on while it waited."""
-    rows = Asset.objects.filter(pk=asset_id, status=Asset.Status.PROCESSING)
-    return bool(rows.update(updated_at=timezone.now()))
+def _start(asset_id, *, force: bool = False) -> Asset | None:
+    """Claim a queued conversion, or reclaim a worker lease that outlived the possible conversion."""
+    now = timezone.now()
+    with transaction.atomic():
+        asset = Asset.objects.select_for_update().filter(pk=asset_id, status=Asset.Status.PROCESSING).first()
+        if asset is None:
+            return None
+        if (
+            not force
+            and asset.processing_started_at is not None
+            and asset.processing_started_at >= now - timedelta(seconds=stale_after_seconds())
+        ):
+            return None
+        asset.processing_started_at = now
+        asset.save(update_fields=["processing_started_at", "updated_at"])
+        return asset
 
 
-def run(asset_id, source: Path, info: video.VideoInfo) -> None:
-    """Convert and store one clip; on any failure the asset says why instead of staying `processing`."""
+def _stage_persisted_source(asset: Asset) -> Path:
+    workdir = video.work_dir()
+    source = workdir / "source"
     try:
+        with asset.processing_source.open("rb") as incoming, source.open("wb") as staged:
+            shutil.copyfileobj(incoming, staged)
+    except Exception:
+        shutil.rmtree(workdir, ignore_errors=True)
+        raise
+    return source
+
+
+def run(
+    asset_id,
+    source: Path | None = None,
+    info: video.VideoInfo | None = None,
+    *,
+    force: bool = False,
+) -> bool:
+    """Convert and store one clip; on any failure the asset says why instead of staying `processing`."""
+    legacy_source = source is not None
+    asset = _start(asset_id, force=force or legacy_source)
+    if asset is None:
+        if source is not None:
+            shutil.rmtree(source.parent, ignore_errors=True)
+        connections.close_all()
+        return False
+    try:
+        if source is None:
+            source = _stage_persisted_source(asset)
+            info = video.probe(source)
+        elif info is None:
+            info = video.probe(source)
         with video.slot(wait=None):
-            if not _start(asset_id):
-                return
             converted = convert(source, info)
-        asset = Asset.objects.filter(pk=asset_id, status=Asset.Status.PROCESSING).first()
-        if asset is not None:
-            store(asset, converted, new=False)
+        current = Asset.objects.filter(pk=asset_id, status=Asset.Status.PROCESSING).first()
+        if current is not None:
+            store(current, converted, new=False)
+        return True
     except QuotaExceeded:
         _fail(asset_id, QUOTA)
     except video.VideoError as exc:
@@ -283,8 +360,10 @@ def run(asset_id, source: Path, info: video.VideoInfo) -> None:
         logger.exception("Converting video asset %s failed.", asset_id)
         _fail(asset_id, FAILED)
     finally:
-        shutil.rmtree(source.parent, ignore_errors=True)
+        if source is not None:
+            shutil.rmtree(source.parent, ignore_errors=True)
         connections.close_all()  # this thread's own connections
+    return True
 
 
 def stale_after_seconds() -> int:
@@ -293,12 +372,22 @@ def stale_after_seconds() -> int:
 
 
 def fail_stale(queryset=None) -> int:
-    """Mark conversions that outlived any possible run (their process died) as failed. When there were any,
-    also remove the work directories that such processes left behind."""
+    """Mark legacy conversions without a durable source as failed after the possible run time.
+
+    Source-backed jobs are left queued so `manage.py process_video_jobs` can reclaim their lease after a
+    restart. When legacy rows are failed, remove the work directories that such processes left behind.
+    """
     rows = Asset.objects.all() if queryset is None else queryset
     cutoff = timezone.now() - timedelta(seconds=stale_after_seconds())
-    count = rows.filter(status=Asset.Status.PROCESSING, updated_at__lt=cutoff).update(
-        status=Asset.Status.FAILED, error=INTERRUPTED, size=0, updated_at=timezone.now()
+    stale = rows.filter(status=Asset.Status.PROCESSING, updated_at__lt=cutoff).filter(
+        Q(processing_source="") | Q(processing_source__isnull=True)
+    )
+    count = stale.update(
+        status=Asset.Status.FAILED,
+        error=INTERRUPTED,
+        size=0,
+        processing_started_at=None,
+        updated_at=timezone.now(),
     )
     if count:
         video.remove_old_work_dirs(stale_after_seconds())

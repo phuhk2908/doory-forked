@@ -153,7 +153,11 @@ def test_realtime_availability_follows_the_settings(settings):
 def test_the_websocket_route_exists_only_when_enabled():
     from apps.collab.routing import websocket_urlpatterns
 
-    assert len(websocket_urlpatterns) == 1
+    assert {str(pattern.pattern) for pattern in websocket_urlpatterns} == {
+        "ws/designs/<uuid:design_id>/",
+        "ws/drawings/<uuid:drawing_id>/",
+        "ws/drawing-rooms/<uuid:room_id>/",
+    }
 
 
 @pytest.fixture

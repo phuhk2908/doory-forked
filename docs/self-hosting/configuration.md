@@ -42,12 +42,13 @@ add a row to the matching section (see [CONTRIBUTING.md](../../CONTRIBUTING.md#d
 | `INSTALL_CHROMIUM` | `true` | Build a headless Chromium into the image, needed for [server-side export](image-export.md) (adds about 400 MB) |
 | `INSTALL_FFMPEG` | `true` | Build ffmpeg into the image, needed for [video clips](video.md) (adds about 250 MB) |
 | `INSTALL_IMAGE_OPTIMIZERS` | `true` | Build mozjpeg and oxipng into the image for the built-in [image optimizer](../integrations/image-optimization.md) (adds about 2 MB) |
-| `COMPOSE_PROFILES` | | Optional services to start: `mcp`, `redis`, or both (`mcp,redis`) |
+| `COMPOSE_PROFILES` | | Optional services to start, such as `mcp` or `ai` (comma separated) |
 | `REALTIME_WORKERS` | `1` | Workers of the `realtime` service. Use more than 1 only together with Redis |
 | `REALTIME_MEM_LIMIT` | `2g` | Memory limit of the `realtime` service |
 | `MCP_WORKERS` | `1` | Workers of the `mcp` service |
 | `MCP_MEM_LIMIT` | `1g` | Memory limit of the `mcp` service. `export_design` runs Chromium inside it |
 | `WEB_CONCURRENCY` | `3` | Workers of the `api` service (gunicorn) |
+| `EXPORT_WORKER_INTERVAL_SECONDS` | `2` | Docker only: seconds between `export-worker` queue passes |
 
 ## Database, cache and logs
 
@@ -58,9 +59,9 @@ add a row to the matching section (see [CONTRIBUTING.md](../../CONTRIBUTING.md#d
 | `POSTGRES_USER` | `doory` | Docker: the database user |
 | `TEST_DATABASE_URL` | | Tests only: the database the test suite uses |
 | `CACHE_URL` | `locmemcache://` | Shared cache. Production needs a cache that all workers share; Docker and the manual guide use `dbcache://doory_cache` |
-| `REDIS_URL` | | Redis, e.g. `redis://redis:6379/0`. Needed only to run [realtime](realtime.md) on more than one worker |
+| `REDIS_URL` | | Shared channel layer, e.g. `redis://redis:6379/0`. Docker supplies this default; separate API/realtime processes and multiple workers need it for live-room events |
 | `LOG_LEVEL` | `INFO` | Log level of every service |
-| `DJANGO_SETTINGS_MODULE` | `doory.settings.dev` | `doory.settings.prod` in production. Docker and the systemd units set it for you |
+| `DJANGO_SETTINGS_MODULE` | `doory.settings.dev` | Django settings module. Local Make targets select `dev` or `test`; Docker and the systemd units use `doory.settings.prod` |
 | `DJANGO_DEBUG` | `false` | Development only: show Django's debug pages |
 
 ## Media storage and per-user limits
@@ -76,6 +77,7 @@ add a row to the matching section (see [CONTRIBUTING.md](../../CONTRIBUTING.md#d
 | `AWS_SECRET_ACCESS_KEY` | | Secret key |
 | `USER_STORAGE_QUOTA_BYTES` | `2147483648` (2 GB) | Upload space per user |
 | `MAX_DESIGNS_PER_USER` | `5000` | Designs per user |
+| `MAX_DRAWING_DOCUMENT_BYTES` | `12582912` (12 MB) | Largest whiteboard document accepted by the whiteboard API |
 | `MAX_API_TOKENS_PER_USER` | `20` | MCP tokens per user |
 
 ## First-run content
@@ -115,6 +117,8 @@ See [image-export.md](image-export.md).
 | `EXPORT_VIDEO_MAX_SECONDS` | `120` | Longest video or GIF the server makes |
 | `EXPORT_VIDEO_MAX_RESOLUTION` | `1080` | Largest shorter side of a video frame, in px (the editor offers up to 2160) |
 | `EXPORT_VIDEO_MAX_BYTES` | `209715200` | Largest video file the server keeps (200 MB) |
+| `EXPORT_JOB_WORKERS` | `1` | Worker threads used by the API's best-effort local nudge for background exports |
+| `EXPORT_JOB_MAX_ATTEMPTS` | `3` | Maximum attempts for a durable background export before it is marked failed |
 | `EXPORT_MAX_CONCURRENCY` | `2` | Exports running at the same time in each API process |
 | `EXPORT_TIMEOUT_SECONDS` | `30` | Time limit for one export. SVG and PDF exports of a saved design get it once per page to draw them, and a PDF once more to print |
 | `EXPORT_CHROMIUM_PATH` | | Path to a Chromium binary. Empty: the one Playwright installed |
@@ -296,6 +300,18 @@ See [realtime.md](realtime.md). The defaults suit most sites.
 | `REALTIME_COMPACT_AFTER_UPDATES` | `200` | Compact a design's update log after this many updates |
 | `REALTIME_SLOW_APPLY_SECONDS` | `2.0` | Log a warning when applying an update takes longer than this |
 | `REALTIME_BLOCK_SECONDS` | `600` | How long a client that breaks the limits stays blocked |
+| `DRAWING_ROOM_TTL_DAYS` | `30` | How long an anonymous whiteboard room remains available; expired rooms are deleted by `collab_maintenance` |
+| `DRAWING_ROOM_CREATE_RATE` | `10/min` | Anonymous room creations per client IP |
+| `DRAWING_ROOM_MAX_COLLABORATORS` | `25` | Active collaborators allowed in one anonymous room |
+| `DRAWING_ROOM_JOIN_RATE_PER_MINUTE` | `30` | Room authentication/join attempts per room and client IP per minute |
+| `DRAWING_ROOM_RATE_MESSAGES_PER_SECOND` | `30` | Steady inbound messages per guest-room connection |
+| `DRAWING_ROOM_RATE_BURST` | `90` | Inbound guest-room message burst per connection |
+| `DRAWING_ROOM_RATE_BYTES_PER_SECOND` | `524288` | Steady inbound bytes per guest-room connection |
+| `DRAWING_ROOM_RATE_BYTES_BURST` | `2097152` | Inbound guest-room byte burst per connection |
+| `DRAWING_ROOM_FANOUT_PER_SECOND` | `200` | Outbound guest-room deliveries per room per second |
+| `DRAWING_ROOM_MEMBER_TTL_SECONDS` | `3600` | Shared-cache lease for active guest-room collaborator slots |
+| `DRAWING_ROOM_AUDIT_RETENTION_DAYS` | `90` | How long room audit events remain in the database; `collab_maintenance` removes older events |
+| `DRAWING_ROOM_SPAM_SCORE_THRESHOLD` | `12` | Content-risk score at which a room is marked for staff review; scores are recorded without retaining drawing text |
 
 ## MCP server
 

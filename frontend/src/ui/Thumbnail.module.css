@@ -13,7 +13,7 @@
   transition: opacity var(--duration-slow) var(--ease-out);
 }
 
-.image[data-fit='contain'] {
+.image[data-fit="contain"] {
   object-fit: contain;
 }
 

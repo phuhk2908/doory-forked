@@ -9,14 +9,14 @@ before you change code in an area you don't know.
 ```bash
 make setup      # backend/.venv, dependencies, backend/.env, local database
 make test       # pytest (backend) + vitest (frontend)
-make lint       # ruff, ESLint, TypeScript and docs-check: run before you finish
-make fmt        # format the backend code
+make lint       # ruff, Oxlint, Oxfmt, TypeScript and docs-check: run before you finish
+make fmt        # format the backend and frontend code
 ```
 
 - Use Node.js 22. Newer versions make some frontend tests fail.
 - Migrations must match the models: `cd backend && python manage.py makemigrations --check --dry-run`.
 - On macOS, the export tests need short temp paths: `EXPORT_WORK_DIR=/tmp/dxw TMPDIR=/tmp/dxt`. Image export
-  tests also need the built frontend (`cd frontend && npm run build`).
+  tests also need the built frontend (`cd frontend && bun run build`).
 - CI only runs when started by hand, so local `make test` and `make lint` are the real check.
 
 More detail: [docs/development/README.md](docs/development/README.md) and [docs/development/testing.md](docs/development/testing.md).
@@ -28,6 +28,10 @@ More detail: [docs/development/README.md](docs/development/README.md) and [docs/
 - New settings are read in `backend/doory/settings/base.py` with `env(...)` and get a safe default. Features
   that call an outside service or add risk (for example MCP or server-side image export) stay off until an
   admin turns them on.
+- Before implementing a feature or module, inspect the existing modules it touches and remove obsolete or redundant
+  code when needed. Then implement the new work; consider the change complete when the affected modules have been
+  reviewed, the new behavior is integrated, and the relevant checks pass, keeping the codebase simple, scalable and
+  maintainable.
 
 ## Documentation is part of the change
 

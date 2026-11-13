@@ -1,5 +1,5 @@
 # Doory real-time co-editing (uvicorn, WebSockets) on 127.0.0.1:8001, without Docker. Installed together with
-# deploy/doory-api.service. More than one worker needs REDIS_URL in backend/.env, so live rooms are shared.
+# deploy/doory-api.service. Set the same REDIS_URL in backend/.env for API/realtime room events to be shared.
 [Unit]
 Description=Doory real-time co-editing
 After=network.target postgresql.service doory-api.service

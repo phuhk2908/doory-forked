@@ -4,6 +4,9 @@ from __future__ import annotations
 
 DESIGNS_READ = "designs:read"
 DESIGNS_WRITE = "designs:write"
+DRAWINGS_READ = "drawings:read"
+DRAWINGS_WRITE = "drawings:write"
+DRAWINGS_TRASH = "drawings:trash"
 ASSETS_WRITE = "assets:write"
 COMMENTS_WRITE = "comments:write"
 # Added after the first tokens were issued: new powers get new scopes, so an existing token never gains one
@@ -12,10 +15,14 @@ DESIGNS_TRASH = "designs:trash"
 COMMENTS_MANAGE = "comments:manage"
 BRAND_WRITE = "brand:write"
 SHARING_WRITE = "sharing:write"
+DRAWING_ROOMS_MANAGE = "drawing_rooms:manage"
 
 SCOPES: dict[str, str] = {
     DESIGNS_READ: "See your designs, their versions and comments, and browse templates, elements and fonts.",
     DESIGNS_WRITE: "Create, edit, rename, duplicate and organise your designs, and restore earlier versions.",
+    DRAWINGS_READ: "See your account-owned whiteboards and read their documents.",
+    DRAWINGS_WRITE: "Create, edit and rename your account-owned whiteboards.",
+    DRAWINGS_TRASH: "Move your account-owned whiteboards to the trash.",
     DESIGNS_TRASH: "Move your designs to the trash and restore them.",
     ASSETS_WRITE: "Add images to your uploads (stock photos, images from a URL, AI background removal).",
     COMMENTS_WRITE: "Add comments to your designs.",

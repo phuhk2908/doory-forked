@@ -5,7 +5,7 @@
   gap: 2px;
   background: var(--ed-surface);
 }
-.rail[data-orientation='vertical'] {
+.rail[data-orientation="vertical"] {
   flex-direction: column;
   align-items: center;
   width: 80px;
@@ -16,7 +16,7 @@
   border-right: 1px solid var(--ed-border);
 }
 /* Above the backdrop of an open sheet, so another tool is one tap away (the sheet sits on top of the bar). */
-.rail[data-orientation='horizontal'] {
+.rail[data-orientation="horizontal"] {
   position: relative;
   z-index: var(--z-drawer);
   flex-direction: row;
@@ -28,7 +28,7 @@
   border-top: 1px solid var(--ed-border);
   scrollbar-width: none;
 }
-.rail[data-orientation='horizontal']::-webkit-scrollbar {
+.rail[data-orientation="horizontal"]::-webkit-scrollbar {
   display: none;
 }
 
@@ -75,10 +75,10 @@
 .entry:hover .icon {
   background: var(--ed-surface-3);
 }
-.entry[aria-pressed='true'] {
+.entry[aria-pressed="true"] {
   color: var(--ed-text);
 }
-.entry[aria-pressed='true'] .icon {
+.entry[aria-pressed="true"] .icon {
   background: var(--ed-accent-glow);
   color: var(--ed-accent);
 }
@@ -89,11 +89,11 @@
   box-shadow: var(--focus-ring);
 }
 
-.rail[data-orientation='horizontal'] .entry {
+.rail[data-orientation="horizontal"] .entry {
   width: 60px;
   padding: 4px 0 5px;
   font-size: 10px;
 }
-.rail[data-orientation='horizontal'] .icon {
+.rail[data-orientation="horizontal"] .icon {
   height: 28px;
 }

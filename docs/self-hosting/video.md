@@ -64,6 +64,14 @@ One person can have at most `VIDEO_MAX_PROCESSING_PER_USER` clips converting at 
 video that needs converting is refused (429, `too_many_conversions`) until one of them is done. Clips that
 only need rewrapping don't count.
 
+### Durable conversion jobs
+
+Before a processing response is returned, the original source is copied to the asset storage. The API's small
+in-process pool normally converts it immediately, while `manage.py process_video_jobs` is the recovery worker
+for jobs left behind by an API restart. `manage.py maintenance --json` runs that worker as part of its recurring
+housekeeping. The worker uses a time-limited lease, so two maintenance processes do not convert the same asset
+at once.
+
 A conversion never writes more than `MAX_VIDEO_DURATION_SECONDS` of video or a file larger than twice
 `MAX_VIDEO_UPLOAD_BYTES`, whatever the source claims. A clip that would be larger is refused.
 
@@ -79,13 +87,10 @@ If you store media in S3-compatible storage, the bucket's CORS settings must als
 
 ## Troubleshooting
 
-- **A clip stays "processing", then fails with "The conversion was interrupted":** the API process stopped
-  while it was converting (a restart or a deployment). Upload the clip again. `python manage.py
-  sweep_video_jobs` marks such clips failed straight away. Otherwise they are marked when someone opens them.
-  The sweep also removes the temporary folders such conversions leave in `VIDEO_WORK_DIR`, so it's worth
-  running every hour (see [Scheduled tasks](README.md#scheduled-tasks)). An ffmpeg left running by a killed
-  API process finishes its clip, and stops itself at the latest after `VIDEO_TRANSCODE_TIMEOUT_SECONDS` of CPU
-  time for each core.
+- **A clip stays "processing" after an API restart:** run `python manage.py process_video_jobs`, or schedule
+  `python manage.py maintenance --json`. The persisted source can be picked up by a new worker. Rows from
+  older installations that have no persisted source are marked failed by `sweep_video_jobs` and need a new
+  upload. The sweep also removes temporary folders such conversions leave in `VIDEO_WORK_DIR`.
 - **"The server is busy converting other videos":** every ffmpeg place stayed busy for 20 seconds, which
   can only happen to a clip that needs no conversion when `VIDEO_MAX_CONCURRENCY` is 1 or many such clips
   arrive at once. Raise `VIDEO_MAX_CONCURRENCY` if the server has spare CPU.

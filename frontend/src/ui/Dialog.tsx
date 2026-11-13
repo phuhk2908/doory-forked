@@ -1,30 +1,51 @@
-import { X } from 'lucide-react'
-import { useEffect, useId, useRef, type KeyboardEvent, type MouseEvent, type ReactNode, type RefObject } from 'react'
-import { cx } from '@/lib/cx'
-import { getFocusable } from './hooks'
-import { IconButton } from './IconButton'
-import { isTopModal, pushModal } from './modalStack'
-import { Portal } from './Portal'
-import styles from './Dialog.module.css'
+import { X } from "lucide-react";
+import {
+  useEffect,
+  useId,
+  useRef,
+  type KeyboardEvent,
+  type MouseEvent,
+  type ReactNode,
+  type RefObject,
+} from "react";
+import { cx } from "@/lib/cx";
+import { getFocusable } from "./hooks";
+import { IconButton } from "./IconButton";
+import { isTopModal, pushModal } from "./modalStack";
+import { Portal } from "./Portal";
+import styles from "./Dialog.module.css";
 
 export interface DialogProps {
-  open: boolean
-  onClose(): void
-  title: ReactNode
-  description?: ReactNode
-  children?: ReactNode
-  footer?: ReactNode
-  size?: 'sm' | 'md' | 'lg' | 'xl'
-  role?: 'dialog' | 'alertdialog'
+  open: boolean;
+  onClose(): void;
+  title: ReactNode;
+  description?: ReactNode;
+  children?: ReactNode;
+  footer?: ReactNode;
+  size?: "sm" | "md" | "lg" | "xl";
+  role?: "dialog" | "alertdialog";
   /** When false, ESC and overlay clicks do nothing and the close button is hidden. */
-  dismissible?: boolean
-  hideTitle?: boolean
-  initialFocusRef?: RefObject<HTMLElement | null>
-  className?: string
+  dismissible?: boolean;
+  hideTitle?: boolean;
+  initialFocusRef?: RefObject<HTMLElement | null>;
+  className?: string;
 }
 
-export function Dialog({ open, onClose, title, description, children, footer, size = 'md', role = 'dialog', dismissible = true, hideTitle, initialFocusRef, className }: DialogProps) {
-  if (!open) return null
+export function Dialog({
+  open,
+  onClose,
+  title,
+  description,
+  children,
+  footer,
+  size = "md",
+  role = "dialog",
+  dismissible = true,
+  hideTitle,
+  initialFocusRef,
+  className,
+}: DialogProps) {
+  if (!open) return null;
   return (
     <Portal>
       <DialogContent
@@ -42,74 +63,105 @@ export function Dialog({ open, onClose, title, description, children, footer, si
         {children}
       </DialogContent>
     </Portal>
-  )
+  );
 }
 
-type ContentProps = Omit<DialogProps, 'open'>
+type ContentProps = Omit<DialogProps, "open">;
 
-function DialogContent({ onClose, title, description, children, footer, size = 'md', role = 'dialog', dismissible = true, hideTitle, initialFocusRef, className }: ContentProps) {
-  const overlayRef = useRef<HTMLDivElement>(null)
-  const panelRef = useRef<HTMLDivElement>(null)
-  const titleId = useId()
-  const descId = useId()
-  const onCloseRef = useRef(onClose)
+function DialogContent({
+  onClose,
+  title,
+  description,
+  children,
+  footer,
+  size = "md",
+  role = "dialog",
+  dismissible = true,
+  hideTitle,
+  initialFocusRef,
+  className,
+}: ContentProps) {
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  const descId = useId();
+  const onCloseRef = useRef(onClose);
   useEffect(() => {
-    onCloseRef.current = onClose
-  })
+    onCloseRef.current = onClose;
+  });
 
   useEffect(() => {
-    const overlay = overlayRef.current
-    const panel = panelRef.current
-    if (!overlay || !panel) return undefined
-    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null
-    const release = pushModal(overlay)
-    const alreadyFocused = panel.contains(document.activeElement) && document.activeElement !== panel
-    const target = initialFocusRef?.current ?? (alreadyFocused ? null : (getFocusable(panel).find((el) => !el.hasAttribute('data-dialog-close')) ?? panel))
-    target?.focus({ preventScroll: true })
+    const overlay = overlayRef.current;
+    const panel = panelRef.current;
+    if (!overlay || !panel) return undefined;
+    const previouslyFocused =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    const release = pushModal(overlay);
+    const alreadyFocused =
+      panel.contains(document.activeElement) &&
+      document.activeElement !== panel;
+    const target =
+      initialFocusRef?.current ??
+      (alreadyFocused
+        ? null
+        : (getFocusable(panel).find(
+            (el) => !el.hasAttribute("data-dialog-close"),
+          ) ?? panel));
+    target?.focus({ preventScroll: true });
     return () => {
-      release()
-      if (previouslyFocused && document.contains(previouslyFocused)) previouslyFocused.focus({ preventScroll: true })
-    }
-  }, [initialFocusRef])
+      release();
+      if (previouslyFocused && document.contains(previouslyFocused))
+        previouslyFocused.focus({ preventScroll: true });
+    };
+  }, [initialFocusRef]);
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    const overlay = overlayRef.current
-    if (!overlay || !isTopModal(overlay)) return
-    if (event.key === 'Escape') {
-      event.stopPropagation()
+    const overlay = overlayRef.current;
+    if (!overlay || !isTopModal(overlay)) return;
+    if (event.key === "Escape") {
+      event.stopPropagation();
       if (dismissible) {
-        event.preventDefault()
-        onCloseRef.current()
+        event.preventDefault();
+        onCloseRef.current();
       }
-      return
+      return;
     }
-    if (event.key !== 'Tab') return
-    const panel = panelRef.current
-    if (!panel) return
-    const focusable = getFocusable(panel)
+    if (event.key !== "Tab") return;
+    const panel = panelRef.current;
+    if (!panel) return;
+    const focusable = getFocusable(panel);
     if (focusable.length === 0) {
-      event.preventDefault()
-      panel.focus()
-      return
+      event.preventDefault();
+      panel.focus();
+      return;
     }
-    const first = focusable[0]
-    const last = focusable[focusable.length - 1]
-    const active = document.activeElement
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    const active = document.activeElement;
     if (event.shiftKey && (active === first || active === panel)) {
-      event.preventDefault()
-      last.focus()
+      event.preventDefault();
+      last.focus();
     } else if (!event.shiftKey && active === last) {
-      event.preventDefault()
-      first.focus()
+      event.preventDefault();
+      first.focus();
     }
-  }
+  };
 
   const onOverlayMouseDown = (event: MouseEvent<HTMLDivElement>) => {
-    if (dismissible && event.target === event.currentTarget) onCloseRef.current()
-  }
+    if (dismissible && event.target === event.currentTarget)
+      onCloseRef.current();
+  };
 
   return (
-    <div ref={overlayRef} className={styles.overlay} onMouseDown={onOverlayMouseDown} onKeyDown={onKeyDown} data-doory-modal="">
+    <div
+      ref={overlayRef}
+      className={styles.overlay}
+      onMouseDown={onOverlayMouseDown}
+      onKeyDown={onKeyDown}
+      data-doory-modal=""
+    >
       <div
         ref={panelRef}
         role={role}
@@ -122,7 +174,10 @@ function DialogContent({ onClose, title, description, children, footer, size = '
       >
         <header className={cx(styles.header, hideTitle && styles.headerHidden)}>
           <div className={styles.headings}>
-            <h2 id={titleId} className={cx(styles.title, hideTitle && styles.srOnly)}>
+            <h2
+              id={titleId}
+              className={cx(styles.title, hideTitle && styles.srOnly)}
+            >
               {title}
             </h2>
             {description ? (
@@ -131,11 +186,19 @@ function DialogContent({ onClose, title, description, children, footer, size = '
               </p>
             ) : null}
           </div>
-          {dismissible ? <IconButton label="Close dialog" size="sm" icon={<X size={18} />} onClick={() => onCloseRef.current()} data-dialog-close="" /> : null}
+          {dismissible ? (
+            <IconButton
+              label="Close dialog"
+              size="sm"
+              icon={<X size={18} />}
+              onClick={() => onCloseRef.current()}
+              data-dialog-close=""
+            />
+          ) : null}
         </header>
         <div className={styles.body}>{children}</div>
         {footer ? <footer className={styles.footer}>{footer}</footer> : null}
       </div>
     </div>
-  )
+  );
 }

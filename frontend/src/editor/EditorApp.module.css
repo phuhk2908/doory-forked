@@ -45,7 +45,7 @@
  * High contrast: the light dividers use a background colour (--color-bg-muted), so they get the border colour, and the
  * pale focus halo on text fields becomes the real focus ring.
  */
-:global(:root[data-contrast='more']) .root {
+:global(:root[data-contrast="more"]) .root {
   --ed-border-light: var(--color-border);
   --ed-focus-glow: var(--focus-ring);
 }

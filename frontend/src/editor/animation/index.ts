@@ -3,11 +3,48 @@
  * and the frame renderer. Importing it also registers the built-in presets. Nothing here touches the editor's canvas,
  * history or autosave.
  */
-import './builtins'
+import "./builtins";
 
-export { documentHasMotion, normalizeAnim, normalizeObjectAnimation, normalizeTransition, pageHasAnimation, pageHasMotion, pageSpans, pageTiming, transitionOf, type AnimSlot, type AnimSpan, type PageTiming } from './model'
-export { sampleObject, sampleTransition, sampleUnit, type PageDims, type Sample } from './sampler'
-export { createFrameRenderer, renderFrame, type FrameRenderer, type FrameRendererOptions } from './frameRenderer'
-export { drawTransition } from './transitionRenderer'
-export { emphasisPresets, inOutPresets, registerEmphasisPreset, registerInOutPreset, registerTransitionPreset, transitionPresets, type TransitionSample } from './presets'
-export { registerTimelineSection, timelineSections, type TimelineSection, type TimelineSectionProps } from './sections'
+export {
+  documentHasMotion,
+  normalizeAnim,
+  normalizeObjectAnimation,
+  normalizeTransition,
+  pageHasAnimation,
+  pageHasMotion,
+  pageSpans,
+  pageTiming,
+  transitionOf,
+  type AnimSlot,
+  type AnimSpan,
+  type PageTiming,
+} from "./model";
+export {
+  sampleObject,
+  sampleTransition,
+  sampleUnit,
+  type PageDims,
+  type Sample,
+} from "./sampler";
+export {
+  createFrameRenderer,
+  renderFrame,
+  type FrameRenderer,
+  type FrameRendererOptions,
+} from "./frameRenderer";
+export { drawTransition } from "./transitionRenderer";
+export {
+  emphasisPresets,
+  inOutPresets,
+  registerEmphasisPreset,
+  registerInOutPreset,
+  registerTransitionPreset,
+  transitionPresets,
+  type TransitionSample,
+} from "./presets";
+export {
+  registerTimelineSection,
+  timelineSections,
+  type TimelineSection,
+  type TimelineSectionProps,
+} from "./sections";

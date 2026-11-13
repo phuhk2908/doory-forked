@@ -6,16 +6,16 @@ Every direct and transitive npm and Python dependency with the licence its own m
 installed packages (see the header of `licenses/audit.py` for the sources). The curated view with the decisions
 is [THIRD_PARTY.md](../THIRD_PARTY.md); reproduce this file with `python licenses/audit.py --write`.
 
-<!-- signature: d9fe30b80c873bc4 -->
+<!-- signature: 2d92768329c022a1 -->
 
 ## Summary
 
 | Ecosystem and scope | Packages | Licences |
 |---|---:|---|
-| npm packages shipped to browsers (production bundle, fonts, WebAssembly) | 45 | MIT 32, OFL-1.1 5, Apache-2.0 2, ISC 2, (MIT AND Zlib) 1, (MPL-2.0 OR Apache-2.0) 1, BSD-3-Clause 1, MIT OR SEE LICENSE IN FEEL-FREE.md 1 |
-| npm packages for building, testing and development (never shipped) | 421 | MIT 333, ISC 33, Apache-2.0 24, BSD-3-Clause 14, BSD-2-Clause 8, MPL-2.0 2, (BSD-2-Clause OR MIT OR Apache-2.0) 1, (MIT OR CC0-1.0) 1, (MIT OR WTFPL) 1, BlueOak-1.0.0 1, CC-BY-4.0 1, MIT-0 1, Python-2.0 1 |
-| Python packages of the server runtime (`requirements.txt`) | 57 | MIT 23, BSD-3-Clause 15, Apache-2.0 7, BSD-2-Clause 2, BSD-3-Clause OR Apache-2.0 2, PSF-2.0 2, Apache-2.0 OR BSD-3-Clause 1, LGPL-3.0-or-later 1, MIT AND PSF-2.0 1, MIT-0 1, MIT-CMU 1, MPL-2.0 1 |
-| Python packages for development and tests only (`requirements-dev.txt`) | 24 | MIT 15, Apache-2.0 2, BSD-3-Clause 2, Apache-2.0 OR BSD-2-Clause 1, BSD-2-Clause 1, BSD-3-Clause AND TCL 1, MPL-2.0 1, ZPL-2.1 1 |
+| npm packages shipped to browsers (production bundle, fonts, WebAssembly) | 47 | MIT 33, OFL-1.1 5, Apache-2.0 2, BSD-3-Clause 2, ISC 2, (MIT AND Zlib) 1, (MPL-2.0 OR Apache-2.0) 1, MIT OR SEE LICENSE IN FEEL-FREE.md 1 |
+| npm packages for building, testing and development (never shipped) | 348 | MIT 277, ISC 26, MPL-2.0 14, BSD-3-Clause 13, Apache-2.0 11, BSD-2-Clause 2, (BSD-2-Clause OR MIT OR Apache-2.0) 1, (MIT OR CC0-1.0) 1, (MIT OR WTFPL) 1, CC-BY-4.0 1, MIT-0 1 |
+| Python packages of the server runtime (`requirements.txt`) | 71 | MIT 31, BSD-3-Clause 19, Apache-2.0 9, BSD-2-Clause 2, BSD-3-Clause OR Apache-2.0 2, PSF-2.0 2, Apache-2.0 OR BSD-3-Clause 1, LGPL-3.0-or-later 1, MIT AND PSF-2.0 1, MIT-0 1, MIT-CMU 1, MPL-2.0 1 |
+| Python packages for development and tests only (`requirements-dev.txt`) | 26 | MIT 15, BSD-3-Clause 4, Apache-2.0 2, Apache-2.0 OR BSD-2-Clause 1, BSD-2-Clause 1, BSD-3-Clause AND TCL 1, MPL-2.0 1, ZPL-2.1 1 |
 
 ## Items that are not plain permissive
 
@@ -24,8 +24,8 @@ is [THIRD_PARTY.md](../THIRD_PARTY.md); reproduce this file with `python license
 | `@axe-core/playwright` 4.13.0 | MPL-2.0 | npm, build/test only | accept, dev/test only: MPL-2.0, same as axe-core: test tooling only, unmodified, not in the production bundle, not redistributed. |
 | `axe-core` 4.13.0 | MPL-2.0 | npm, build/test only | accept, dev/test only: MPL-2.0 is file-level copyleft. The package is only loaded by the accessibility checks of the end-to-end suite (frontend/e2e/app/a11y.spec.ts); it is not in the production bundle (verified from the build's source maps), is used unmodified and is not redistributed. |
 | `caniuse-lite` 1.0.30001814 | CC-BY-4.0 | npm, build/test only | accept, build tooling only: Data licensed CC-BY-4.0 (attribution), read by Babel/browserslist while building. Nothing of it is in the production bundle (verified from the build's source maps) or in any image, so no attribution obligation arises from distribution; dropping it is not possible without dropping the Vite React plugin. |
-| `certifi` 2026.10.19 | MPL-2.0 | Python, server runtime | accept: MPL-2.0 covers only the CA certificate list, which is data. It is installed unmodified from PyPI (a dependency of requests), so the MPL source-availability duty is met by PyPI and the upstream repository; copyleft does not reach Doory's code. |
-| `hypothesis` 6.168.5 | MPL-2.0 | Python, dev/test only | accept, dev/test only: MPL-2.0, used unmodified by the property-based tests. It is only in requirements-dev.txt, which the Dockerfile does not install, so it is neither in the image nor redistributed. |
+| `certifi` 2026.10.23 | MPL-2.0 | Python, server runtime | accept: MPL-2.0 covers only the CA certificate list, which is data. It is installed unmodified from PyPI (a dependency of requests), so the MPL source-availability duty is met by PyPI and the upstream repository; copyleft does not reach Doory's code. |
+| `hypothesis` 6.170.14 | MPL-2.0 | Python, dev/test only | accept, dev/test only: MPL-2.0, used unmodified by the property-based tests. It is only in requirements-dev.txt, which the Dockerfile does not install, so it is neither in the image nor redistributed. |
 | `psycopg2-binary` 2.9.13 | LGPL-3.0-or-later | Python, server runtime | accept, with conditions: LGPL-3.0-or-later (with an OpenSSL linking exception), the PostgreSQL driver Django uses. It stays a separate library: installed unmodified from PyPI by pip, imported dynamically, never vendored or patched, so Doory itself remains MIT; an operator can replace it with another build (pip install). psycopg 3 is LGPL-3.0 too and Django has no permissive PostgreSQL driver, so a swap would not help. Condition: never copy its code into this repository. |
 
 Packages offering a choice of licences where Doory uses the permissive one:
@@ -43,8 +43,8 @@ Packages offering a choice of licences where Doory uses the permissive one:
 | `@fontsource-variable/inter` | 5.3.0 | `^5.3.0` | OFL-1.1 | https://github.com/fontsource/font-files |
 | `@fontsource-variable/nunito` | 5.3.0 | `^5.3.0` | OFL-1.1 | https://github.com/fontsource/font-files |
 | `@fontsource-variable/plus-jakarta-sans` | 5.3.0 | `^5.3.0` | OFL-1.1 | https://github.com/fontsource/font-files |
-| `@tanstack/query-core` | 5.104.1 |  | MIT | https://github.com/TanStack/query |
-| `@tanstack/react-query` | 5.104.1 | `^5.62.0` | MIT | https://github.com/TanStack/query |
+| `@tanstack/query-core` | 5.104.2 |  | MIT | https://github.com/TanStack/query |
+| `@tanstack/react-query` | 5.104.2 | `^5.104.2` | MIT | https://github.com/TanStack/query |
 | `canvg` | 3.0.11 |  | MIT | https://github.com/canvg/canvg |
 | `core-js` | 3.50.0 |  | MIT | https://github.com/zloirock/core-js |
 | `dijkstrajs` | 1.0.3 |  | MIT | https://github.com/tcort/dijkstrajs |
@@ -60,7 +60,7 @@ Packages offering a choice of licences where Doory uses the permissive one:
 | `jspdf` | 4.2.1 | `^4.2.1` | MIT | https://github.com/parallax/jsPDF |
 | `lib0` | 0.2.119 | `^0.2.119` | MIT | https://github.com/dmonad/lib0 |
 | `long` | 5.3.2 |  | Apache-2.0 | https://github.com/dcodeIO/long.js |
-| `lucide-react` | 1.52.0 | `^1.52.0` | ISC | https://github.com/lucide-icons/lucide |
+| `lucide-react` | 1.57.0 | `^1.57.0` | ISC | https://github.com/lucide-icons/lucide |
 | `mp4-muxer` | 5.2.2 | `^5.2.2` | MIT | https://github.com/Vanilagy/mp4-muxer |
 | `mp4box` | 2.4.1 | `^2.4.1` | BSD-3-Clause | https://github.com/gpac/mp4box.js |
 | `onnxruntime-common` | 1.30.0 |  | MIT | https://github.com/Microsoft/onnxruntime |
@@ -76,6 +76,7 @@ Packages offering a choice of licences where Doory uses the permissive one:
 | `react-router` | 7.18.4 |  | MIT | https://github.com/remix-run/react-router |
 | `react-router-dom` | 7.18.4 | `^7.13.0` | MIT | https://github.com/remix-run/react-router |
 | `rgbcolor` | 1.0.1 |  | MIT OR SEE LICENSE IN FEEL-FREE.md | https://github.com/yetzt/node-rgbcolor |
+| `roughjs` | 4.6.6 | `^4.6.6` | MIT | https://github.com/pshihn/rough |
 | `scheduler` | 0.28.0 |  | MIT | https://github.com/react/react |
 | `stackblur-canvas` | 2.7.0 |  | MIT | https://github.com/flozz/StackBlur |
 | `svg-pathdata` | 6.0.3 |  | MIT | https://github.com/nfroidure/svg-pathdata |
@@ -115,46 +116,6 @@ Packages offering a choice of licences where Doory uses the permissive one:
 | `@csstools/css-color-parser` | 3.1.0 |  | MIT | https://github.com/csstools/postcss-plugins |
 | `@csstools/css-parser-algorithms` | 3.0.5 |  | MIT | https://github.com/csstools/postcss-plugins |
 | `@csstools/css-tokenizer` | 3.0.4 |  | MIT | https://github.com/csstools/postcss-plugins |
-| `@esbuild/aix-ppc64-*` (1 platform builds) | 0.28.2 |  | MIT | https://www.npmjs.com/package/@esbuild/aix-ppc64 |
-| `@esbuild/android-arm-*` (1 platform builds) | 0.28.2 |  | MIT | https://www.npmjs.com/package/@esbuild/android-arm |
-| `@esbuild/android-arm64-*` (1 platform builds) | 0.28.2 |  | MIT | https://www.npmjs.com/package/@esbuild/android-arm64 |
-| `@esbuild/android-x64-*` (1 platform builds) | 0.28.2 |  | MIT | https://www.npmjs.com/package/@esbuild/android-x64 |
-| `@esbuild/darwin-arm64-*` (1 platform builds) | 0.28.2 |  | MIT | https://www.npmjs.com/package/@esbuild/darwin-arm64 |
-| `@esbuild/darwin-x64-*` (1 platform builds) | 0.28.2 |  | MIT | https://www.npmjs.com/package/@esbuild/darwin-x64 |
-| `@esbuild/freebsd-arm64-*` (1 platform builds) | 0.28.2 |  | MIT | https://www.npmjs.com/package/@esbuild/freebsd-arm64 |
-| `@esbuild/freebsd-x64-*` (1 platform builds) | 0.28.2 |  | MIT | https://www.npmjs.com/package/@esbuild/freebsd-x64 |
-| `@esbuild/linux-arm-*` (1 platform builds) | 0.28.2 |  | MIT | https://www.npmjs.com/package/@esbuild/linux-arm |
-| `@esbuild/linux-arm64-*` (1 platform builds) | 0.28.2 |  | MIT | https://www.npmjs.com/package/@esbuild/linux-arm64 |
-| `@esbuild/linux-ia32-*` (1 platform builds) | 0.28.2 |  | MIT | https://www.npmjs.com/package/@esbuild/linux-ia32 |
-| `@esbuild/linux-loong64-*` (1 platform builds) | 0.28.2 |  | MIT | https://www.npmjs.com/package/@esbuild/linux-loong64 |
-| `@esbuild/linux-mips64el-*` (1 platform builds) | 0.28.2 |  | MIT | https://www.npmjs.com/package/@esbuild/linux-mips64el |
-| `@esbuild/linux-ppc64-*` (1 platform builds) | 0.28.2 |  | MIT | https://www.npmjs.com/package/@esbuild/linux-ppc64 |
-| `@esbuild/linux-riscv64-*` (1 platform builds) | 0.28.2 |  | MIT | https://www.npmjs.com/package/@esbuild/linux-riscv64 |
-| `@esbuild/linux-s390x-*` (1 platform builds) | 0.28.2 |  | MIT | https://www.npmjs.com/package/@esbuild/linux-s390x |
-| `@esbuild/linux-x64` | 0.28.2 |  | MIT | https://github.com/evanw/esbuild |
-| `@esbuild/netbsd-arm64-*` (1 platform builds) | 0.28.2 |  | MIT | https://www.npmjs.com/package/@esbuild/netbsd-arm64 |
-| `@esbuild/netbsd-x64-*` (1 platform builds) | 0.28.2 |  | MIT | https://www.npmjs.com/package/@esbuild/netbsd-x64 |
-| `@esbuild/openbsd-arm64-*` (1 platform builds) | 0.28.2 |  | MIT | https://www.npmjs.com/package/@esbuild/openbsd-arm64 |
-| `@esbuild/openbsd-x64-*` (1 platform builds) | 0.28.2 |  | MIT | https://www.npmjs.com/package/@esbuild/openbsd-x64 |
-| `@esbuild/openharmony-arm64-*` (1 platform builds) | 0.28.2 |  | MIT | https://www.npmjs.com/package/@esbuild/openharmony-arm64 |
-| `@esbuild/sunos-x64-*` (1 platform builds) | 0.28.2 |  | MIT | https://www.npmjs.com/package/@esbuild/sunos-x64 |
-| `@esbuild/win32-arm64-*` (1 platform builds) | 0.28.2 |  | MIT | https://www.npmjs.com/package/@esbuild/win32-arm64 |
-| `@esbuild/win32-ia32-*` (1 platform builds) | 0.28.2 |  | MIT | https://www.npmjs.com/package/@esbuild/win32-ia32 |
-| `@esbuild/win32-x64-*` (1 platform builds) | 0.28.2 |  | MIT | https://www.npmjs.com/package/@esbuild/win32-x64 |
-| `@eslint-community/eslint-utils` | 4.10.1 |  | MIT | https://github.com/eslint-community/eslint-utils |
-| `@eslint-community/regexpp` | 4.12.2 |  | MIT | https://github.com/eslint-community/regexpp |
-| `@eslint/config-array` | 0.21.2 |  | Apache-2.0 | https://github.com/eslint/rewrite |
-| `@eslint/config-helpers` | 0.4.2 |  | Apache-2.0 | https://github.com/eslint/rewrite |
-| `@eslint/core` | 0.17.0 |  | Apache-2.0 | https://github.com/eslint/rewrite |
-| `@eslint/eslintrc` | 3.3.7 |  | MIT | https://github.com/eslint/eslintrc |
-| `@eslint/js` | 9.39.5 | `^9.39.0` | MIT | https://github.com/eslint/eslint |
-| `@eslint/object-schema` | 2.1.7 |  | Apache-2.0 | https://github.com/eslint/rewrite |
-| `@eslint/plugin-kit` | 0.4.1 |  | Apache-2.0 | https://github.com/eslint/rewrite |
-| `@humanfs/core` | 0.19.2 |  | Apache-2.0 | https://github.com/humanwhocodes/humanfs |
-| `@humanfs/node` | 0.16.8 |  | Apache-2.0 | https://github.com/humanwhocodes/humanfs |
-| `@humanfs/types` | 0.15.0 |  | Apache-2.0 | https://github.com/humanwhocodes/humanfs |
-| `@humanwhocodes/module-importer` | 1.0.1 |  | Apache-2.0 | https://github.com/humanwhocodes/module-importer |
-| `@humanwhocodes/retry` | 0.4.3 |  | Apache-2.0 | https://github.com/humanwhocodes/retry |
 | `@inquirer/ansi` | 2.0.8 |  | MIT | https://github.com/SBoudrias/Inquirer.js |
 | `@inquirer/confirm` | 6.3.2 |  | MIT | https://github.com/SBoudrias/Inquirer.js |
 | `@inquirer/core` | 12.0.3 |  | MIT | https://github.com/SBoudrias/Inquirer.js |
@@ -166,12 +127,50 @@ Packages offering a choice of licences where Doory uses the permissive one:
 | `@jridgewell/sourcemap-codec` | 1.6.0 |  | MIT | https://github.com/jridgewell/sourcemaps |
 | `@jridgewell/trace-mapping` | 0.3.31 |  | MIT | https://github.com/jridgewell/sourcemaps |
 | `@mswjs/interceptors` | 0.41.9 |  | MIT | https://github.com/mswjs/interceptors |
-| `@napi-rs/lzma-linux-x64-gnu` | 1.5.1 |  | MIT | https://github.com/Brooooooklyn/lzma |
-| `@open-draft/deferred-promise` | 2.2.0 |  | MIT | https://github.com/open-draft/deferred-promise |
 | `@open-draft/deferred-promise` | 3.0.0 |  | MIT | https://github.com/open-draft/deferred-promise |
+| `@open-draft/deferred-promise` | 2.2.0 |  | MIT | https://github.com/open-draft/deferred-promise |
 | `@open-draft/logger` | 0.3.0 |  | MIT | https://github.com/open-draft/logger |
 | `@open-draft/until` | 2.1.0 |  | MIT | https://github.com/open-draft/until |
-| `@playwright/test` | 1.63.0 | `^1.50.0` | Apache-2.0 | https://github.com/microsoft/playwright |
+| `@oxc-project/types` | 0.154.0 |  | MIT | https://github.com/oxc-project/oxc |
+| `@oxfmt/binding-android-arm-eabi` | 0.75.0 |  | MIT | https://github.com/oxc-project/oxc |
+| `@oxfmt/binding-android-arm64` | 0.75.0 |  | MIT | https://github.com/oxc-project/oxc |
+| `@oxfmt/binding-darwin-arm64` | 0.75.0 |  | MIT | https://github.com/oxc-project/oxc |
+| `@oxfmt/binding-darwin-x64` | 0.75.0 |  | MIT | https://github.com/oxc-project/oxc |
+| `@oxfmt/binding-freebsd-x64` | 0.75.0 |  | MIT | https://github.com/oxc-project/oxc |
+| `@oxfmt/binding-linux-arm-gnueabihf` | 0.75.0 |  | MIT | https://github.com/oxc-project/oxc |
+| `@oxfmt/binding-linux-arm-musleabihf` | 0.75.0 |  | MIT | https://github.com/oxc-project/oxc |
+| `@oxfmt/binding-linux-arm64-gnu` | 0.75.0 |  | MIT | https://github.com/oxc-project/oxc |
+| `@oxfmt/binding-linux-arm64-musl` | 0.75.0 |  | MIT | https://github.com/oxc-project/oxc |
+| `@oxfmt/binding-linux-ppc64-gnu` | 0.75.0 |  | MIT | https://github.com/oxc-project/oxc |
+| `@oxfmt/binding-linux-riscv64-gnu` | 0.75.0 |  | MIT | https://github.com/oxc-project/oxc |
+| `@oxfmt/binding-linux-riscv64-musl` | 0.75.0 |  | MIT | https://github.com/oxc-project/oxc |
+| `@oxfmt/binding-linux-s390x-gnu` | 0.75.0 |  | MIT | https://github.com/oxc-project/oxc |
+| `@oxfmt/binding-linux-x64-gnu` | 0.75.0 |  | MIT | https://github.com/oxc-project/oxc |
+| `@oxfmt/binding-linux-x64-musl` | 0.75.0 |  | MIT | https://github.com/oxc-project/oxc |
+| `@oxfmt/binding-openharmony-arm64` | 0.75.0 |  | MIT | https://github.com/oxc-project/oxc |
+| `@oxfmt/binding-win32-arm64-msvc` | 0.75.0 |  | MIT | https://github.com/oxc-project/oxc |
+| `@oxfmt/binding-win32-ia32-msvc` | 0.75.0 |  | MIT | https://github.com/oxc-project/oxc |
+| `@oxfmt/binding-win32-x64-msvc` | 0.75.0 |  | MIT | https://github.com/oxc-project/oxc |
+| `@oxlint/binding-android-arm-eabi` | 1.90.0 |  | MIT | https://github.com/oxc-project/oxc |
+| `@oxlint/binding-android-arm64` | 1.90.0 |  | MIT | https://github.com/oxc-project/oxc |
+| `@oxlint/binding-darwin-arm64` | 1.90.0 |  | MIT | https://github.com/oxc-project/oxc |
+| `@oxlint/binding-darwin-x64` | 1.90.0 |  | MIT | https://github.com/oxc-project/oxc |
+| `@oxlint/binding-freebsd-x64` | 1.90.0 |  | MIT | https://github.com/oxc-project/oxc |
+| `@oxlint/binding-linux-arm-gnueabihf` | 1.90.0 |  | MIT | https://github.com/oxc-project/oxc |
+| `@oxlint/binding-linux-arm-musleabihf` | 1.90.0 |  | MIT | https://github.com/oxc-project/oxc |
+| `@oxlint/binding-linux-arm64-gnu` | 1.90.0 |  | MIT | https://github.com/oxc-project/oxc |
+| `@oxlint/binding-linux-arm64-musl` | 1.90.0 |  | MIT | https://github.com/oxc-project/oxc |
+| `@oxlint/binding-linux-ppc64-gnu` | 1.90.0 |  | MIT | https://github.com/oxc-project/oxc |
+| `@oxlint/binding-linux-riscv64-gnu` | 1.90.0 |  | MIT | https://github.com/oxc-project/oxc |
+| `@oxlint/binding-linux-riscv64-musl` | 1.90.0 |  | MIT | https://github.com/oxc-project/oxc |
+| `@oxlint/binding-linux-s390x-gnu` | 1.90.0 |  | MIT | https://github.com/oxc-project/oxc |
+| `@oxlint/binding-linux-x64-gnu` | 1.90.0 |  | MIT | https://github.com/oxc-project/oxc |
+| `@oxlint/binding-linux-x64-musl` | 1.90.0 |  | MIT | https://github.com/oxc-project/oxc |
+| `@oxlint/binding-openharmony-arm64` | 1.90.0 |  | MIT | https://github.com/oxc-project/oxc |
+| `@oxlint/binding-win32-arm64-msvc` | 1.90.0 |  | MIT | https://github.com/oxc-project/oxc |
+| `@oxlint/binding-win32-ia32-msvc` | 1.90.0 |  | MIT | https://github.com/oxc-project/oxc |
+| `@oxlint/binding-win32-x64-msvc` | 1.90.0 |  | MIT | https://github.com/oxc-project/oxc |
+| `@playwright/test` | 1.64.1 | `^1.64.1` | Apache-2.0 | https://github.com/microsoft/playwright |
 | `@protobufjs/aspromise` | 1.1.2 |  | BSD-3-Clause | https://github.com/dcodeIO/protobuf.js |
 | `@protobufjs/base64` | 1.1.2 |  | BSD-3-Clause | https://github.com/dcodeIO/protobuf.js |
 | `@protobufjs/codegen` | 2.0.5 |  | BSD-3-Clause | https://github.com/dcodeIO/protobuf.js |
@@ -181,14 +180,27 @@ Packages offering a choice of licences where Doory uses the permissive one:
 | `@protobufjs/path` | 1.1.2 |  | BSD-3-Clause | https://github.com/dcodeIO/protobuf.js |
 | `@protobufjs/pool` | 1.1.0 |  | BSD-3-Clause | https://github.com/dcodeIO/protobuf.js |
 | `@protobufjs/utf8` | 1.1.2 |  | BSD-3-Clause | https://github.com/protobufjs/protobuf.js |
+| `@rolldown/binding-android-arm-eabi` | 1.2.14 |  | MIT | https://github.com/rolldown/rolldown |
+| `@rolldown/binding-android-arm64` | 1.2.14 |  | MIT | https://github.com/rolldown/rolldown |
+| `@rolldown/binding-darwin-arm64` | 1.2.14 |  | MIT | https://github.com/rolldown/rolldown |
+| `@rolldown/binding-darwin-x64` | 1.2.14 |  | MIT | https://github.com/rolldown/rolldown |
+| `@rolldown/binding-freebsd-x64` | 1.2.14 |  | MIT | https://github.com/rolldown/rolldown |
+| `@rolldown/binding-linux-arm-gnueabihf` | 1.2.14 |  | MIT | https://github.com/rolldown/rolldown |
+| `@rolldown/binding-linux-arm64-gnu` | 1.2.14 |  | MIT | https://github.com/rolldown/rolldown |
+| `@rolldown/binding-linux-arm64-musl` | 1.2.14 |  | MIT | https://github.com/rolldown/rolldown |
+| `@rolldown/binding-linux-ppc64-gnu` | 1.2.14 |  | MIT | https://github.com/rolldown/rolldown |
+| `@rolldown/binding-linux-s390x-gnu` | 1.2.14 |  | MIT | https://github.com/rolldown/rolldown |
+| `@rolldown/binding-linux-x64-gnu` | 1.2.14 |  | MIT | https://github.com/rolldown/rolldown |
+| `@rolldown/binding-linux-x64-musl` | 1.2.14 |  | MIT | https://github.com/rolldown/rolldown |
+| `@rolldown/binding-openharmony-arm64` | 1.2.14 |  | MIT | https://github.com/rolldown/rolldown |
+| `@rolldown/binding-win32-arm64-msvc` | 1.2.14 |  | MIT | https://github.com/rolldown/rolldown |
+| `@rolldown/binding-win32-x64-msvc` | 1.2.14 |  | MIT | https://github.com/rolldown/rolldown |
 | `@rolldown/pluginutils` | 1.0.0-rc.3 |  | MIT | https://github.com/rolldown/rolldown |
-| `@rollup/rollup-*` (23 platform builds) | 4.64.0 |  | MIT | https://www.npmjs.com/package/@rollup/rollup-android-arm-eabi |
-| `@rollup/rollup-linux-x64-gnu` | 4.64.0 |  | MIT | https://github.com/rollup/rollup |
-| `@rollup/rollup-linux-x64-musl` | 4.64.0 |  | MIT | https://github.com/rollup/rollup |
+| `@rolldown/pluginutils` | 1.0.1 |  | MIT | https://github.com/rolldown/plugins |
 | `@testing-library/dom` | 10.4.2 |  | MIT | https://github.com/testing-library/dom-testing-library |
 | `@testing-library/jest-dom` | 6.9.1 | `^6.6.0` | MIT | https://github.com/testing-library/jest-dom |
 | `@testing-library/react` | 16.3.3 | `^16.1.0` | MIT | https://github.com/testing-library/react-testing-library |
-| `@testing-library/user-event` | 14.6.7 | `^14.5.0` | MIT | https://github.com/testing-library/user-event |
+| `@testing-library/user-event` | 14.6.8 | `^14.6.8` | MIT | https://github.com/testing-library/user-event |
 | `@types/aria-query` | 5.0.4 |  | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped |
 | `@types/babel__core` | 7.20.5 |  | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped |
 | `@types/babel__generator` | 7.27.0 |  | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped |
@@ -198,7 +210,6 @@ Packages offering a choice of licences where Doory uses the permissive one:
 | `@types/deep-eql` | 4.0.2 |  | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped |
 | `@types/dom-webcodecs` | 0.1.19 |  | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped |
 | `@types/estree` | 1.0.9 |  | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped |
-| `@types/json-schema` | 7.0.15 |  | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped |
 | `@types/node` | 24.19.1 | `^24.10.0` | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped |
 | `@types/pako` | 2.0.4 |  | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped |
 | `@types/qrcode` | 1.5.6 | `^1.5.6` | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped |
@@ -209,63 +220,36 @@ Packages offering a choice of licences where Doory uses the permissive one:
 | `@types/statuses` | 2.0.6 |  | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped |
 | `@types/trusted-types` | 2.0.7 |  | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped |
 | `@types/wicg-file-system-access` | 2020.9.8 |  | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped |
-| `@typescript-eslint/eslint-plugin` | 8.71.0 |  | MIT | https://github.com/typescript-eslint/typescript-eslint |
-| `@typescript-eslint/parser` | 8.71.0 |  | MIT | https://github.com/typescript-eslint/typescript-eslint |
-| `@typescript-eslint/project-service` | 8.71.0 |  | MIT | https://github.com/typescript-eslint/typescript-eslint |
-| `@typescript-eslint/scope-manager` | 8.71.0 |  | MIT | https://github.com/typescript-eslint/typescript-eslint |
-| `@typescript-eslint/tsconfig-utils` | 8.71.0 |  | MIT | https://github.com/typescript-eslint/typescript-eslint |
-| `@typescript-eslint/type-utils` | 8.71.0 |  | MIT | https://github.com/typescript-eslint/typescript-eslint |
-| `@typescript-eslint/types` | 8.71.0 |  | MIT | https://github.com/typescript-eslint/typescript-eslint |
-| `@typescript-eslint/typescript-estree` | 8.71.0 |  | MIT | https://github.com/typescript-eslint/typescript-eslint |
-| `@typescript-eslint/utils` | 8.71.0 |  | MIT | https://github.com/typescript-eslint/typescript-eslint |
-| `@typescript-eslint/visitor-keys` | 8.71.0 |  | MIT | https://github.com/typescript-eslint/typescript-eslint |
 | `@vitejs/plugin-react` | 5.2.0 | `^5.1.0` | MIT | https://github.com/vitejs/vite-plugin-react |
-| `@vitest/expect` | 3.2.7 |  | MIT | https://github.com/vitest-dev/vitest |
-| `@vitest/mocker` | 3.2.7 |  | MIT | https://github.com/vitest-dev/vitest |
-| `@vitest/pretty-format` | 3.2.7 |  | MIT | https://github.com/vitest-dev/vitest |
-| `@vitest/runner` | 3.2.7 |  | MIT | https://github.com/vitest-dev/vitest |
-| `@vitest/snapshot` | 3.2.7 |  | MIT | https://github.com/vitest-dev/vitest |
-| `@vitest/spy` | 3.2.7 |  | MIT | https://github.com/vitest-dev/vitest |
-| `@vitest/utils` | 3.2.7 |  | MIT | https://github.com/vitest-dev/vitest |
-| `acorn` | 8.18.0 |  | MIT | https://github.com/acornjs/acorn |
-| `acorn-jsx` | 5.3.2 |  | MIT | https://github.com/acornjs/acorn-jsx |
+| `@vitest/mocker` | 5.0.4 |  | MIT | https://github.com/vitest-dev/vitest |
+| `@vitest/spy` | 5.0.4 |  | MIT | https://github.com/vitest-dev/vitest |
 | `agent-base` | 7.1.4 |  | MIT | https://github.com/TooTallNate/proxy-agents |
-| `ajv` | 6.15.0 |  | MIT | https://github.com/ajv-validator/ajv |
 | `ansi-regex` | 5.0.1 |  | MIT | https://github.com/chalk/ansi-regex |
-| `ansi-styles` | 4.3.0 |  | MIT | https://github.com/chalk/ansi-styles |
 | `ansi-styles` | 5.2.0 |  | MIT | https://github.com/chalk/ansi-styles |
-| `argparse` | 2.0.1 |  | Python-2.0 | https://github.com/nodeca/argparse |
+| `ansi-styles` | 4.3.0 |  | MIT | https://github.com/chalk/ansi-styles |
+| `ansi-styles` | 4.3.0 |  | MIT | https://github.com/chalk/ansi-styles |
 | `aria-query` | 5.3.0 |  | Apache-2.0 | https://github.com/A11yance/aria-query |
 | `assertion-error` | 2.0.1 |  | MIT | https://github.com/chaijs/assertion-error |
 | `axe-core` | 4.13.0 |  | MPL-2.0 | https://github.com/dequelabs/axe-core |
-| `balanced-match` | 4.0.4 |  | MIT | https://github.com/juliangruber/balanced-match |
-| `balanced-match` | 1.0.2 |  | MIT | https://github.com/juliangruber/balanced-match |
 | `base64-arraybuffer` | 1.0.2 |  | MIT | https://github.com/niklasvh/base64-arraybuffer |
 | `base64-js` | 1.5.1 |  | MIT | https://github.com/beatgammit/base64-js |
 | `baseline-browser-mapping` | 2.11.27 |  | Apache-2.0 | https://github.com/web-platform-dx/baseline-browser-mapping |
 | `bl` | 4.1.0 |  | MIT | https://github.com/rvagg/bl |
-| `brace-expansion` | 5.0.12 |  | MIT | https://github.com/juliangruber/brace-expansion |
-| `brace-expansion` | 1.1.21 |  | MIT | https://github.com/juliangruber/brace-expansion |
 | `browserslist` | 4.29.3 |  | MIT | https://github.com/browserslist/browserslist |
 | `buffer` | 5.7.1 |  | MIT | https://github.com/feross/buffer |
-| `cac` | 6.7.14 |  | MIT | https://github.com/egoist/cac |
-| `callsites` | 3.1.0 |  | MIT | https://github.com/sindresorhus/callsites |
+| `cac` | 7.1.0 |  | MIT | https://github.com/cacjs/cac |
 | `camelcase` | 5.3.1 |  | MIT | https://github.com/sindresorhus/camelcase |
 | `caniuse-lite` | 1.0.30001814 |  | CC-BY-4.0 | https://github.com/browserslist/caniuse-lite |
 | `canvas` | 3.2.3 | `^3.2.3` | MIT | https://github.com/Automattic/node-canvas |
-| `chai` | 5.3.3 |  | MIT | https://github.com/chaijs/chai |
-| `chalk` | 4.1.2 |  | MIT | https://github.com/chalk/chalk |
-| `check-error` | 2.1.3 |  | MIT | https://github.com/chaijs/check-error |
+| `chai` | 6.3.0 |  | MIT | https://github.com/chaijs/chai |
 | `chownr` | 1.1.4 |  | ISC | https://github.com/isaacs/chownr |
 | `cli-width` | 4.1.0 |  | ISC | https://github.com/knownasilya/cli-width |
 | `cliui` | 8.0.1 |  | ISC | https://github.com/yargs/cliui |
 | `cliui` | 6.0.0 |  | ISC | https://www.npmjs.com/package/cliui |
 | `color-convert` | 2.0.1 |  | MIT | https://github.com/Qix-/color-convert |
 | `color-name` | 1.1.4 |  | MIT | https://github.com/colorjs/color-name |
-| `concat-map` | 0.0.1 |  | MIT | https://github.com/substack/node-concat-map |
 | `convert-source-map` | 2.0.0 |  | MIT | https://github.com/thlorenz/convert-source-map |
 | `cookie` | 1.1.1 |  | MIT | https://github.com/jshttp/cookie |
-| `cross-spawn` | 7.0.6 |  | MIT | https://github.com/moxystudio/node-cross-spawn |
 | `css-line-break` | 2.1.0 |  | MIT | https://github.com/niklasvh/css-line-break |
 | `css.escape` | 1.5.1 |  | MIT | https://github.com/mathiasbynens/CSS.escape |
 | `cssstyle` | 4.6.0 |  | MIT | https://github.com/jsdom/cssstyle |
@@ -275,9 +259,7 @@ Packages offering a choice of licences where Doory uses the permissive one:
 | `decamelize` | 1.2.0 |  | MIT | https://github.com/sindresorhus/decamelize |
 | `decimal.js` | 10.6.0 |  | MIT | https://github.com/MikeMcl/decimal.js |
 | `decompress-response` | 6.0.0 |  | MIT | https://github.com/sindresorhus/decompress-response |
-| `deep-eql` | 5.0.2 |  | MIT | https://github.com/chaijs/deep-eql |
 | `deep-extend` | 0.6.0 |  | MIT | https://github.com/unclechu/node-deep-extend |
-| `deep-is` | 0.1.4 |  | MIT | https://www.npmjs.com/package/deep-is |
 | `dequal` | 2.0.3 |  | MIT | https://github.com/lukeed/dequal |
 | `detect-libc` | 2.1.2 |  | Apache-2.0 | https://github.com/lovell/detect-libc |
 | `dom-accessibility-api` | 0.6.3 |  | MIT | https://github.com/eps1lon/dom-accessibility-api |
@@ -286,128 +268,94 @@ Packages offering a choice of licences where Doory uses the permissive one:
 | `emoji-regex` | 8.0.0 |  | MIT | https://github.com/mathiasbynens/emoji-regex |
 | `end-of-stream` | 1.4.5 |  | MIT | https://github.com/mafintosh/end-of-stream |
 | `entities` | 6.0.1 |  | BSD-2-Clause | https://github.com/fb55/entities |
-| `es-module-lexer` | 1.7.0 |  | MIT | https://github.com/guybedford/es-module-lexer |
-| `esbuild` | 0.28.2 |  | MIT | https://github.com/evanw/esbuild |
+| `es-module-lexer` | 2.3.2 |  | MIT | https://github.com/guybedford/es-module-lexer |
 | `escalade` | 3.2.0 |  | MIT | https://github.com/lukeed/escalade |
-| `escape-string-regexp` | 4.0.0 |  | MIT | https://github.com/sindresorhus/escape-string-regexp |
-| `eslint` | 9.39.5 | `^9.39.0` | MIT | https://github.com/eslint/eslint |
-| `eslint-plugin-react-hooks` | 7.1.1 | `^7.0.0` | MIT | https://github.com/facebook/react |
-| `eslint-plugin-react-refresh` | 0.4.26 | `^0.4.24` | MIT | https://github.com/ArnaudBarre/eslint-plugin-react-refresh |
-| `eslint-scope` | 8.4.0 |  | BSD-2-Clause | https://github.com/eslint/js |
-| `eslint-visitor-keys` | 3.4.3 |  | Apache-2.0 | https://github.com/eslint/eslint-visitor-keys |
-| `eslint-visitor-keys` | 5.0.1 |  | Apache-2.0 | https://github.com/eslint/js |
-| `eslint-visitor-keys` | 4.2.1 |  | Apache-2.0 | https://github.com/eslint/js |
-| `espree` | 10.4.0 |  | BSD-2-Clause | https://github.com/eslint/js |
-| `esquery` | 1.7.0 |  | BSD-3-Clause | https://github.com/estools/esquery |
-| `esrecurse` | 4.3.0 |  | BSD-2-Clause | https://github.com/estools/esrecurse |
-| `estraverse` | 5.3.0 |  | BSD-2-Clause | https://github.com/estools/estraverse |
 | `estree-walker` | 3.0.3 |  | MIT | https://github.com/Rich-Harris/estree-walker |
-| `esutils` | 2.0.3 |  | BSD-2-Clause | https://github.com/estools/esutils |
 | `expand-template` | 2.0.3 |  | (MIT OR WTFPL) | https://github.com/ralphtheninja/expand-template |
 | `expect-type` | 1.4.0 |  | Apache-2.0 | https://github.com/mmkal/expect-type |
 | `fake-indexeddb` | 6.2.5 | `^6.2.5` | Apache-2.0 | https://github.com/dumbmatter/fakeIndexedDB |
-| `fast-deep-equal` | 3.1.3 |  | MIT | https://github.com/epoberezkin/fast-deep-equal |
-| `fast-json-stable-stringify` | 2.1.0 |  | MIT | https://github.com/epoberezkin/fast-json-stable-stringify |
-| `fast-levenshtein` | 2.0.6 |  | MIT | https://github.com/hiddentao/fast-levenshtein |
 | `fast-string-truncated-width` | 3.0.3 |  | MIT | https://github.com/fabiospampinato/fast-string-truncated-width |
 | `fast-string-width` | 3.0.2 |  | MIT | https://github.com/fabiospampinato/fast-string-width |
 | `fast-wrap-ansi` | 0.2.2 |  | MIT | https://github.com/43081j/fast-wrap-ansi |
 | `fdir` | 6.5.0 |  | MIT | https://github.com/thecodrr/fdir |
-| `file-entry-cache` | 8.0.0 |  | MIT | https://github.com/jaredwray/file-entry-cache |
-| `find-up` | 5.0.0 |  | MIT | https://github.com/sindresorhus/find-up |
 | `find-up` | 4.1.0 |  | MIT | https://github.com/sindresorhus/find-up |
-| `flat-cache` | 4.0.1 |  | MIT | https://github.com/jaredwray/flat-cache |
-| `flatted` | 3.4.4 |  | ISC | https://github.com/WebReflection/flatted |
 | `fs-constants` | 1.0.0 |  | MIT | https://github.com/mafintosh/fs-constants |
-| `fsevents-*` (1 platform builds) | 2.3.3 |  | MIT | https://www.npmjs.com/package/fsevents |
+| `fsevents` | 2.3.3 |  | MIT | https://www.npmjs.com/package/fsevents |
 | `gensync` | 1.0.0-beta.2 |  | MIT | https://github.com/loganfsmyth/gensync |
 | `get-caller-file` | 2.0.5 |  | ISC | https://github.com/stefanpenner/get-caller-file |
 | `github-from-package` | 0.0.0 |  | MIT | https://github.com/substack/github-from-package |
-| `glob-parent` | 6.0.2 |  | ISC | https://github.com/gulpjs/glob-parent |
-| `globals` | 14.0.0 |  | MIT | https://github.com/sindresorhus/globals |
-| `globals` | 16.5.0 | `^16.5.0` | MIT | https://github.com/sindresorhus/globals |
 | `graphql` | 16.14.2 |  | MIT | https://github.com/graphql/graphql-js |
-| `has-flag` | 4.0.0 |  | MIT | https://github.com/sindresorhus/has-flag |
+| `hachure-fill` | 0.5.2 |  | MIT | https://github.com/pshihn/hachure-fill |
 | `headers-polyfill` | 5.0.1 |  | MIT | https://github.com/mswjs/headers-polyfill |
-| `hermes-estree` | 0.25.1 |  | MIT | https://github.com/facebook/hermes |
-| `hermes-parser` | 0.25.1 |  | MIT | https://github.com/facebook/hermes |
 | `html-encoding-sniffer` | 4.0.0 |  | MIT | https://github.com/jsdom/html-encoding-sniffer |
 | `http-proxy-agent` | 7.0.2 |  | MIT | https://github.com/TooTallNate/proxy-agents |
 | `https-proxy-agent` | 7.0.6 |  | MIT | https://github.com/TooTallNate/proxy-agents |
 | `iconv-lite` | 0.6.3 |  | MIT | https://github.com/ashtuchkin/iconv-lite |
 | `ieee754` | 1.2.1 |  | BSD-3-Clause | https://github.com/feross/ieee754 |
-| `ignore` | 7.0.12 |  | MIT | https://github.com/kaelzhang/node-ignore |
-| `ignore` | 5.3.2 |  | MIT | https://github.com/kaelzhang/node-ignore |
-| `import-fresh` | 3.3.1 |  | MIT | https://github.com/sindresorhus/import-fresh |
-| `imurmurhash` | 0.1.4 |  | MIT | https://github.com/jensyt/imurmurhash-js |
 | `indent-string` | 4.0.0 |  | MIT | https://github.com/sindresorhus/indent-string |
 | `inherits` | 2.0.4 |  | ISC | https://github.com/isaacs/inherits |
 | `ini` | 1.3.8 |  | ISC | https://github.com/isaacs/ini |
-| `is-extglob` | 2.1.1 |  | MIT | https://github.com/jonschlinkert/is-extglob |
 | `is-fullwidth-code-point` | 3.0.0 |  | MIT | https://github.com/sindresorhus/is-fullwidth-code-point |
-| `is-glob` | 4.0.3 |  | MIT | https://github.com/micromatch/is-glob |
 | `is-node-process` | 1.2.0 |  | MIT | https://github.com/mswjs/is-node-process |
 | `is-potential-custom-element-name` | 1.0.1 |  | MIT | https://github.com/mathiasbynens/is-potential-custom-element-name |
-| `isexe` | 2.0.0 |  | ISC | https://github.com/isaacs/isexe |
 | `isomorphic.js` | 0.2.5 |  | MIT | https://github.com/dmonad/isomorphic.js |
 | `js-tokens` | 4.0.0 |  | MIT | https://github.com/lydell/js-tokens |
-| `js-tokens` | 9.0.1 |  | MIT | https://github.com/lydell/js-tokens |
-| `js-yaml` | 4.3.2 |  | MIT | https://github.com/nodeca/js-yaml |
 | `jsdom` | 26.1.0 | `^26.0.0` | MIT | https://github.com/jsdom/jsdom |
 | `jsesc` | 3.1.0 |  | MIT | https://github.com/mathiasbynens/jsesc |
-| `json-buffer` | 3.0.1 |  | MIT | https://github.com/dominictarr/json-buffer |
-| `json-schema-traverse` | 0.4.1 |  | MIT | https://github.com/epoberezkin/json-schema-traverse |
-| `json-stable-stringify-without-jsonify` | 1.0.1 |  | MIT | https://github.com/samn/json-stable-stringify |
 | `json5` | 2.2.3 |  | MIT | https://github.com/json5/json5 |
-| `keyv` | 4.5.4 |  | MIT | https://github.com/jaredwray/keyv |
-| `levn` | 0.4.1 |  | MIT | https://github.com/gkz/levn |
-| `locate-path` | 6.0.0 |  | MIT | https://github.com/sindresorhus/locate-path |
+| `lightningcss` | 1.33.0 |  | MPL-2.0 | https://github.com/parcel-bundler/lightningcss |
+| `lightningcss-android-arm64` | 1.33.0 |  | MPL-2.0 | https://github.com/parcel-bundler/lightningcss |
+| `lightningcss-darwin-arm64` | 1.33.0 |  | MPL-2.0 | https://github.com/parcel-bundler/lightningcss |
+| `lightningcss-darwin-x64` | 1.33.0 |  | MPL-2.0 | https://github.com/parcel-bundler/lightningcss |
+| `lightningcss-freebsd-x64` | 1.33.0 |  | MPL-2.0 | https://github.com/parcel-bundler/lightningcss |
+| `lightningcss-linux-arm-gnueabihf` | 1.33.0 |  | MPL-2.0 | https://github.com/parcel-bundler/lightningcss |
+| `lightningcss-linux-arm64-gnu` | 1.33.0 |  | MPL-2.0 | https://github.com/parcel-bundler/lightningcss |
+| `lightningcss-linux-arm64-musl` | 1.33.0 |  | MPL-2.0 | https://github.com/parcel-bundler/lightningcss |
+| `lightningcss-linux-x64-gnu` | 1.33.0 |  | MPL-2.0 | https://github.com/parcel-bundler/lightningcss |
+| `lightningcss-linux-x64-musl` | 1.33.0 |  | MPL-2.0 | https://github.com/parcel-bundler/lightningcss |
+| `lightningcss-win32-arm64-msvc` | 1.33.0 |  | MPL-2.0 | https://github.com/parcel-bundler/lightningcss |
+| `lightningcss-win32-x64-msvc` | 1.33.0 |  | MPL-2.0 | https://github.com/parcel-bundler/lightningcss |
 | `locate-path` | 5.0.0 |  | MIT | https://github.com/sindresorhus/locate-path |
-| `lodash.merge` | 4.6.2 |  | MIT | https://github.com/lodash/lodash |
-| `loupe` | 3.2.1 |  | MIT | https://github.com/chaijs/loupe |
-| `lru-cache` | 10.4.3 |  | ISC | https://github.com/isaacs/node-lru-cache |
 | `lru-cache` | 5.1.1 |  | ISC | https://github.com/isaacs/node-lru-cache |
+| `lru-cache` | 10.4.3 |  | ISC | https://github.com/isaacs/node-lru-cache |
 | `lz-string` | 1.5.0 |  | MIT | https://github.com/pieroxy/lz-string |
-| `magic-string` | 0.30.21 |  | MIT | https://github.com/Rich-Harris/magic-string |
+| `magic-string` | 1.4.3 |  | MIT | https://github.com/Rich-Harris/magic-string |
 | `mimic-response` | 3.1.0 |  | MIT | https://github.com/sindresorhus/mimic-response |
 | `min-indent` | 1.0.1 |  | MIT | https://github.com/thejameskyle/min-indent |
-| `minimatch` | 10.2.6 |  | BlueOak-1.0.0 | https://github.com/isaacs/minimatch |
-| `minimatch` | 3.1.5 |  | ISC | https://github.com/isaacs/minimatch |
 | `minimist` | 1.2.8 |  | MIT | https://github.com/minimistjs/minimist |
 | `mkdirp-classic` | 0.5.3 |  | MIT | https://github.com/mafintosh/mkdirp-classic |
 | `ms` | 2.1.3 |  | MIT | https://github.com/vercel/ms |
 | `msw` | 2.15.0 | `^2.15.0` | MIT | https://github.com/mswjs/msw |
 | `mute-stream` | 3.0.0 |  | ISC | https://github.com/npm/mute-stream |
-| `nanoid` | 3.3.19 |  | MIT | https://github.com/ai/nanoid |
+| `nanoid` | 3.3.20 |  | MIT | https://github.com/ai/nanoid |
 | `napi-build-utils` | 2.0.0 |  | MIT | https://github.com/inspiredware/napi-build-utils |
-| `natural-compare` | 1.4.0 |  | MIT | https://github.com/litejs/natural-compare-lite |
 | `node-abi` | 3.96.0 |  | MIT | https://github.com/electron/node-abi |
 | `node-addon-api` | 7.1.1 |  | MIT | https://github.com/nodejs/node-addon-api |
 | `node-releases` | 2.0.57 |  | MIT | https://github.com/chicoxyzzy/node-releases |
 | `nwsapi` | 2.2.28 |  | MIT | https://github.com/dperini/nwsapi |
+| `obug` | 2.2.1 |  | MIT | https://github.com/sxzz/obug |
+| `obug` | 3.0.0 |  | MIT | https://github.com/sxzz/obug |
 | `once` | 1.4.0 |  | ISC | https://github.com/isaacs/once |
-| `optionator` | 0.9.4 |  | MIT | https://github.com/gkz/optionator |
 | `outvariant` | 1.4.3 |  | MIT | https://github.com/open-draft/outvariant |
-| `p-limit` | 3.1.0 |  | MIT | https://github.com/sindresorhus/p-limit |
+| `oxfmt` | 0.75.0 | `0.75.0` | MIT | https://github.com/oxc-project/oxc |
+| `oxlint` | 1.90.0 | `1.90.0` | MIT | https://github.com/oxc-project/oxc |
 | `p-limit` | 2.3.0 |  | MIT | https://github.com/sindresorhus/p-limit |
-| `p-locate` | 5.0.0 |  | MIT | https://github.com/sindresorhus/p-locate |
 | `p-locate` | 4.1.0 |  | MIT | https://github.com/sindresorhus/p-locate |
 | `p-try` | 2.2.0 |  | MIT | https://github.com/sindresorhus/p-try |
-| `parent-module` | 1.0.1 |  | MIT | https://github.com/sindresorhus/parent-module |
 | `parse5` | 7.3.0 |  | MIT | https://github.com/inikulin/parse5 |
+| `path-data-parser` | 0.1.0 |  | MIT | https://github.com/pshihn/path-data-parser |
 | `path-exists` | 4.0.0 |  | MIT | https://github.com/sindresorhus/path-exists |
-| `path-key` | 3.1.1 |  | MIT | https://github.com/sindresorhus/path-key |
 | `path-to-regexp` | 6.3.0 |  | MIT | https://github.com/pillarjs/path-to-regexp |
 | `pathe` | 2.0.3 |  | MIT | https://github.com/unjs/pathe |
-| `pathval` | 2.0.1 |  | MIT | https://github.com/chaijs/pathval |
 | `picocolors` | 1.1.1 |  | ISC | https://github.com/alexeyraspopov/picocolors |
 | `picomatch` | 4.0.7 |  | MIT | https://github.com/micromatch/picomatch |
-| `playwright` | 1.63.0 |  | Apache-2.0 | https://github.com/microsoft/playwright |
-| `playwright-core` | 1.63.0 |  | Apache-2.0 | https://github.com/microsoft/playwright |
+| `playwright` | 1.64.1 |  | Apache-2.0 | https://github.com/microsoft/playwright |
+| `playwright-core` | 1.64.1 |  | Apache-2.0 | https://github.com/microsoft/playwright |
 | `pngjs` | 5.0.0 |  | MIT | https://github.com/lukeapage/pngjs |
-| `postcss` | 8.5.28 |  | MIT | https://github.com/postcss/postcss |
+| `points-on-curve` | 0.2.0 |  | MIT | https://github.com/pshihn/bezier-points |
+| `points-on-path` | 0.2.1 |  | MIT | https://github.com/pshihn/points-on-path |
+| `postcss` | 8.5.30 |  | MIT | https://github.com/postcss/postcss |
 | `prebuild-install` | 7.1.3 |  | MIT | https://github.com/prebuild/prebuild-install |
-| `prelude-ls` | 1.2.1 |  | MIT | https://github.com/gkz/prelude-ls |
 | `pretty-format` | 27.5.1 |  | MIT | https://github.com/facebook/jest |
 | `pump` | 3.0.4 |  | MIT | https://github.com/mafintosh/pump |
 | `punycode` | 2.3.1 |  | MIT | https://github.com/mathiasbynens/punycode.js |
@@ -419,186 +367,182 @@ Packages offering a choice of licences where Doory uses the permissive one:
 | `regenerator-runtime` | 0.13.11 |  | MIT | https://github.com/facebook/regenerator/tree/main/packages/runtime |
 | `require-directory` | 2.1.1 |  | MIT | https://github.com/troygoode/node-require-directory |
 | `require-main-filename` | 2.0.0 |  | ISC | https://github.com/yargs/require-main-filename |
-| `resolve-from` | 4.0.0 |  | MIT | https://github.com/sindresorhus/resolve-from |
 | `rettime` | 0.11.12 |  | MIT | https://github.com/kettanaito/rettime |
-| `rollup` | 4.64.0 |  | MIT | https://github.com/rollup/rollup |
+| `rolldown` | 1.2.14 |  | MIT | https://github.com/rolldown/rolldown |
 | `rrweb-cssom` | 0.8.0 |  | MIT | https://github.com/rrweb-io/CSSOM |
 | `safe-buffer` | 5.2.1 |  | MIT | https://github.com/feross/safe-buffer |
 | `safer-buffer` | 2.1.2 |  | MIT | https://github.com/ChALkeR/safer-buffer |
 | `saxes` | 6.0.0 |  | ISC | https://github.com/lddubeau/saxes |
-| `semver` | 7.8.5 |  | ISC | https://github.com/npm/node-semver |
-| `semver` | 7.8.5 |  | ISC | https://github.com/npm/node-semver |
 | `semver` | 6.3.1 |  | ISC | https://github.com/npm/node-semver |
+| `semver` | 7.8.5 |  | ISC | https://github.com/npm/node-semver |
 | `set-blocking` | 2.0.0 |  | ISC | https://github.com/yargs/set-blocking |
 | `set-cookie-parser` | 3.1.2 |  | MIT | https://github.com/nfriedly/set-cookie-parser |
 | `set-cookie-parser` | 2.7.2 |  | MIT | https://github.com/nfriedly/set-cookie-parser |
-| `shebang-command` | 2.0.0 |  | MIT | https://github.com/kevva/shebang-command |
-| `shebang-regex` | 3.0.0 |  | MIT | https://github.com/sindresorhus/shebang-regex |
-| `siginfo` | 2.0.0 |  | ISC | https://github.com/emilbayes/siginfo |
 | `signal-exit` | 4.1.0 |  | ISC | https://github.com/tapjs/signal-exit |
 | `simple-concat` | 1.0.1 |  | MIT | https://github.com/feross/simple-concat |
 | `simple-get` | 4.0.1 |  | MIT | https://github.com/feross/simple-get |
 | `source-map-js` | 1.2.2 |  | BSD-3-Clause | https://github.com/7rulnik/source-map-js |
-| `stackback` | 0.0.2 |  | MIT | https://github.com/shtylman/node-stackback |
 | `statuses` | 2.0.2 |  | MIT | https://github.com/jshttp/statuses |
-| `std-env` | 3.10.0 |  | MIT | https://github.com/unjs/std-env |
+| `std-env` | 4.3.0 |  | MIT | https://github.com/unjs/std-env |
 | `strict-event-emitter` | 0.5.1 |  | MIT | https://github.com/open-draft/strict-event-emitter |
 | `string-width` | 4.2.3 |  | MIT | https://github.com/sindresorhus/string-width |
 | `string_decoder` | 1.3.0 |  | MIT | https://github.com/nodejs/string_decoder |
 | `strip-ansi` | 6.0.1 |  | MIT | https://github.com/chalk/strip-ansi |
 | `strip-indent` | 3.0.0 |  | MIT | https://github.com/sindresorhus/strip-indent |
 | `strip-json-comments` | 2.0.1 |  | MIT | https://github.com/sindresorhus/strip-json-comments |
-| `strip-json-comments` | 3.1.1 |  | MIT | https://github.com/sindresorhus/strip-json-comments |
-| `strip-literal` | 3.1.0 |  | MIT | https://github.com/antfu/strip-literal |
-| `supports-color` | 7.2.0 |  | MIT | https://github.com/chalk/supports-color |
 | `symbol-tree` | 3.2.4 |  | MIT | https://github.com/jsdom/js-symbol-tree |
 | `tagged-tag` | 1.0.0 |  | MIT | https://github.com/sindresorhus/tagged-tag |
 | `tar-fs` | 2.1.5 |  | MIT | https://github.com/mafintosh/tar-fs |
 | `tar-stream` | 2.2.0 |  | MIT | https://github.com/mafintosh/tar-stream |
 | `text-segmentation` | 1.0.3 |  | MIT | https://github.com/niklasvh/text-segmentation |
-| `tinybench` | 2.9.0 |  | MIT | https://github.com/tinylibs/tinybench |
-| `tinyexec` | 0.3.2 |  | MIT | https://github.com/tinylibs/tinyexec |
+| `tinybench` | 6.2.2 |  | MIT | https://github.com/tinylibs/tinybench |
+| `tinyexec` | 1.3.1 |  | MIT | https://github.com/tinylibs/tinyexec |
 | `tinyglobby` | 0.2.17 |  | MIT | https://github.com/SuperchupuDev/tinyglobby |
-| `tinypool` | 1.1.1 |  | MIT | https://github.com/tinylibs/tinypool |
-| `tinyrainbow` | 2.0.0 |  | MIT | https://github.com/tinylibs/tinyrainbow |
-| `tinyspy` | 4.0.6 |  | MIT | https://github.com/tinylibs/tinyspy |
-| `tldts` | 7.4.16 |  | MIT | https://github.com/remusao/tldts |
+| `tinypool` | 2.2.0 |  | MIT | https://github.com/tinylibs/tinypool |
 | `tldts` | 6.1.86 |  | MIT | https://github.com/remusao/tldts |
-| `tldts-core` | 7.4.16 |  | MIT | https://github.com/remusao/tldts |
+| `tldts` | 7.4.16 |  | MIT | https://github.com/remusao/tldts |
 | `tldts-core` | 6.1.86 |  | MIT | https://github.com/remusao/tldts |
-| `tough-cookie` | 6.0.2 |  | BSD-3-Clause | https://github.com/salesforce/tough-cookie |
+| `tldts-core` | 7.4.16 |  | MIT | https://github.com/remusao/tldts |
 | `tough-cookie` | 5.1.2 |  | BSD-3-Clause | https://github.com/salesforce/tough-cookie |
+| `tough-cookie` | 6.0.2 |  | BSD-3-Clause | https://github.com/salesforce/tough-cookie |
 | `tr46` | 5.1.1 |  | MIT | https://github.com/jsdom/tr46 |
-| `ts-api-utils` | 2.5.0 |  | MIT | https://github.com/JoshuaKGoldberg/ts-api-utils |
 | `tunnel-agent` | 0.6.0 |  | Apache-2.0 | https://github.com/mikeal/tunnel-agent |
-| `type-check` | 0.4.0 |  | MIT | https://github.com/gkz/type-check |
 | `type-fest` | 5.10.0 |  | (MIT OR CC0-1.0) | https://github.com/sindresorhus/type-fest |
 | `typescript` | 5.9.3 | `~5.9.3` | Apache-2.0 | https://github.com/microsoft/TypeScript |
-| `typescript-eslint` | 8.71.0 | `^8.48.0` | MIT | https://github.com/typescript-eslint/typescript-eslint |
 | `undici-types` | 7.24.6 |  | MIT | https://github.com/nodejs/undici |
 | `until-async` | 3.0.2 |  | MIT | https://github.com/kettanaito/until-async |
 | `update-browserslist-db` | 1.3.3 |  | MIT | https://github.com/browserslist/update-db |
-| `uri-js` | 4.4.1 |  | BSD-2-Clause | https://github.com/garycourt/uri-js |
 | `util-deprecate` | 1.0.2 |  | MIT | https://github.com/TooTallNate/util-deprecate |
 | `utrie` | 1.0.2 |  | MIT | https://github.com/niklasvh/utrie |
-| `vite` | 7.3.6 | `^7.3.0` | MIT | https://github.com/vitejs/vite |
-| `vite-node` | 3.2.4 |  | MIT | https://github.com/vitest-dev/vitest |
-| `vitest` | 3.2.7 | `^3.2.0` | MIT | https://github.com/vitest-dev/vitest |
+| `vite` | 8.3.4 | `^8.3.4` | MIT | https://github.com/vitejs/vite |
+| `vite-node` | 6.0.0 | `^6.0.0` | MIT | https://github.com/antfu-collective/vite-node |
+| `vitest` | 5.0.4 | `^5.0.4` | MIT | https://github.com/vitest-dev/vitest |
 | `w3c-xmlserializer` | 5.0.0 |  | MIT | https://github.com/jsdom/w3c-xmlserializer |
 | `webidl-conversions` | 7.0.0 |  | BSD-2-Clause | https://github.com/jsdom/webidl-conversions |
 | `whatwg-encoding` | 3.1.1 |  | MIT | https://github.com/jsdom/whatwg-encoding |
 | `whatwg-mimetype` | 4.0.0 |  | MIT | https://github.com/jsdom/whatwg-mimetype |
 | `whatwg-url` | 14.2.0 |  | MIT | https://github.com/jsdom/whatwg-url |
-| `which` | 2.0.2 |  | ISC | https://github.com/isaacs/node-which |
 | `which-module` | 2.0.1 |  | ISC | https://github.com/nexdrew/which-module |
-| `why-is-node-running` | 2.3.0 |  | MIT | https://github.com/mafintosh/why-is-node-running |
-| `word-wrap` | 1.2.5 |  | MIT | https://github.com/jonschlinkert/word-wrap |
-| `wrap-ansi` | 6.2.0 |  | MIT | https://github.com/chalk/wrap-ansi |
+| `why-is-node-running` | 3.2.1 |  | MIT | https://github.com/mafintosh/why-is-node-running |
 | `wrap-ansi` | 7.0.0 |  | MIT | https://github.com/chalk/wrap-ansi |
+| `wrap-ansi` | 6.2.0 |  | MIT | https://github.com/chalk/wrap-ansi |
 | `wrappy` | 1.0.2 |  | ISC | https://github.com/npm/wrappy |
 | `ws` | 8.22.0 |  | MIT | https://github.com/websockets/ws |
 | `xml-name-validator` | 5.0.0 |  | Apache-2.0 | https://github.com/jsdom/xml-name-validator |
 | `xmlchars` | 2.2.0 |  | MIT | https://github.com/lddubeau/xmlchars |
-| `y18n` | 4.0.3 |  | ISC | https://github.com/yargs/y18n |
 | `y18n` | 5.0.8 |  | ISC | https://github.com/yargs/y18n |
+| `y18n` | 4.0.3 |  | ISC | https://github.com/yargs/y18n |
 | `yallist` | 3.1.1 |  | ISC | https://github.com/isaacs/yallist |
-| `yargs` | 15.4.1 |  | MIT | https://github.com/yargs/yargs |
 | `yargs` | 17.7.3 |  | MIT | https://github.com/yargs/yargs |
-| `yargs-parser` | 18.1.3 |  | ISC | https://github.com/yargs/yargs-parser |
+| `yargs` | 15.4.1 |  | MIT | https://github.com/yargs/yargs |
 | `yargs-parser` | 21.1.1 |  | ISC | https://github.com/yargs/yargs-parser |
-| `yocto-queue` | 0.1.0 |  | MIT | https://github.com/sindresorhus/yocto-queue |
-| `zod` | 4.6.5 |  | MIT | https://github.com/colinhacks/zod |
-| `zod-validation-error` | 4.0.2 |  | MIT | https://github.com/causaly/zod-validation-error |
+| `yargs-parser` | 18.1.3 |  | ISC | https://github.com/yargs/yargs-parser |
 
 ## Python packages of the server runtime (`requirements.txt`)
 
 | Package | Version | Declared range | Licence (SPDX) | Source |
 |---|---|---|---|---|
-| `anyio` | 4.15.1 |  | MIT | https://github.com/agronholm/anyio |
-| `asgiref` | 3.12.1 |  | BSD-3-Clause | https://github.com/django/asgiref/ |
+| `annotated-types` | 0.8.0 |  | MIT | https://github.com/annotated-types/annotated-types |
+| `anyio` | 4.16.0 |  | MIT | https://github.com/agronholm/anyio |
+| `asgiref` | 3.13.0 |  | BSD-3-Clause | https://github.com/django/asgiref/ |
 | `attrs` | 26.1.0 |  | MIT | https://pypi.org/project/attrs/ |
-| `boto3` | 1.43.109 | `>=1.35` | Apache-2.0 | https://github.com/boto/boto3 |
-| `botocore` | 1.43.109 |  | Apache-2.0 | https://github.com/boto/botocore |
-| `brotli` | 1.2.0 | `>=1.1` | MIT | https://github.com/google/brotli |
-| `certifi` | 2026.10.19 |  | MPL-2.0 | https://github.com/certifi/python-certifi |
+| `boto3` | 1.43.125 | `>=1.35` | Apache-2.0 | https://github.com/boto/boto3 |
+| `botocore` | 1.43.125 |  | Apache-2.0 | https://github.com/boto/botocore |
+| `brotli` | 1.2.1 | `>=1.1` | MIT | https://github.com/google/brotli |
+| `certifi` | 2026.10.23 | `>=2026.10.19` | MPL-2.0 | https://github.com/certifi/python-certifi |
 | `cffi` | 2.1.1 |  | MIT-0 | https://github.com/python-cffi/cffi |
 | `channels` | 4.3.2 | `>=4.2,<5` | BSD-3-Clause | http://github.com/django/channels |
 | `channels_redis` | 4.3.0 | `>=4.2` | BSD-3-Clause | http://github.com/django/channels_redis/ |
 | `charset-normalizer` | 3.5.2 |  | MIT | https://pypi.org/project/charset-normalizer/ |
 | `click` | 8.5.0 |  | BSD-3-Clause | https://github.com/pallets/click/ |
-| `cryptography` | 50.0.2 |  | Apache-2.0 OR BSD-3-Clause | https://github.com/pyca/cryptography/ |
-| `defusedxml` | 0.7.1 | `>=0.7` | PSF-2.0 | https://github.com/tiran/defusedxml |
-| `Django` | 5.2.18 | `>=5.2,<5.3` | BSD-3-Clause | https://github.com/django/django |
+| `cryptography` | 50.0.2 | `>=44` | Apache-2.0 OR BSD-3-Clause | https://github.com/pyca/cryptography/ |
+| `defusedxml` | 0.7.1 | `>=0.7.1` | PSF-2.0 | https://github.com/tiran/defusedxml |
+| `Django` | 6.1.3 | `>=6.1.2,<6.2` | BSD-3-Clause | https://github.com/django/django |
 | `django-cors-headers` | 4.9.0 | `>=4.7` | MIT | https://github.com/adamchainz/django-cors-headers |
 | `django-environ` | 0.14.0 | `>=0.12` | MIT | https://github.com/joke2k/django-environ |
 | `django-filter` | 26.2 | `>=25.1` | BSD-3-Clause | https://github.com/carltongibson/django-filter |
 | `django-storages` | 1.14.6 | `>=1.14` | BSD-3-Clause | https://github.com/jschneier/django-storages |
-| `django-unfold` | 0.108.0 | `>=0.60` | MIT | https://github.com/unfoldadmin/django-unfold |
+| `django-unfold` | 0.110.1 | `>=0.60` | MIT | https://github.com/unfoldadmin/django-unfold |
 | `djangorestframework` | 3.18.3 | `>=3.16` | BSD-3-Clause | https://github.com/encode/django-rest-framework |
 | `drf-spectacular` | 0.30.0 | `>=0.28` | BSD-3-Clause | https://github.com/tfranzel/drf-spectacular |
-| `fonttools` | 4.66.1 | `>=4.50` | MIT | http://github.com/fonttools/fonttools |
-| `google-auth` | 2.61.0 | `>=2.38` | Apache-2.0 | https://github.com/googleapis/google-cloud-python/tree/main/packages/google-auth |
+| `fonttools` | 4.68.0 | `>=4.50` | MIT | http://github.com/fonttools/fonttools |
+| `google-auth` | 2.62.1 | `>=2.62.0` | Apache-2.0 | https://github.com/googleapis/google-cloud-python/tree/main/packages/google-auth |
 | `greenlet` | 3.5.6 |  | MIT AND PSF-2.0 | https://github.com/python-greenlet/greenlet |
 | `gunicorn` | 26.2.0 | `>=23` | MIT | https://github.com/benoitc/gunicorn |
 | `h11` | 0.16.0 |  | MIT | https://github.com/python-hyper/h11 |
+| `httpcore2` | 2.16.0 |  | BSD-3-Clause | https://github.com/pydantic/httpx2/blob/main/src/httpcore2 |
+| `httpx2` | 2.16.0 |  | BSD-3-Clause | https://github.com/pydantic/httpx2 |
 | `idna` | 3.20 |  | BSD-3-Clause | https://github.com/kjd/idna |
 | `inflection` | 0.5.1 |  | MIT | https://github.com/jpvanhal/inflection |
 | `jmespath` | 1.1.0 |  | MIT | https://github.com/jmespath/jmespath.py |
 | `jsonschema` | 4.26.0 |  | MIT | https://github.com/python-jsonschema/jsonschema |
 | `jsonschema-specifications` | 2025.9.1 |  | MIT | https://github.com/python-jsonschema/jsonschema-specifications |
-| `msgpack` | 1.2.3 |  | Apache-2.0 | https://github.com/msgpack/msgpack-python/ |
+| `mcp` | 2.3.0 | `>=2.3,<3` | MIT | https://github.com/modelcontextprotocol/python-sdk |
+| `mcp-types` | 2.3.0 |  | MIT | https://github.com/modelcontextprotocol/python-sdk |
+| `msgpack` | 1.2.4 |  | Apache-2.0 | https://github.com/msgpack/msgpack-python/ |
+| `opentelemetry-api` | 1.45.2 |  | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python |
 | `pillow` | 13.0.0 | `>=13.0` | MIT-CMU | https://github.com/python-pillow/Pillow |
-| `playwright` | 1.63.0 | `>=1.50` | Apache-2.0 | https://github.com/Microsoft/playwright-python |
-| `psycopg2-binary` | 2.9.13 | `>=2.9` | LGPL-3.0-or-later | https://psycopg.org/ |
-| `pyasn1` | 0.6.4 |  | BSD-2-Clause | https://github.com/pyasn1/pyasn1 |
+| `playwright` | 1.64.1 | `>=1.50` | Apache-2.0 | https://github.com/Microsoft/playwright-python |
+| `psycopg2-binary` | 2.9.13 | `>=2.9.13` | LGPL-3.0-or-later | https://psycopg.org/ |
+| `pyasn1` | 0.6.5 |  | BSD-2-Clause | https://github.com/pyasn1/pyasn1 |
 | `pyasn1_modules` | 0.4.2 |  | BSD-2-Clause | https://github.com/pyasn1/pyasn1-modules |
-| `pycparser` | 3.0 |  | BSD-3-Clause | https://github.com/eliben/pycparser |
-| `pycrdt` | 0.14.8 | `>=0.14,<0.15` | MIT | https://github.com/y-crdt/pycrdt |
-| `pyee` | 13.0.1 |  | MIT | https://github.com/jfhbrook/pyee |
-| `pypdf` | 6.19.0 | `>=5` | BSD-3-Clause | https://github.com/py-pdf/pypdf |
+| `pycparser` | 3.12 |  | BSD-3-Clause | https://github.com/eliben/pycparser |
+| `pycrdt` | 0.14.13 | `>=0.14,<0.15` | MIT | https://github.com/y-crdt/pycrdt |
+| `pydantic` | 2.14.3 | `>=2.7,<3` | MIT | https://github.com/pydantic/pydantic |
+| `pydantic_core` | 2.50.4 |  | MIT | https://github.com/pydantic/pydantic/tree/main/pydantic-core |
+| `pyee` | 14.0.0 |  | MIT | https://github.com/jfhbrook/pyee |
+| `PyJWT` | 2.15.1 | `>=2.10.1` | MIT | https://github.com/jpadilla/pyjwt |
+| `pypdf` | 6.21.4 | `>=5` | BSD-3-Clause | https://github.com/py-pdf/pypdf |
 | `python-dateutil` | 2.9.0.post0 |  | BSD-3-Clause OR Apache-2.0 | https://github.com/dateutil/dateutil |
+| `python-multipart` | 0.0.33 |  | Apache-2.0 | https://github.com/Kludex/python-multipart |
 | `PyYAML` | 6.0.3 |  | MIT | https://github.com/yaml/pyyaml |
 | `redis` | 8.1.0 |  | MIT | https://github.com/redis/redis-py |
 | `referencing` | 0.37.0 |  | MIT | https://github.com/python-jsonschema/referencing |
 | `requests` | 2.34.2 | `>=2.32` | Apache-2.0 | https://github.com/psf/requests |
 | `rpds-py` | 2026.9.1 |  | MIT | https://github.com/crate-py/rpds |
-| `s3transfer` | 0.19.2 |  | Apache-2.0 | https://github.com/boto/s3transfer |
+| `s3transfer` | 0.19.3 |  | Apache-2.0 | https://github.com/boto/s3transfer |
 | `six` | 1.17.0 |  | MIT | https://github.com/benjaminp/six |
-| `sqlparse` | 0.6.0 |  | BSD-3-Clause | https://github.com/andialbrecht/sqlparse |
+| `sqlparse` | 0.6.1 |  | BSD-3-Clause | https://github.com/andialbrecht/sqlparse |
+| `sse-starlette` | 3.6.0 |  | BSD-3-Clause | https://github.com/sysid/sse-starlette |
+| `starlette` | 1.10.0 |  | BSD-3-Clause | https://github.com/Kludex/starlette |
+| `truststore` | 0.10.5 |  | MIT | https://github.com/sethmlarson/truststore |
+| `typing-inspection` | 0.4.5 |  | MIT | https://github.com/pydantic/typing-inspection |
 | `typing_extensions` | 4.16.0 |  | PSF-2.0 | https://github.com/python/typing_extensions |
 | `uritemplate` | 4.2.0 |  | BSD-3-Clause OR Apache-2.0 | https://github.com/python-hyper/uritemplate |
-| `urllib3` | 2.8.0 |  | MIT | https://pypi.org/project/urllib3/ |
+| `urllib3` | 2.8.0 | `>=2.6,<3` | MIT | https://pypi.org/project/urllib3/ |
 | `uvicorn` | 0.54.0 | `>=0.30` | BSD-3-Clause | https://github.com/Kludex/uvicorn |
-| `websockets` | 17.2 | `>=13` | BSD-3-Clause | https://github.com/python-websockets/websockets |
+| `websockets` | 17.4 | `>=17.2` | BSD-3-Clause | https://github.com/python-websockets/websockets |
 | `whitenoise` | 6.12.0 | `>=6.9` | MIT | https://github.com/evansd/whitenoise |
 
 ## Python packages for development and tests only (`requirements-dev.txt`)
 
 | Package | Version | Declared range | Licence (SPDX) | Source |
 |---|---|---|---|---|
-| `autobahn` | 26.7.1 |  | MIT | https://github.com/crossbario/autobahn-python |
+| `autobahn` | 26.11.1 |  | MIT | https://github.com/crossbario/autobahn-python |
 | `Automat` | 25.4.16 |  | MIT | https://github.com/glyph/automat/ |
-| `cbor2` | 6.1.5 |  | MIT | https://github.com/agronholm/cbor2 |
+| `cbor2` | 6.2.0.post2 |  | MIT | https://github.com/agronholm/cbor2 |
 | `constantly` | 23.10.4 |  | MIT | https://github.com/twisted/constantly |
 | `daphne` | 4.2.3 | `>=4.1` | BSD-3-Clause | https://github.com/django/daphne |
 | `factory_boy` | 3.3.3 | `>=3.3` | MIT | https://github.com/FactoryBoy/factory_boy |
-| `Faker` | 40.41.0 |  | MIT | https://github.com/joke2k/faker |
+| `Faker` | 40.44.0 |  | MIT | https://github.com/joke2k/faker |
+| `httpcore` | 1.0.9 |  | BSD-3-Clause | https://github.com/encode/httpcore |
+| `httpx` | 0.28.1 | `>=0.27` | BSD-3-Clause | https://github.com/encode/httpx |
 | `hyperlink` | 21.0.0 |  | MIT | https://github.com/python-hyper/hyperlink |
-| `hypothesis` | 6.168.5 | `>=6.100` | MPL-2.0 | https://github.com/HypothesisWorks/hypothesis |
+| `hypothesis` | 6.170.14 | `>=6.100` | MPL-2.0 | https://github.com/HypothesisWorks/hypothesis |
 | `Incremental` | 24.11.0 |  | MIT | https://github.com/twisted/incremental |
 | `iniconfig` | 2.3.1 |  | MIT | https://github.com/pytest-dev/iniconfig |
 | `packaging` | 26.3 |  | Apache-2.0 OR BSD-2-Clause | https://github.com/pypa/packaging |
-| `pluggy` | 1.6.0 |  | MIT | https://pypi.org/project/pluggy/ |
+| `pluggy` | 1.7.0 |  | MIT | https://github.com/pytest-dev/pluggy |
 | `Pygments` | 2.21.0 |  | BSD-2-Clause | https://github.com/pygments/pygments |
 | `pyOpenSSL` | 26.4.0 |  | Apache-2.0 | https://github.com/pyca/pyopenssl |
-| `pytest` | 9.1.1 | `>=8` | MIT | https://github.com/pytest-dev/pytest |
+| `pytest` | 9.2.0 | `>=8` | MIT | https://github.com/pytest-dev/pytest |
 | `pytest-django` | 4.14.0 | `>=4.9` | BSD-3-Clause | https://github.com/pytest-dev/pytest-django |
-| `ruff` | 0.16.10 | `>=0.8` | MIT | https://github.com/astral-sh/ruff |
+| `ruff` | 0.17.4 | `>=0.8` | MIT | https://github.com/astral-sh/ruff |
 | `service-identity` | 26.1.0 |  | MIT | https://pypi.org/project/service-identity/ |
 | `sortedcontainers` | 2.4.0 |  | Apache-2.0 | http://www.grantjenks.com/docs/sortedcontainers/ |
-| `Twisted` | 26.4.0 |  | MIT | https://github.com/twisted/twisted |
+| `Twisted` | 26.10.0 |  | MIT | https://github.com/twisted/twisted |
 | `txaio` | 26.6.1 |  | MIT | https://github.com/crossbario/txaio |
-| `ujson` | 6.0.0 |  | BSD-3-Clause AND TCL | https://github.com/ultrajson/ultrajson |
-| `zope.interface` | 8.6 |  | ZPL-2.1 | https://github.com/zopefoundation/zope.interface |
+| `ujson` | 6.1.0 |  | BSD-3-Clause AND TCL | https://github.com/ultrajson/ultrajson |
+| `zope.interface` | 8.7 |  | ZPL-2.1 | https://github.com/zopefoundation/zope.interface |
 
-_Read from 488 npm packages (Node v22.22.0) and 81 Python packages (Python 3.13.16) at generation time._
+_Read from 395 npm packages (Node v26.8.2) and 97 Python packages (Python 3.14.4) at generation time._

@@ -5,7 +5,10 @@
   overflow-x: clip;
   background-color: var(--color-bg);
   /* faint dotted paper */
-  background-image: radial-gradient(color-mix(in srgb, var(--accent-lilac) 14%, transparent) 1.2px, transparent 1.3px);
+  background-image: radial-gradient(
+    color-mix(in srgb, var(--accent-lilac) 14%, transparent) 1.2px,
+    transparent 1.3px
+  );
   background-size: 26px 26px;
 }
 
@@ -23,7 +26,8 @@
   z-index: var(--z-sticky);
   background: color-mix(in srgb, var(--color-bg) 82%, transparent);
   backdrop-filter: saturate(1.4) blur(14px);
-  border-bottom: 1px solid color-mix(in srgb, var(--color-border) 70%, transparent);
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--color-border) 70%, transparent);
 }
 
 .bar {
@@ -70,7 +74,7 @@
 
 /* a hand-drawn underline that draws itself in on hover */
 .navLink::after {
-  content: '';
+  content: "";
   position: absolute;
   right: var(--space-2);
   bottom: 0;
@@ -236,6 +240,20 @@
 
 .footerNav a:hover {
   color: var(--pastel-pink);
+}
+
+.footerStart {
+  height: auto;
+  padding: 0;
+  color: #efe8f2;
+  border-radius: 0;
+  font-size: inherit;
+  font-weight: 600;
+}
+
+.footerStart:hover:not(:disabled) {
+  color: var(--pastel-pink);
+  background: transparent;
 }
 
 .legal {

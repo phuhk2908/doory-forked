@@ -23,7 +23,7 @@
 .tab:hover {
   color: var(--ed-text);
 }
-.tab[aria-selected='true'] {
+.tab[aria-selected="true"] {
   background: var(--ed-surface);
   color: var(--ed-accent);
   box-shadow: var(--shadow-sm);
@@ -105,7 +105,7 @@
 .source:hover {
   color: var(--ed-text);
 }
-.source[aria-selected='true'] {
+.source[aria-selected="true"] {
   border-color: var(--ed-accent);
   color: var(--ed-accent);
 }

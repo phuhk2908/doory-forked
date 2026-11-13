@@ -32,6 +32,7 @@ INSTALLED_APPS = [
     "apps.core",
     "apps.accounts",
     "apps.designs",
+    "apps.drawings",
     "apps.assets",
     "apps.gallery",
     "apps.elements",
@@ -123,6 +124,7 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 20 * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024  # per asset
 MAX_DESIGN_DOCUMENT_BYTES = 12 * 1024 * 1024
+MAX_DRAWING_DOCUMENT_BYTES = env.int("MAX_DRAWING_DOCUMENT_BYTES", default=12 * 1024 * 1024)
 USER_STORAGE_QUOTA_BYTES = env.int("USER_STORAGE_QUOTA_BYTES", default=2 * 1024**3)
 MAX_DESIGNS_PER_USER = env.int("MAX_DESIGNS_PER_USER", default=5000)
 MAX_API_TOKENS_PER_USER = env.int("MAX_API_TOKENS_PER_USER", default=20)
@@ -258,6 +260,7 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         "anon": "240/min",
         "user": "1200/min",
+        "guest_room_create": env("DRAWING_ROOM_CREATE_RATE", default="10/min"),
         "auth": "20/min",  # login / register / password reset
         "oidc": "30/min",  # single sign-on: a sign-in takes one start and one callback
         "upload": "60/min",
@@ -295,6 +298,8 @@ SPECTACULAR_SETTINGS = {
         "ElementKindEnum": "apps.elements.models.ElementKind",
         "ShareRoleEnum": "apps.sharing.models.ShareRole",
         "BrandFontRoleEnum": "apps.brand.serializers.FONT_ROLES",
+        # Link modes and collaborator roles intentionally use the same access choices.
+        "DrawingRoomAccessEnum": "apps.drawings.models.DrawingRoom.LinkMode",
     },
 }
 
@@ -372,6 +377,11 @@ EXPORT_VIDEO_TIMEOUT_SECONDS = env.int("EXPORT_VIDEO_TIMEOUT_SECONDS", default=3
 EXPORT_VIDEO_MAX_SECONDS = env.int("EXPORT_VIDEO_MAX_SECONDS", default=120)  # the longest video or GIF
 EXPORT_VIDEO_MAX_RESOLUTION = env.int("EXPORT_VIDEO_MAX_RESOLUTION", default=1080)  # shorter side, px
 EXPORT_VIDEO_MAX_BYTES = env.int("EXPORT_VIDEO_MAX_BYTES", default=200 * 1024 * 1024)
+# Background export jobs are persisted in the database. A worker lease is reclaimed after
+# the longest configured render plus this bounded retry count, so an API restart cannot
+# strand a job forever.
+EXPORT_JOB_WORKERS = env.int("EXPORT_JOB_WORKERS", default=1)
+EXPORT_JOB_MAX_ATTEMPTS = env.int("EXPORT_JOB_MAX_ATTEMPTS", default=3)
 
 # Image optimizers (apps.exports.optimizers): make exported and downloaded images smaller after drawing them.
 # IMAGE_OPTIMIZERS lists the ones people may pick, in order (empty: none). `builtin` runs mozjpeg and oxipng
@@ -475,6 +485,17 @@ REALTIME_CONNECTS_PER_MINUTE = env.int("REALTIME_CONNECTS_PER_MINUTE", default=6
 # as an attack: the room's live state is dropped and rebuilt from the store and the sender is blocked a while.
 REALTIME_SLOW_APPLY_SECONDS = env.float("REALTIME_SLOW_APPLY_SECONDS", default=2.0)
 REALTIME_BLOCK_SECONDS = env.int("REALTIME_BLOCK_SECONDS", default=600)
+DRAWING_ROOM_TTL_DAYS = env.int("DRAWING_ROOM_TTL_DAYS", default=30)
+DRAWING_ROOM_MAX_COLLABORATORS = env.int("DRAWING_ROOM_MAX_COLLABORATORS", default=25)
+DRAWING_ROOM_JOIN_RATE_PER_MINUTE = env.int("DRAWING_ROOM_JOIN_RATE_PER_MINUTE", default=30)
+DRAWING_ROOM_RATE_MESSAGES_PER_SECOND = env.int("DRAWING_ROOM_RATE_MESSAGES_PER_SECOND", default=30)
+DRAWING_ROOM_RATE_BURST = env.int("DRAWING_ROOM_RATE_BURST", default=90)
+DRAWING_ROOM_RATE_BYTES_PER_SECOND = env.int("DRAWING_ROOM_RATE_BYTES_PER_SECOND", default=512 * 1024)
+DRAWING_ROOM_RATE_BYTES_BURST = env.int("DRAWING_ROOM_RATE_BYTES_BURST", default=2 * 1024 * 1024)
+DRAWING_ROOM_FANOUT_PER_SECOND = env.int("DRAWING_ROOM_FANOUT_PER_SECOND", default=200)
+DRAWING_ROOM_MEMBER_TTL_SECONDS = env.int("DRAWING_ROOM_MEMBER_TTL_SECONDS", default=3600)
+DRAWING_ROOM_AUDIT_RETENTION_DAYS = env.int("DRAWING_ROOM_AUDIT_RETENTION_DAYS", default=90)
+DRAWING_ROOM_SPAM_SCORE_THRESHOLD = env.int("DRAWING_ROOM_SPAM_SCORE_THRESHOLD", default=12)
 
 # ---- MCP server for AI agents (apps.mcp; served by `uvicorn doory.mcp_asgi:application`) ----
 MCP_ENABLED = env.bool("MCP_ENABLED", default=False)  # opt-in; Docker also needs `COMPOSE_PROFILES=mcp`

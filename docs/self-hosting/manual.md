@@ -63,7 +63,7 @@ Use the `manage` helper for every other command in these docs. For example, the 
 
 ```bash
 cd /opt/doory/frontend
-sudo -u doory npm ci && sudo -u doory npm run build    # writes frontend/dist
+sudo -u doory bun install --frozen-lockfile && sudo -u doory bun run build    # writes frontend/dist
 ```
 
 ## 5. Start everything

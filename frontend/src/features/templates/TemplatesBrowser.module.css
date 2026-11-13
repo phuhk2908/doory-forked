@@ -45,7 +45,7 @@
   border-color: var(--color-brand);
 }
 
-.chip[aria-pressed='true'] {
+.chip[aria-pressed="true"] {
   background: var(--color-brand-fill);
   border-color: var(--color-brand-fill);
   color: var(--color-on-brand);

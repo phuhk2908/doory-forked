@@ -1,0 +1,404 @@
+from datetime import timedelta
+
+import pytest
+from django.test import override_settings
+from django.utils import timezone
+from rest_framework.test import APIClient
+
+from apps.accounts.models import User
+from apps.drawings import services
+from apps.drawings.models import Drawing, DrawingRoom
+from apps.drawings.validators import InvalidDrawing
+
+
+def drawing_document():
+    return {"schemaVersion": 1, "elements": [], "background": "#ffffff"}
+
+
+def csrf_headers(client):
+    client.get("/api/v1/auth/csrf/")
+    return {"HTTP_X_CSRFTOKEN": client.cookies["csrftoken"].value}
+
+
+def test_owner_can_create_update_with_revision_and_list(db):
+    user = User.objects.create_user("ada@example.com", "password-123456")
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    created = client.post(
+        "/api/v1/drawings/",
+        {"title": "  Workshop board  ", "document": drawing_document()},
+        format="json",
+    )
+    assert created.status_code == 201
+    assert created.data["title"] == "Workshop board"
+    drawing_id = created.data["id"]
+
+    updated_document = {
+        **drawing_document(),
+        "elements": [
+            {
+                "id": "shape-1",
+                "type": "rectangle",
+                "x": 10,
+                "y": 20,
+                "width": 80,
+                "height": 40,
+                "angle": 0,
+                "style": {"stroke": "#000000"},
+            }
+        ],
+    }
+    updated = client.patch(
+        f"/api/v1/drawings/{drawing_id}/",
+        {"document": updated_document, "base_revision": 1},
+        format="json",
+    )
+    assert updated.status_code == 200
+    assert updated.data["revision"] == 2
+
+    conflict = client.patch(
+        f"/api/v1/drawings/{drawing_id}/",
+        {"document": drawing_document(), "base_revision": 1},
+        format="json",
+    )
+    assert conflict.status_code == 409
+    assert conflict.data["current"]["revision"] == 2
+
+    listed = client.get("/api/v1/drawings/")
+    assert listed.status_code == 200
+    assert listed.data["count"] == 1
+    assert listed.data["results"][0]["id"] == drawing_id
+
+
+def test_service_uses_the_configured_document_limit(db):
+    user = User.objects.create_user("limit@example.com", "password-123456")
+    drawing = services.create_drawing(user, title="Board", document=drawing_document())
+    oversized = {**drawing_document(), "customData": "x" * 200}
+
+    with override_settings(MAX_DRAWING_DOCUMENT_BYTES=100), pytest.raises(InvalidDrawing, match="too large"):
+        services.update_drawing(
+            drawing.pk,
+            user,
+            {"document": oversized, "base_revision": drawing.revision},
+        )
+    with override_settings(MAX_DRAWING_DOCUMENT_BYTES=100), pytest.raises(InvalidDrawing, match="too large"):
+        services.create_drawing_room(title="Room", document=oversized)
+
+    saved = Drawing.objects.get(pk=drawing.pk)
+    assert saved.revision == 1 and saved.document == drawing_document()
+
+
+def test_service_publishes_document_updates_after_commit(transactional_db, monkeypatch):
+    user = User.objects.create_user("events@example.com", "password-123456")
+    drawing = services.create_drawing(user, title="Board", document=drawing_document())
+    published = []
+    monkeypatch.setattr(
+        services,
+        "publish_drawing_update",
+        lambda drawing_id, document, revision, **kwargs: published.append(
+            (drawing_id, document, revision, kwargs["delta"])
+        ),
+    )
+    document = {**drawing_document(), "background": "#eeeeee"}
+
+    updated = services.update_drawing(
+        drawing.pk,
+        user,
+        {"document": document, "base_revision": drawing.revision},
+    )
+
+    assert published == [
+        (
+            drawing.pk,
+            document,
+            updated.revision,
+            {"schemaVersion": 1, "elements": [], "background": "#eeeeee"},
+        )
+    ]
+
+
+def test_drawings_are_private_and_invalid_documents_are_rejected(db):
+    owner = User.objects.create_user("owner@example.com", "password-123456")
+    stranger = User.objects.create_user("stranger@example.com", "password-123456")
+    owner_client = APIClient()
+    owner_client.force_authenticate(user=owner)
+    response = owner_client.post(
+        "/api/v1/drawings/",
+        {"document": drawing_document()},
+        format="json",
+    )
+    drawing_id = response.data["id"]
+
+    stranger_client = APIClient()
+    stranger_client.force_authenticate(user=stranger)
+    assert stranger_client.get(f"/api/v1/drawings/{drawing_id}/").status_code == 404
+
+    invalid = owner_client.post(
+        "/api/v1/drawings/",
+        {"document": {"schemaVersion": 1, "elements": [{"type": "script"}]}},
+        format="json",
+    )
+    assert invalid.status_code == 400
+
+
+def test_guest_room_uses_the_fragment_key_as_access_control(db):
+    client = APIClient()
+    created = client.post(
+        "/api/v1/drawing-rooms/",
+        {"title": "Planning room", "document": drawing_document()},
+        format="json",
+        **csrf_headers(client),
+    )
+    assert created.status_code == 201
+    room_id = created.data["id"]
+    key = created.data["key"]
+    assert len(key) >= 32
+    assert created.data["owner_key"] != key
+    assert "view_key" not in created.data
+
+    assert client.get(f"/api/v1/drawing-rooms/{room_id}/").status_code == 404
+    opened = client.get(
+        f"/api/v1/drawing-rooms/{room_id}/",
+        HTTP_X_DRAWING_ROOM_KEY=key,
+    )
+    assert opened.status_code == 200
+    assert opened.data["title"] == "Planning room"
+    assert opened.data["mode"] == "edit"
+    assert "key" not in opened.data
+    changed = client.post(
+        f"/api/v1/drawing-rooms/{room_id}/manage/",
+        {"action": "access", "mode": "view"},
+        format="json",
+        HTTP_X_DRAWING_ROOM_OWNER_KEY=created.data["owner_key"],
+        **csrf_headers(client),
+    )
+    assert changed.status_code == 200 and changed.data["mode"] == "view"
+    view = client.get(
+        f"/api/v1/drawing-rooms/{room_id}/",
+        HTTP_X_DRAWING_ROOM_KEY=key,
+    )
+    assert view.status_code == 200
+    assert view.data["mode"] == "view"
+
+
+def test_signed_in_room_has_named_collaborator_and_transfer_endpoints(db):
+    owner = User.objects.create_user("owner@example.com", "password-123456")
+    collaborator = User.objects.create_user(
+        "collaborator@example.com", "password-123456", display_name="Teammate"
+    )
+    target = User.objects.create_user("target@example.com", "password-123456")
+    owner_client = APIClient()
+    owner_client.force_authenticate(user=owner)
+
+    created = owner_client.post(
+        "/api/v1/drawing-rooms/",
+        {"title": "Account room", "document": drawing_document()},
+        format="json",
+        **csrf_headers(owner_client),
+    )
+    assert created.status_code == 201
+    room_id = created.data["id"]
+    assert DrawingRoom.objects.get(pk=room_id).account_owner_id == owner.pk
+
+    added = owner_client.post(
+        f"/api/v1/drawing-rooms/{room_id}/collaborators/",
+        {"email": collaborator.email, "role": "view"},
+        format="json",
+        **csrf_headers(owner_client),
+    )
+    assert added.status_code == 200
+    assert added.data["name"] == "Teammate"
+    assert added.data["role"] == "view"
+
+    listed = owner_client.get(f"/api/v1/drawing-rooms/{room_id}/collaborators/")
+    assert listed.status_code == 200 and listed.data[0]["email"] == collaborator.email
+
+    updated = owner_client.patch(
+        f"/api/v1/drawing-rooms/{room_id}/collaborators/{collaborator.pk}/",
+        {"role": "edit"},
+        format="json",
+        **csrf_headers(owner_client),
+    )
+    assert updated.status_code == 200 and updated.data["role"] == "edit"
+
+    transferred = owner_client.post(
+        f"/api/v1/drawing-rooms/{room_id}/transfer-ownership/",
+        {"email": target.email},
+        format="json",
+        **csrf_headers(owner_client),
+    )
+    assert transferred.status_code == 200
+    assert DrawingRoom.objects.get(pk=room_id).account_owner_id == target.pk
+
+    assert owner_client.get(f"/api/v1/drawing-rooms/{room_id}/collaborators/").status_code == 404
+    target_client = APIClient()
+    target_client.force_authenticate(user=target)
+    assert target_client.get(f"/api/v1/drawing-rooms/{room_id}/collaborators/").status_code == 200
+
+
+def test_guest_room_merges_independent_element_versions(db):
+    room, key, owner_key = services.create_drawing_room(title="Room", document=drawing_document())
+    first = {
+        **drawing_document(),
+        "elements": [
+            {
+                "id": "one",
+                "type": "rectangle",
+                "x": 0,
+                "y": 0,
+                "width": 10,
+                "height": 10,
+                "angle": 0,
+                "style": {},
+                "version": 1,
+                "versionNonce": 1,
+            }
+        ],
+    }
+    second = {
+        **drawing_document(),
+        "elements": [
+            {
+                "id": "two",
+                "type": "ellipse",
+                "x": 20,
+                "y": 20,
+                "width": 10,
+                "height": 10,
+                "angle": 0,
+                "style": {},
+                "version": 1,
+                "versionNonce": 2,
+            }
+        ],
+    }
+    assert services.set_drawing_room_access(room.id, owner_key, "view") is not None
+    assert services.save_drawing_room_update(room.id, key, first) is None
+    assert services.set_drawing_room_access(room.id, owner_key, "edit") is not None
+    services.save_drawing_room_update(room.id, key, first)
+    services.save_drawing_room_update(room.id, key, second)
+
+    merged = DrawingRoom.objects.get(pk=room.pk)
+    assert merged.revision == 3
+    assert {element["id"] for element in merged.document["elements"]} == {"one", "two"}
+
+
+def test_guest_room_delta_update_uses_the_same_revisioned_mutation_seam(db):
+    room, key, _owner_key = services.create_drawing_room(title="Room", document=drawing_document())
+    first = {
+        **drawing_document(),
+        "elements": [
+            {
+                "id": "one",
+                "type": "rectangle",
+                "x": 0,
+                "y": 0,
+                "width": 10,
+                "height": 10,
+                "angle": 0,
+                "style": {},
+                "version": 1,
+                "versionNonce": 1,
+            }
+        ],
+    }
+    saved = services.save_drawing_room_update(room.id, key, first)
+    assert saved is not None and saved.changed and saved.revision == 2
+
+    second = {
+        "id": "two",
+        "type": "ellipse",
+        "x": 20,
+        "y": 20,
+        "width": 10,
+        "height": 10,
+        "angle": 0,
+        "style": {},
+        "version": 1,
+        "versionNonce": 2,
+    }
+    mutation = services.save_drawing_room_update(
+        room.id,
+        key,
+        delta={"schemaVersion": 1, "elements": [second]},
+    )
+
+    assert mutation is not None and mutation.changed and mutation.revision == 3
+    assert mutation.delta == {
+        "schemaVersion": 1,
+        "elements": [second],
+        "order": ["one", "two"],
+        "orderVersion": 0,
+        "orderVersionNonce": 0,
+    }
+    assert {element["id"] for element in mutation.document["elements"]} == {"one", "two"}
+
+
+def test_guest_room_expiry_blocks_access_and_is_cleaned_up(db):
+    room, key, _owner_key = services.create_drawing_room(title="Room", document=drawing_document())
+    room.expires_at = timezone.now() - timedelta(minutes=1)
+    room.save(update_fields=["expires_at"])
+
+    assert services.get_drawing_room(room.id, key) is None
+    assert services.purge_expired_drawing_rooms() == 1
+    assert not DrawingRoom.objects.filter(pk=room.pk).exists()
+
+
+def test_guest_room_owner_can_rotate_and_close_links(db):
+    client = APIClient()
+    created = client.post(
+        "/api/v1/drawing-rooms/",
+        {"document": drawing_document()},
+        format="json",
+        **csrf_headers(client),
+    )
+    room_id = created.data["id"]
+    old_edit = created.data["key"]
+    owner_key = created.data["owner_key"]
+
+    renamed = client.post(
+        f"/api/v1/drawing-rooms/{room_id}/manage/",
+        {"action": "rename", "title": "  New room name  "},
+        format="json",
+        HTTP_X_DRAWING_ROOM_OWNER_KEY=owner_key,
+        **csrf_headers(client),
+    )
+    assert renamed.status_code == 200
+    assert renamed.data["title"] == "New room name"
+
+    rotated = client.post(
+        f"/api/v1/drawing-rooms/{room_id}/manage/",
+        {"action": "rotate"},
+        format="json",
+        HTTP_X_DRAWING_ROOM_OWNER_KEY=owner_key,
+        **csrf_headers(client),
+    )
+    assert rotated.status_code == 200
+    assert rotated.data["key"] != old_edit
+    assert "view_key" not in rotated.data
+    assert (
+        client.get(f"/api/v1/drawing-rooms/{room_id}/", HTTP_X_DRAWING_ROOM_KEY=old_edit).status_code == 404
+    )
+    assert (
+        client.get(
+            f"/api/v1/drawing-rooms/{room_id}/", HTTP_X_DRAWING_ROOM_KEY=rotated.data["key"]
+        ).status_code
+        == 200
+    )
+
+    closed = client.post(
+        f"/api/v1/drawing-rooms/{room_id}/manage/",
+        {"action": "close"},
+        format="json",
+        HTTP_X_DRAWING_ROOM_OWNER_KEY=owner_key,
+        **csrf_headers(client),
+    )
+    assert closed.status_code == 200
+    assert closed.data["closed_at"] is not None
+    assert (
+        client.get(
+            f"/api/v1/drawing-rooms/{room_id}/", HTTP_X_DRAWING_ROOM_KEY=rotated.data["key"]
+        ).status_code
+        == 404
+    )

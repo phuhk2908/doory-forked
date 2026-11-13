@@ -3,6 +3,10 @@
   "private": true,
   "description": "A reference Yjs client used by the collab tests to prove the wire protocol with the real implementation.",
   "type": "module",
+  "packageManager": "bun@1.4.4",
+  "engines": {
+    "node": "22.x"
+  },
   "license": "MIT",
   "dependencies": {
     "lib0": "0.2.119",

@@ -30,6 +30,8 @@ from rest_framework.exceptions import ValidationError as DrfValidationError
 
 from apps.designs.doc.ops import EditError
 from apps.designs.exceptions import RevisionConflict
+from apps.drawings.exceptions import RevisionConflict as DrawingRevisionConflict
+from apps.drawings.validators import InvalidDrawing
 
 from . import context
 from .models import CallWindow
@@ -53,6 +55,7 @@ class ResourceSpec:
     name: str
     title: str
     mime_type: str
+    scope: str
 
 
 TOOLS: list[ToolSpec] = []
@@ -76,6 +79,13 @@ def explain(exc: Exception) -> str | None:
             f"The design changed since the revision you sent; it is now at revision {exc.revision}. "
             "Read it again with get_design and retry."
         )
+    if isinstance(exc, DrawingRevisionConflict):
+        return (
+            f"The whiteboard changed since the revision you sent; it is now at revision {exc.revision}. "
+            "Read it again with get_drawing and retry."
+        )
+    if isinstance(exc, InvalidDrawing):
+        return f"Invalid input. {exc}"
     if isinstance(exc, EditError):
         return f"{exc} Nothing was changed."
     if isinstance(exc, PydanticValidationError):
@@ -220,7 +230,7 @@ def resource(uri: str, *, scope: str, title: str, mime_type: str = "application/
 
     def decorate(fn: Callable[..., Any]) -> Callable[..., Any]:
         wrapper = _guarded(fn, scope, ResourceError)
-        RESOURCES.append(ResourceSpec(wrapper, uri, fn.__name__, title, mime_type))
+        RESOURCES.append(ResourceSpec(wrapper, uri, fn.__name__, title, mime_type, scope))
         return wrapper
 
     return decorate

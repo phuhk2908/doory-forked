@@ -75,10 +75,14 @@
   --guide-color: #ec5f98;
 
   /* Typography */
-  --font-sans: 'Nunito Variable', 'Nunito', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  --font-display: 'Fraunces Variable', 'Fraunces', Georgia, 'Times New Roman', serif;
-  --font-hand: 'Caveat Variable', 'Caveat', 'Segoe Print', 'Bradley Hand', cursive;
-  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --font-sans:
+    "Nunito Variable", "Nunito", system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --font-display:
+    "Fraunces Variable", "Fraunces", Georgia, "Times New Roman", serif;
+  --font-hand:
+    "Caveat Variable", "Caveat", "Segoe Print", "Bradley Hand", cursive;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --text-xs: 0.75rem;
   --text-sm: 0.8125rem;
   --text-base: 0.9375rem;
@@ -112,9 +116,13 @@
   --radius-full: 999px;
   --shadow-sm: 0 1px 2px rgb(60 40 110 / 0.07), 0 1px 1px rgb(43 28 23 / 0.04);
   --shadow-md: 0 4px 12px rgb(60 40 110 / 0.1), 0 2px 4px rgb(43 28 23 / 0.04);
-  --shadow-lg: 0 18px 40px rgb(60 40 110 / 0.16), 0 4px 10px rgb(43 28 23 / 0.06);
-  --shadow-artboard: 0 2px 6px rgb(60 40 110 / 0.12), 0 12px 32px rgb(60 40 110 / 0.12);
-  --shadow-card: 0 0 0 1px rgb(43 28 23 / 0.06), 0 2px 0 rgb(43 28 23 / 0.05), 0 28px 50px -18px rgb(90 60 150 / 0.38);
+  --shadow-lg:
+    0 18px 40px rgb(60 40 110 / 0.16), 0 4px 10px rgb(43 28 23 / 0.06);
+  --shadow-artboard:
+    0 2px 6px rgb(60 40 110 / 0.12), 0 12px 32px rgb(60 40 110 / 0.12);
+  --shadow-card:
+    0 0 0 1px rgb(43 28 23 / 0.06), 0 2px 0 rgb(43 28 23 / 0.05),
+    0 28px 50px -18px rgb(90 60 150 / 0.38);
 
   /* Motion */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
@@ -140,7 +148,7 @@
  * High contrast: the same light theme with darker text, lines and focus rings. Set on <html> by src/lib/contrast.ts.
  * Colours only, and never the page, workspace or stage backgrounds, so presenting and exports look the same.
  */
-:root[data-contrast='more'] {
+:root[data-contrast="more"] {
   --color-text-muted: #3f3340; /* at least 9:1 on every surface, the workspace and the lilac washes */
   --color-text-subtle: #4a3d4b; /* at least 7.8:1 */
   /* Mid-tones: tracks and meters pair them with ink fills, so they keep 3:1 against ink as well as the surfaces. */
@@ -155,7 +163,8 @@
   --color-info: #1e40af;
   /* One shadow, so the `inset var(--focus-ring)` rings keep working. */
   --focus-ring: 0 0 0 3px var(--violet-800);
-  --shadow-artboard: 0 0 0 1px var(--color-border-strong), 0 2px 6px rgb(60 40 110 / 0.12);
+  --shadow-artboard:
+    0 0 0 1px var(--color-border-strong), 0 2px 6px rgb(60 40 110 / 0.12);
 }
 
 @media (prefers-reduced-motion: reduce) {

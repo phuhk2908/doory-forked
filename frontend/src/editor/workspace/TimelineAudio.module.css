@@ -54,7 +54,7 @@
   background: var(--color-bg-muted);
   color: var(--color-text);
 }
-.switch[aria-pressed='true'] {
+.switch[aria-pressed="true"] {
   background: var(--color-brand-soft);
   color: var(--color-brand);
 }
@@ -93,15 +93,19 @@
     inset 0 0 0 1.5px var(--color-brand),
     var(--focus-ring);
 }
-.bar[data-kind='voiceover'] {
+.bar[data-kind="voiceover"] {
   background: color-mix(in srgb, var(--color-brand) 24%, var(--color-surface));
 }
-.bar[data-kind='sfx'] {
+.bar[data-kind="sfx"] {
   background: var(--color-surface);
 }
 .bar[data-muted] {
   opacity: 0.5;
-  background-image: repeating-linear-gradient(135deg, transparent 0 5px, color-mix(in srgb, var(--color-brand) 22%, transparent) 5px 8px);
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent 0 5px,
+    color-mix(in srgb, var(--color-brand) 22%, transparent) 5px 8px
+  );
 }
 .bar[data-dim] {
   opacity: 0.4;
@@ -128,7 +132,11 @@
   top: 0;
   right: 0;
   bottom: 0;
-  background-image: repeating-linear-gradient(90deg, color-mix(in srgb, var(--color-brand) 35%, transparent) 0 2px, transparent 2px 7px);
+  background-image: repeating-linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--color-brand) 35%, transparent) 0 2px,
+    transparent 2px 7px
+  );
   pointer-events: none;
 }
 .scope {

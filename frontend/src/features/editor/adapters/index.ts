@@ -1,11 +1,18 @@
-export { createAccountAdapter, RevisionTracker } from './accountAdapter'
-export type { AccountAdapterOptions } from './accountAdapter'
-export { MigrationError, ReadOnlyDesignError, RevisionConflictError } from './errors'
-export type { MigrationPhase } from './errors'
-export { createGuestAdapter } from './guestAdapter'
-export type { GuestAdapterOptions } from './guestAdapter'
-export { migrateLocalDesign, removeMissingAssetReferences } from './migrateLocalDesign'
-export type { MigrateOptions, MigrationProgress } from './migrateLocalDesign'
-export { createSharedAdapter } from './sharedAdapter'
-export type { SharedAdapterOptions } from './sharedAdapter'
-export { UnsupportedImageError, readImageInfo } from './images'
+export { createAccountAdapter, RevisionTracker } from "./accountAdapter";
+export type { AccountAdapterOptions } from "./accountAdapter";
+export {
+  MigrationError,
+  ReadOnlyDesignError,
+  RevisionConflictError,
+} from "./errors";
+export type { MigrationPhase } from "./errors";
+export { createGuestAdapter } from "./guestAdapter";
+export type { GuestAdapterOptions } from "./guestAdapter";
+export {
+  migrateLocalDesign,
+  removeMissingAssetReferences,
+} from "./migrateLocalDesign";
+export type { MigrateOptions, MigrationProgress } from "./migrateLocalDesign";
+export { createSharedAdapter } from "./sharedAdapter";
+export type { SharedAdapterOptions } from "./sharedAdapter";
+export { UnsupportedImageError, readImageInfo } from "./images";

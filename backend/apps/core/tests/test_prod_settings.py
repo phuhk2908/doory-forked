@@ -1,4 +1,4 @@
-"""Production settings are security-critical: check them in a clean interpreter, away from test overrides."""
+"""Production settings are security-critical: check them in a subprocess with an explicit baseline environment."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 
 BACKEND_DIR = Path(__file__).resolve().parents[3]
+PRODUCTION_CHECK_SECRET = "ci-only-secret-key-that-is-long-and-random-enough-for-the-checks-0123456789"
 PROBE = """
 import json
 from django.conf import settings
@@ -33,8 +34,12 @@ def load_settings(**env: str) -> dict:
         "PATH": os.environ.get("PATH", ""),
         "PYTHONPATH": str(BACKEND_DIR),
         "DJANGO_SETTINGS_MODULE": "doory.settings.prod",
-        "DJANGO_SECRET_KEY": "x" * 60,
+        "DJANGO_SECRET_KEY": PRODUCTION_CHECK_SECRET,
         "SITE_URL": "https://doory.example.org",
+        # base.py reads backend/.env for local convenience. Pin optional origin lists so a developer's local
+        # values cannot change what this production-settings probe is asserting.
+        "CSRF_TRUSTED_ORIGINS": "https://doory.example.org",
+        "CORS_ALLOWED_ORIGINS": "",
         **env,
     }
     result = subprocess.run(
@@ -48,6 +53,27 @@ def load_settings(**env: str) -> dict:
     )
     assert result.returncode == 0, result.stderr
     return json.loads(result.stdout.strip().splitlines()[-1])
+
+
+def run_production_check(**env: str) -> subprocess.CompletedProcess[str]:
+    environment = {
+        "PATH": os.environ.get("PATH", ""),
+        "PYTHONPATH": str(BACKEND_DIR),
+        "DJANGO_SETTINGS_MODULE": "doory.settings.prod",
+        "DJANGO_SECRET_KEY": PRODUCTION_CHECK_SECRET,
+        "DJANGO_ALLOWED_HOSTS": "example.com",
+        "IMAGE_OPTIMIZERS": "",
+        **env,
+    }
+    return subprocess.run(
+        [sys.executable, "manage.py", "check", "--deploy", "--fail-level", "WARNING"],
+        env=environment,
+        cwd=BACKEND_DIR,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
 
 
 @pytest.fixture(scope="module")
@@ -152,3 +178,8 @@ def test_production_refuses_a_short_or_development_secret_key(key):
 
 def test_a_32_character_key_is_accepted():
     assert load_settings(DJANGO_SECRET_KEY="k" * 32)["DEBUG"] is False
+
+
+def test_production_deployment_check_is_warning_free():
+    result = run_production_check()
+    assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"

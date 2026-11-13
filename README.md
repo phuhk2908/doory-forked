@@ -5,7 +5,8 @@
 Doory is a design editor that runs in the browser: posters, social posts, stories, slides, invitations, resumes,
 thumbnails and business cards. You start from a template or a blank page, edit everything on it, and export PNG,
 JPG, SVG, PDF, MP4 or GIF. There is no paid plan, you don't need an account to start, and you can run it on your own
-server with Docker or without it.
+server with Docker or without it. Doory also includes whiteboards for diagrams, brainstorming and real-time
+collaboration.
 
 It is a young project: the editor is complete, the template library is small (ten starter templates), and bug
 reports are very welcome.
@@ -51,6 +52,7 @@ reports are very welcome.
 | **Motion and sound** | 27 enter and exit animations, 12 emphasis animations, 16 page transitions, 24 music loops and 88 sound effects (CC0), Freesound search with a key (CC0 by default), voiceover recording |
 | **Present** | Present mode with speaker notes, timing, auto-advance and a second presenter window |
 | **Together** | Share links that view, comment or edit (with an optional password), pinned comments, version history, real-time co-editing |
+| **Whiteboard** | Freeform diagrams and brainstorming with shapes, text, notes, grid controls and real-time collaboration |
 | **Brand** | Brand kits with your colours, fonts and logos |
 | **Export** | PNG, JPG, SVG, PDF, MP4, WebM and GIF |
 | **Accessibility** | High-contrast mode with darker text, borders and focus rings, following your device setting or switched in the editor's View menu or in Settings |
@@ -136,7 +138,7 @@ that runs Doory: yours, if you self-host. Uploads can go to a local volume or to
 
 ## Built with
 
-React 19, TypeScript, Vite, Fabric.js, Yjs and Zustand in the browser; Django 5, Django REST Framework,
+React 19, TypeScript, Vite, Fabric.js, Yjs and Zustand in the browser; Django 6.1, Django REST Framework,
 Channels and PostgreSQL on the server; Docker Compose with nginx, optional Redis and S3-compatible storage.
 
 ## Contributing

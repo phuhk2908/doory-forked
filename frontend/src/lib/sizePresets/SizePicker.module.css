@@ -99,7 +99,7 @@
   background: var(--color-bg-muted);
 }
 
-.entry[aria-current='true'] {
+.entry[aria-current="true"] {
   color: var(--color-text);
   background: var(--color-surface);
   box-shadow: 0 0 0 1px var(--color-border);
@@ -165,7 +165,7 @@
   border-radius: 999px;
 }
 
-.segmented button[aria-pressed='true'] {
+.segmented button[aria-pressed="true"] {
   color: var(--color-text);
   background: var(--color-surface);
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.12);
@@ -226,7 +226,7 @@
 
 .cardWrap:hover .star,
 .star:focus-visible,
-.star[aria-pressed='true'] {
+.star[aria-pressed="true"] {
   opacity: 1;
 }
 
@@ -235,7 +235,7 @@
   background: var(--color-bg-muted);
 }
 
-.star[aria-pressed='true'] {
+.star[aria-pressed="true"] {
   color: var(--color-warning);
 }
 
@@ -263,7 +263,7 @@
   border-color: var(--color-border-strong);
 }
 
-.card[aria-pressed='true'] {
+.card[aria-pressed="true"] {
   border-color: var(--color-brand);
   box-shadow: 0 0 0 3px var(--color-brand-soft);
 }
@@ -275,7 +275,7 @@
   height: 58px;
 }
 
-.card[aria-pressed='true'] .thumb > span {
+.card[aria-pressed="true"] .thumb > span {
   border-color: var(--color-brand);
 }
 

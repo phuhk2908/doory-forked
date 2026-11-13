@@ -22,7 +22,7 @@
     background var(--ed-dur);
 }
 .fab:hover,
-.fab[aria-expanded='true'] {
+.fab[aria-expanded="true"] {
   background: var(--ed-accent-glow);
   color: var(--ed-accent);
 }
@@ -70,7 +70,7 @@
   background: var(--ed-accent-glow);
   color: var(--ed-text);
 }
-.preset[aria-pressed='true'] {
+.preset[aria-pressed="true"] {
   border-color: var(--ed-accent);
   background: var(--ed-accent-glow);
   color: var(--ed-accent);
@@ -132,7 +132,7 @@
 .modeBtn:hover {
   border-color: var(--ed-accent);
 }
-.modeBtn[aria-pressed='true'] {
+.modeBtn[aria-pressed="true"] {
   border-color: var(--ed-accent);
   background: var(--ed-accent-glow);
   color: var(--ed-accent);
@@ -280,7 +280,7 @@
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
-.zoomBtn[aria-pressed='true'] {
+.zoomBtn[aria-pressed="true"] {
   background: var(--ed-accent-glow);
   color: var(--ed-accent);
 }

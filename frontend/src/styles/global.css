@@ -20,7 +20,7 @@ body {
   font-family: var(--font-sans);
   font-size: var(--text-base);
   line-height: var(--leading-normal);
-  font-feature-settings: 'cv11', 'ss01';
+  font-feature-settings: "cv11", "ss01";
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
@@ -129,20 +129,31 @@ samp {
  * (no layout change). Checked menu items already show a tick, and breadcrumbs mark the current page in their text.
  * Not while focused: the outline would cover the focus ring (inset rings) or replace the focus outline.
  */
-:root[data-contrast='more'] :is([aria-pressed='true'], [aria-selected='true'], [aria-current]:not([aria-current='page'], [aria-current='false'])):not(:focus-visible) {
+:root[data-contrast="more"]
+  :is(
+    [aria-pressed="true"],
+    [aria-selected="true"],
+    [aria-current]:not([aria-current="page"], [aria-current="false"])
+  ):not(:focus-visible) {
   outline: 2px solid var(--color-text);
   outline-offset: -2px;
 }
 /* While focused, the state shows as an inset line inside the focus ring instead. */
-:root[data-contrast='more'] :is([aria-pressed='true'], [aria-selected='true'], [aria-current]:not([aria-current='page'], [aria-current='false'])):focus-visible {
-  box-shadow: var(--focus-ring), inset 0 0 0 2px var(--color-text);
+:root[data-contrast="more"]
+  :is(
+    [aria-pressed="true"],
+    [aria-selected="true"],
+    [aria-current]:not([aria-current="page"], [aria-current="false"])
+  ):focus-visible {
+  box-shadow:
+    var(--focus-ring),
+    inset 0 0 0 2px var(--color-text);
 }
 
 ::selection {
   background: var(--pastel-butter);
   color: var(--ink);
 }
-
 
 * {
   scrollbar-width: thin;
@@ -191,4 +202,3 @@ samp {
   --color-brand-fill-active: #160e0b;
   --color-brand-strong: var(--ink);
 }
-

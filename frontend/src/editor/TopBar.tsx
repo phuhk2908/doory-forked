@@ -1,52 +1,80 @@
-import { ChevronDown, Copy, Download, History, Menu as MenuIcon, Presentation, Share2, SlidersHorizontal, Users } from 'lucide-react'
-import { useContrast } from '@/lib/contrast'
-import { useSizePresets } from '@/lib/sizePresets'
-import { getPageSize } from './engine/pageSizes'
-import { type ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
-import { useCollabState } from './collab/context'
-import { PresenceStack } from './chrome/PresenceStack'
-import { openAccountDialog } from './chrome/accountGate'
-import { I } from './chrome/icons'
-import { useChrome, useOpenTool } from './chrome/ChromeContext'
-import { useEditor, useEditorState } from './context'
-import { commands, isCommandEnabled } from './commands'
-import { DEFAULT_EXPORT_OPTIONS, exportFormats } from './engine/export/registry'
-import { type ExportChoice, describeChoice, designPreset, loadLastExport, saveLastExport, suggestionFor } from './engine/export/choices'
-import { copyPageAsPng, downloadFiles, runExport } from './engine/export/exporter'
-import { useNotesOpen } from './panels/notesVisibility'
-import { useTimelineView } from './workspace/timelineVisibility'
-import { type PanelDefinition } from './panels/registry'
-import { preloadDialog } from './dialogs/registry'
-import { useVisiblePanels } from './panels/useVisiblePanels'
-import { SaveStatus } from './SaveStatus'
-import { t } from './strings'
-import { Menu, type MenuItem } from './ui/Menu'
-import { Tooltip } from './ui/Tooltip'
-import ed from './chrome/ed.module.css'
-import styles from './TopBar.module.css'
+import {
+  ChevronDown,
+  Copy,
+  Download,
+  History,
+  Menu as MenuIcon,
+  Presentation,
+  Share2,
+  SlidersHorizontal,
+  Users,
+} from "lucide-react";
+import { useContrast } from "@/lib/contrast";
+import { useSizePresets } from "@/lib/sizePresets";
+import { getPageSize } from "./engine/pageSizes";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
+import { useCollabState } from "./collab/context";
+import { PresenceStack } from "./chrome/PresenceStack";
+import { openAccountDialog } from "./chrome/accountGate";
+import { I } from "./chrome/icons";
+import { useChrome, useOpenTool } from "./chrome/ChromeContext";
+import { useEditor, useEditorState } from "./context";
+import { commands, isCommandEnabled } from "./commands";
+import {
+  DEFAULT_EXPORT_OPTIONS,
+  exportFormats,
+} from "./engine/export/registry";
+import {
+  type ExportChoice,
+  describeChoice,
+  designPreset,
+  loadLastExport,
+  saveLastExport,
+  suggestionFor,
+} from "./engine/export/choices";
+import { downloadFiles } from "./engine/export/download";
+import { useNotesOpen } from "./panels/notesVisibility";
+import { useTimelineView } from "./workspace/timelineVisibility";
+import { type PanelDefinition } from "./panels/registry";
+import { preloadDialog } from "./dialogs/registry";
+import { useVisiblePanels } from "./panels/useVisiblePanels";
+import { SaveStatus } from "./SaveStatus";
+import { t } from "./strings";
+import { Menu, type MenuItem } from "./ui/Menu";
+import { Tooltip } from "./ui/Tooltip";
+import ed from "./chrome/ed.module.css";
+import styles from "./TopBar.module.css";
 
 interface TopBarProps {
-  start?: ReactNode
-  end?: ReactNode
-  onTitle: (title: string) => void
-  onPresent: () => void
+  start?: ReactNode;
+  end?: ReactNode;
+  onTitle: (title: string) => void;
+  onPresent: () => void;
 }
 
 /** Below this bar width File and View become one menu and the title moves into the left-hand group. */
-const NARROW_BAR = 760
+const NARROW_BAR = 760;
 
 function TitleField({ onTitle }: { onTitle: (title: string) => void }) {
-  const editor = useEditor()
-  const title = useEditorState((s) => s.title)
-  const locked = useEditorState((s) => s.readOnly)
-  const cannotRename = useCollabState((s) => !s.canRename) === true
-  const readOnly = locked || cannotRename
-  const [draft, setDraft] = useState<string | null>(null)
+  const editor = useEditor();
+  const title = useEditorState((s) => s.title);
+  const locked = useEditorState((s) => s.readOnly);
+  const cannotRename = useCollabState((s) => !s.canRename) === true;
+  const readOnly = locked || cannotRename;
+  const [draft, setDraft] = useState<string | null>(null);
   const commit = (value: string): void => {
-    setDraft(null)
-    editor.setTitle(value)
-    onTitle(editor.state.title)
-  }
+    setDraft(null);
+    editor.setTitle(value);
+    onTitle(editor.state.title);
+  };
   return (
     <input
       className={styles.title}
@@ -60,39 +88,72 @@ function TitleField({ onTitle }: { onTitle: (title: string) => void }) {
       onFocus={(e) => e.currentTarget.select()}
       onBlur={(e) => commit(e.currentTarget.value)}
       onKeyDown={(e) => {
-        if (e.key === 'Enter') e.currentTarget.blur()
-        if (e.key === 'Escape') {
-          setDraft(null)
-          e.currentTarget.blur()
+        if (e.key === "Enter") e.currentTarget.blur();
+        if (e.key === "Escape") {
+          setDraft(null);
+          e.currentTarget.blur();
         }
       }}
     />
-  )
+  );
 }
 
 /** A tool that lives as an icon button at the right end of the bar (Comments). */
-function EndTool({ panel, open, onToggle }: { panel: PanelDefinition; open: boolean; onToggle: () => void }) {
-  const chrome = useChrome()
-  const ref = useCallback((el: HTMLButtonElement | null) => chrome.setAnchor(panel.id, el), [chrome, panel.id])
+function EndTool({
+  panel,
+  open,
+  onToggle,
+}: {
+  panel: PanelDefinition;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  const chrome = useChrome();
+  const ref = useCallback(
+    (el: HTMLButtonElement | null) => chrome.setAnchor(panel.id, el),
+    [chrome, panel.id],
+  );
   return (
     <Tooltip label={panel.label}>
-      <button ref={ref} type="button" className={`${ed.btn} ${ed.iconOnly} ${ed.ghost} ${open ? ed.pressed : ''}`} aria-label={panel.label} aria-pressed={open} data-testid={`ed-end-${panel.id}`} onPointerEnter={panel.preload} onFocus={panel.preload} onClick={onToggle}>
+      <button
+        ref={ref}
+        type="button"
+        className={`${ed.btn} ${ed.iconOnly} ${ed.ghost} ${open ? ed.pressed : ""}`}
+        aria-label={panel.label}
+        aria-pressed={open}
+        data-testid={`ed-end-${panel.id}`}
+        onPointerEnter={panel.preload}
+        onFocus={panel.preload}
+        onClick={onToggle}
+      >
         {panel.icon}
       </button>
     </Tooltip>
-  )
+  );
 }
 
 /** A text button in the bar that opens a menu (File, View). */
-function MenuButton({ label, items, testId, icon, onOpen }: { label: string; items: MenuItem[]; testId: string; icon?: ReactNode; onOpen?: () => void }) {
-  const [open, setOpen] = useState(false)
-  const anchor = useRef<HTMLButtonElement>(null)
+function MenuButton({
+  label,
+  items,
+  testId,
+  icon,
+  onOpen,
+}: {
+  label: string;
+  items: MenuItem[];
+  testId: string;
+  icon?: ReactNode;
+  onOpen?: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const anchor = useRef<HTMLButtonElement>(null);
   return (
     <>
       <button
         ref={anchor}
         type="button"
-        className={`${styles.menuBtn} ${icon ? styles.menuIcon : ''}`}
+        className={`${styles.menuBtn} ${icon ? styles.menuIcon : ""}`}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={icon ? label : undefined}
@@ -102,9 +163,16 @@ function MenuButton({ label, items, testId, icon, onOpen }: { label: string; ite
       >
         {icon ?? label}
       </button>
-      {open ? <Menu label={label} items={items} anchorRef={anchor} onClose={() => setOpen(false)} /> : null}
+      {open ? (
+        <Menu
+          label={label}
+          items={items}
+          anchorRef={anchor}
+          onClose={() => setOpen(false)}
+        />
+      ) : null}
     </>
-  )
+  );
 }
 
 /**
@@ -112,96 +180,202 @@ function MenuButton({ label, items, testId, icon, onOpen }: { label: string; ite
  * keeps one call to action instead of three buttons side by side.
  */
 function ShareMenu({ onPresent }: { onPresent: () => void }) {
-  const editor = useEditor()
-  const mode = useEditorState((s) => s.mode)
-  const readOnly = useEditorState((s) => s.readOnly)
-  const formats = useSyncExternalStore(exportFormats.subscribe, exportFormats.getSnapshot)
+  const editor = useEditor();
+  const mode = useEditorState((s) => s.mode);
+  const readOnly = useEditorState((s) => s.readOnly);
+  const formats = useSyncExternalStore(
+    exportFormats.subscribe,
+    exportFormats.getSnapshot,
+  );
   // Re-read when the server's size presets arrive: they make the suggestion.
-  useSizePresets()
-  const [open, setOpen] = useState(false)
-  const [busy, setBusy] = useState(false)
-  const anchor = useRef<HTMLButtonElement>(null)
+  useSizePresets();
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const anchor = useRef<HTMLButtonElement>(null);
   // The account dialog may take a moment to load; a second pick of "Share with people" meanwhile is ignored.
-  const sharing = useRef(false)
-  const canShare = !readOnly && (mode === 'guest' || !!editor.adapter.services.sharing)
+  const sharing = useRef(false);
+  const canShare =
+    !readOnly && (mode === "guest" || !!editor.adapter.services.sharing);
 
   const quick = useCallback(
     async (choice: ExportChoice): Promise<void> => {
       if (exportFormats.get(choice.formatId)?.controls.video) {
-        editor.openDialog('download', { format: choice.formatId })
-        return
+        editor.openDialog("download", { format: choice.formatId });
+        return;
       }
-      setBusy(true)
-      const notes: string[] = []
+      setBusy(true);
+      const notes: string[] = [];
       try {
-        const files = await runExport(editor, { formatId: choice.formatId, pages: { kind: 'all' }, options: choice.options, onNote: (note) => notes.push(note) })
-        downloadFiles(files)
-        saveLastExport(choice)
-        editor.toast(notes[0] ?? t.dialog.downloadDone, notes.length > 0 ? 'info' : 'success')
+        const { runExport } = await import("./engine/export/exporter");
+        const files = await runExport(editor, {
+          formatId: choice.formatId,
+          pages: { kind: "all" },
+          options: choice.options,
+          onNote: (note) => notes.push(note),
+        });
+        downloadFiles(files);
+        saveLastExport(choice);
+        editor.toast(
+          notes[0] ?? t.dialog.downloadDone,
+          notes.length > 0 ? "info" : "success",
+        );
       } catch (err) {
-        editor.toast(err instanceof Error && err.message ? err.message : t.dialog.downloadFailed, 'error')
+        editor.toast(
+          err instanceof Error && err.message
+            ? err.message
+            : t.dialog.downloadFailed,
+          "error",
+        );
       } finally {
-        setBusy(false)
+        setBusy(false);
       }
     },
     [editor],
-  )
+  );
 
   const copy = (): void => {
-    copyPageAsPng(editor).then(
-      () => editor.toast(t.dialog.downloadCopied, 'success'),
-      (err: unknown) => editor.toast(err instanceof Error && err.message ? err.message : t.dialog.downloadFailed, 'error'),
-    )
-  }
+    import("./engine/export/exporter")
+      .then(({ copyPageAsPng }) => copyPageAsPng(editor))
+      .then(
+        () => editor.toast(t.dialog.downloadCopied, "success"),
+        (err: unknown) =>
+          editor.toast(
+            err instanceof Error && err.message
+              ? err.message
+              : t.dialog.downloadFailed,
+            "error",
+          ),
+      );
+  };
 
   const share = (): void => {
-    if (sharing.current) return
-    sharing.current = true
-    void openAccountDialog(editor, 'share', 'share', (x) => !!x.adapter.services.sharing, t.share.unavailable).finally(() => {
-      sharing.current = false
-    })
-  }
+    if (sharing.current) return;
+    sharing.current = true;
+    void openAccountDialog(
+      editor,
+      "share",
+      "share",
+      (x) => !!x.adapter.services.sharing,
+      t.share.unavailable,
+    ).finally(() => {
+      sharing.current = false;
+    });
+  };
 
-  const presentNotes = commands.get('file.presentNotes')
-  const usable = (id: string): boolean => formats.some((f) => f.id === id && (!f.available || f.available(editor)))
-  const preset = open ? designPreset(editor) : null
-  const suggested = preset ? suggestionFor(editor, preset) : null
-  const last = open ? loadLastExport(editor) : null
+  const presentNotes = commands.get("file.presentNotes");
+  const usable = (id: string): boolean =>
+    formats.some((f) => f.id === id && (!f.available || f.available(editor)));
+  const preset = open ? designPreset(editor) : null;
+  const suggested = preset ? suggestionFor(editor, preset) : null;
+  const last = open ? loadLastExport(editor) : null;
   const tile = (id: keyof typeof t.topbar.formatHint): MenuItem[] => {
-    if (!usable(id)) return []
-    const options = id === 'png' ? { ...DEFAULT_EXPORT_OPTIONS, transparent: true } : DEFAULT_EXPORT_OPTIONS
-    return [{ id, label: exportFormats.get(id)?.label ?? id, hint: t.topbar.formatHint[id], tile: true, onSelect: () => void quick({ formatId: id, options }) }]
-  }
+    if (!usable(id)) return [];
+    const options =
+      id === "png"
+        ? { ...DEFAULT_EXPORT_OPTIONS, transparent: true }
+        : DEFAULT_EXPORT_OPTIONS;
+    return [
+      {
+        id,
+        label: exportFormats.get(id)?.label ?? id,
+        hint: t.topbar.formatHint[id],
+        tile: true,
+        onSelect: () => void quick({ formatId: id, options }),
+      },
+    ];
+  };
   const items: MenuItem[] = [
-    ...(canShare ? [{ id: 'share-people', label: t.topbar.shareWithPeople, hint: t.topbar.shareWithPeopleHint, icon: <Users size={16} aria-hidden="true" />, onSelect: share }, { id: 's-share', separator: true }] : []),
-    { id: 'h-download', label: t.topbar.downloadHeading, heading: true },
+    ...(canShare
+      ? [
+          {
+            id: "share-people",
+            label: t.topbar.shareWithPeople,
+            hint: t.topbar.shareWithPeopleHint,
+            icon: <Users size={16} aria-hidden="true" />,
+            onSelect: share,
+          },
+          { id: "s-share", separator: true },
+        ]
+      : []),
+    { id: "h-download", label: t.topbar.downloadHeading, heading: true },
     ...(preset && suggested
       ? [
           {
-            id: 'suggested',
+            id: "suggested",
             label: t.topbar.suggestedFor(preset.label),
             hint: `${describeChoice(suggested)} · ${preset.width} × ${preset.height}`,
-            feature: exportFormats.get(suggested.formatId)?.label ?? suggested.formatId,
+            feature:
+              exportFormats.get(suggested.formatId)?.label ??
+              suggested.formatId,
             icon: <Download size={16} aria-hidden="true" />,
             onSelect: () => void quick(suggested),
           },
         ]
       : []),
-    ...tile('png'),
-    ...tile('jpg'),
-    ...tile('webp'),
-    ...tile('pdf'),
-    ...tile('svg'),
-    ...(formats.some((f) => f.controls.video) ? [{ id: 'video', label: t.topbar.videoDownload, hint: t.topbar.videoDownloadHint, tile: true, onSelect: () => editor.openDialog('download', { format: 'mp4' }) }] : []),
-    ...(last && usable(last.formatId) ? [{ id: 'last', label: t.topbar.lastUsed, hint: describeChoice(last), icon: <History size={16} aria-hidden="true" />, onSelect: () => void quick(last) }] : []),
-    { id: 'more', label: t.topbar.moreDownloadOptions, icon: <SlidersHorizontal size={16} aria-hidden="true" />, shortcut: commands.get('file.download')?.shortcut, onSelect: () => editor.openDialog('download') },
-    { id: 'copy', label: t.topbar.copyImage, icon: <Copy size={16} aria-hidden="true" />, onSelect: copy },
-    { id: 's-present', separator: true },
-    { id: 'h-present', label: t.topbar.presentHeading, heading: true },
-    { id: 'present', label: t.topbar.presentFull, icon: <Presentation size={16} aria-hidden="true" />, onSelect: onPresent },
-    ...(presentNotes ? [{ id: 'present-notes', label: presentNotes.label, icon: presentNotes.icon, onSelect: () => void presentNotes.run(editor) }] : []),
-  ]
-  const label = busy ? t.dialog.downloadWorking : canShare ? t.topbar.share : t.dialog.downloadButton
+    ...tile("png"),
+    ...tile("jpg"),
+    ...tile("webp"),
+    ...tile("pdf"),
+    ...tile("svg"),
+    ...(formats.some((f) => f.controls.video)
+      ? [
+          {
+            id: "video",
+            label: t.topbar.videoDownload,
+            hint: t.topbar.videoDownloadHint,
+            tile: true,
+            onSelect: () => editor.openDialog("download", { format: "mp4" }),
+          },
+        ]
+      : []),
+    ...(last && usable(last.formatId)
+      ? [
+          {
+            id: "last",
+            label: t.topbar.lastUsed,
+            hint: describeChoice(last),
+            icon: <History size={16} aria-hidden="true" />,
+            onSelect: () => void quick(last),
+          },
+        ]
+      : []),
+    {
+      id: "more",
+      label: t.topbar.moreDownloadOptions,
+      icon: <SlidersHorizontal size={16} aria-hidden="true" />,
+      shortcut: commands.get("file.download")?.shortcut,
+      onSelect: () => editor.openDialog("download"),
+    },
+    {
+      id: "copy",
+      label: t.topbar.copyImage,
+      icon: <Copy size={16} aria-hidden="true" />,
+      onSelect: copy,
+    },
+    { id: "s-present", separator: true },
+    { id: "h-present", label: t.topbar.presentHeading, heading: true },
+    {
+      id: "present",
+      label: t.topbar.presentFull,
+      icon: <Presentation size={16} aria-hidden="true" />,
+      onSelect: onPresent,
+    },
+    ...(presentNotes
+      ? [
+          {
+            id: "present-notes",
+            label: presentNotes.label,
+            icon: presentNotes.icon,
+            onSelect: () => void presentNotes.run(editor),
+          },
+        ]
+      : []),
+  ];
+  const label = busy
+    ? t.dialog.downloadWorking
+    : canShare
+      ? t.topbar.share
+      : t.dialog.downloadButton;
   return (
     <>
       <button
@@ -213,31 +387,41 @@ function ShareMenu({ onPresent }: { onPresent: () => void }) {
         disabled={busy}
         data-testid="ed-share"
         onPointerEnter={() => {
-          preloadDialog('download')
-          if (canShare) preloadDialog('share')
+          preloadDialog("download");
+          if (canShare) preloadDialog("share");
         }}
-        onFocus={() => preloadDialog('download')}
+        onFocus={() => preloadDialog("download")}
         onClick={() => setOpen((o) => !o)}
       >
         {canShare ? <Share2 size={15} aria-hidden="true" /> : I.download}
         <span className={styles.btnLabel}>{label}</span>
         <ChevronDown size={14} aria-hidden="true" className={styles.chevron} />
       </button>
-      {open ? <Menu label={label} items={items} anchorRef={anchor} onClose={() => setOpen(false)} className={styles.shareMenu} /> : null}
+      {open ? (
+        <Menu
+          label={label}
+          items={items}
+          anchorRef={anchor}
+          onClose={() => setOpen(false)}
+          className={styles.shareMenu}
+        />
+      ) : null}
     </>
-  )
+  );
 }
 
 function useWidth(ref: React.RefObject<HTMLElement | null>): number {
-  const [width, setWidth] = useState(0)
+  const [width, setWidth] = useState(0);
   useLayoutEffect(() => {
-    const el = ref.current
-    if (!el) return
-    const ro = new ResizeObserver(([entry]) => setWidth(Math.round(entry.contentRect.width)))
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [ref])
-  return width
+    const el = ref.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) =>
+      setWidth(Math.round(entry.contentRect.width)),
+    );
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [ref]);
+  return width;
 }
 
 /**
@@ -245,114 +429,223 @@ function useWidth(ref: React.RefObject<HTMLElement | null>): number {
  * comments and the one Share menu on the right. The tools that add to the design live in the rail (ToolRail).
  */
 export function TopBar({ start, end, onTitle, onPresent }: TopBarProps) {
-  const editor = useEditor()
-  const history = useEditorState((s) => s.history)
-  const readOnly = useEditorState((s) => s.readOnly)
-  const mode = useEditorState((s) => s.mode)
-  const ui = useEditorState((s) => s.ui)
-  const notesOpen = useNotesOpen()
-  const timelineOpen = useTimelineView().open
-  const highContrast = useContrast().effective === 'more'
-  const guideCount = useEditorState((s) => s.doc.pages.find((p) => p.id === s.activePageId)?.guides?.length ?? 0)
+  const editor = useEditor();
+  const history = useEditorState((s) => s.history);
+  const readOnly = useEditorState((s) => s.readOnly);
+  const mode = useEditorState((s) => s.mode);
+  const ui = useEditorState((s) => s.ui);
+  const notesOpen = useNotesOpen();
+  const timelineOpen = useTimelineView().open;
+  const highContrast = useContrast().effective === "more";
+  const guideCount = useEditorState(
+    (s) =>
+      s.doc.pages.find((p) => p.id === s.activePageId)?.guides?.length ?? 0,
+  );
   // Re-read when the server's size presets arrive: they say which sizes have a safe zone.
-  useSizePresets()
+  useSizePresets();
   const hasSafeZone = useEditorState((s) => {
-    const size = getPageSize(s.doc, s.activePageId)
-    return editor.safeZoneFor(size.width, size.height) !== null
-  })
-  const visible = useVisiblePanels()
-  const { openId, toggle } = useOpenTool()
-  const barRef = useRef<HTMLElement>(null)
-  const barWidth = useWidth(barRef)
-  const narrow = barWidth > 0 && barWidth < NARROW_BAR
+    const size = getPageSize(s.doc, s.activePageId);
+    return editor.safeZoneFor(size.width, size.height) !== null;
+  });
+  const visible = useVisiblePanels();
+  const { openId, toggle } = useOpenTool();
+  const barRef = useRef<HTMLElement>(null);
+  const barWidth = useWidth(barRef);
+  const narrow = barWidth > 0 && barWidth < NARROW_BAR;
 
-  const endTools = visible.filter((p) => p.slot === 'end' && (!readOnly || p.readOnly))
+  const endTools = visible.filter(
+    (p) => p.slot === "end" && (!readOnly || p.readOnly),
+  );
 
   const cmd = (id: string, label?: string): MenuItem => {
-    const c = commands.get(id)
+    const c = commands.get(id);
     return {
       id,
       label: label ?? c?.label ?? id,
       shortcut: c?.shortcut,
       icon: c?.icon,
-      disabled: c ? !isCommandEnabled(c, { editor, state: editor.state }) : true,
+      disabled: c
+        ? !isCommandEnabled(c, { editor, state: editor.state })
+        : true,
       onSelect: () => c && void c.run(editor),
-    }
-  }
-  const notesDownloads: MenuItem[] = [cmd('file.notesMarkdown'), cmd('file.notesText')]
+    };
+  };
+  const notesDownloads: MenuItem[] = [
+    cmd("file.notesMarkdown"),
+    cmd("file.notesText"),
+  ];
   const fileItems: MenuItem[] = readOnly
-    ? [cmd('file.download'), ...notesDownloads]
+    ? [cmd("file.download"), ...notesDownloads]
     : [
-        cmd('file.rename'),
-        cmd('file.resize'),
-        cmd('file.bulkCreate'),
-        cmd('file.history'),
-        cmd('file.save'),
-        { id: 'f1', separator: true },
-        cmd('page.add', t.menu.newPage),
-        { id: 'f2', separator: true },
-        cmd('file.download'),
+        cmd("file.rename"),
+        cmd("file.resize"),
+        cmd("file.bulkCreate"),
+        cmd("file.history"),
+        cmd("file.save"),
+        { id: "f1", separator: true },
+        cmd("page.add", t.menu.newPage),
+        { id: "f2", separator: true },
+        cmd("file.download"),
         ...notesDownloads,
-        ...(mode === 'guest' ? [cmd('file.exportProject')] : []),
-        { id: 'f3', separator: true },
-        cmd('file.reset'),
-      ]
+        ...(mode === "guest" ? [cmd("file.exportProject")] : []),
+        { id: "f3", separator: true },
+        cmd("file.reset"),
+      ];
   const viewItems: MenuItem[] = [
     ...(readOnly
       ? []
       : [
-          { id: 'rulers', label: t.menu.rulers, checked: ui.rulers, onSelect: () => editor.patchUi({ rulers: !ui.rulers }) },
-          { id: 'grid', label: t.menu.grid, checked: ui.grid, onSelect: () => editor.patchUi({ grid: !ui.grid }) },
-          { id: 'guides', label: t.menu.guides, checked: ui.guides, onSelect: () => editor.patchUi({ guides: !ui.guides }) },
-          { id: 'snap', label: t.menu.snapping, checked: ui.snapping, onSelect: () => editor.patchUi({ snapping: !ui.snapping }) },
-          { id: 'bleed', label: t.menu.bleed, checked: ui.bleed, onSelect: () => editor.patchUi({ bleed: !ui.bleed }) },
-          ...(hasSafeZone ? [{ id: 'safe-zone', label: t.menu.safeZone, checked: ui.safeZone, onSelect: () => editor.patchUi({ safeZone: !ui.safeZone }) }] : []),
-          ...(guideCount > 0 ? [{ id: 'clear-guides', label: t.design.clearGuides(guideCount), onSelect: () => editor.pages.setGuides(editor.state.activePageId, []) }] : []),
-          { id: 'v1', separator: true },
+          {
+            id: "rulers",
+            label: t.menu.rulers,
+            checked: ui.rulers,
+            onSelect: () => editor.patchUi({ rulers: !ui.rulers }),
+          },
+          {
+            id: "grid",
+            label: t.menu.grid,
+            checked: ui.grid,
+            onSelect: () => editor.patchUi({ grid: !ui.grid }),
+          },
+          {
+            id: "guides",
+            label: t.menu.guides,
+            checked: ui.guides,
+            onSelect: () => editor.patchUi({ guides: !ui.guides }),
+          },
+          {
+            id: "snap",
+            label: t.menu.snapping,
+            checked: ui.snapping,
+            onSelect: () => editor.patchUi({ snapping: !ui.snapping }),
+          },
+          {
+            id: "bleed",
+            label: t.menu.bleed,
+            checked: ui.bleed,
+            onSelect: () => editor.patchUi({ bleed: !ui.bleed }),
+          },
+          ...(hasSafeZone
+            ? [
+                {
+                  id: "safe-zone",
+                  label: t.menu.safeZone,
+                  checked: ui.safeZone,
+                  onSelect: () => editor.patchUi({ safeZone: !ui.safeZone }),
+                },
+              ]
+            : []),
+          ...(guideCount > 0
+            ? [
+                {
+                  id: "clear-guides",
+                  label: t.design.clearGuides(guideCount),
+                  onSelect: () =>
+                    editor.pages.setGuides(editor.state.activePageId, []),
+                },
+              ]
+            : []),
+          { id: "v1", separator: true },
         ]),
-    { ...cmd('view.notes'), checked: notesOpen },
-    { ...cmd('view.timeline'), checked: timelineOpen },
-    cmd('view.playPage'),
-    { ...cmd('view.highContrast'), checked: highContrast },
-    { id: 'v2', separator: true },
-    cmd('file.shortcuts'),
-  ]
+    { ...cmd("view.notes"), checked: notesOpen },
+    { ...cmd("view.timeline"), checked: timelineOpen },
+    cmd("view.playPage"),
+    { ...cmd("view.highContrast"), checked: highContrast },
+    { id: "v2", separator: true },
+    cmd("file.shortcuts"),
+  ];
   /** Phone widths: one menu with a heading per group, and Comments joins it so the bar keeps room for the title. */
   const combinedItems: MenuItem[] = [
-    ...endTools.map((p) => ({ id: `tool-${p.id}`, label: p.label, icon: p.icon, checked: openId === p.id || undefined, onSelect: () => toggle(p.id) })),
-    ...(endTools.length > 0 ? [{ id: 'c0', separator: true }] : []),
-    { id: 'h-file', label: t.topbar.file, heading: true },
+    ...endTools.map((p) => ({
+      id: `tool-${p.id}`,
+      label: p.label,
+      icon: p.icon,
+      checked: openId === p.id || undefined,
+      onSelect: () => toggle(p.id),
+    })),
+    ...(endTools.length > 0 ? [{ id: "c0", separator: true }] : []),
+    { id: "h-file", label: t.topbar.file, heading: true },
     ...fileItems,
-    { id: 'c1', separator: true },
-    { id: 'h-view', label: t.topbar.view, heading: true },
+    { id: "c1", separator: true },
+    { id: "h-view", label: t.topbar.view, heading: true },
     ...viewItems,
-  ]
+  ];
 
   useEffect(() => {
-    if (readOnly) editor.patchUi({ panelId: null })
-  }, [readOnly, editor])
+    if (readOnly) editor.patchUi({ panelId: null });
+  }, [readOnly, editor]);
 
   return (
-    <header ref={barRef} className={styles.bar} data-testid="ed-topbar" data-narrow={narrow || undefined}>
+    <header
+      ref={barRef}
+      className={styles.bar}
+      data-testid="ed-topbar"
+      data-narrow={narrow || undefined}
+    >
       <div className={styles.left}>
         {start}
         {narrow ? (
-          <MenuButton label={t.topbar.menu} items={combinedItems} testId="ed-more" icon={<MenuIcon size={18} aria-hidden="true" />} onOpen={() => preloadDialog('download')} />
+          <MenuButton
+            label={t.topbar.menu}
+            items={combinedItems}
+            testId="ed-more"
+            icon={<MenuIcon size={18} aria-hidden="true" />}
+            onOpen={() => preloadDialog("download")}
+          />
         ) : (
           <nav className={styles.menus} aria-label={t.topbar.menus}>
-            <MenuButton label={t.topbar.file} items={fileItems} testId="ed-menu-file" onOpen={() => preloadDialog('download')} />
-            <MenuButton label={t.topbar.view} items={viewItems} testId="ed-menu-view" />
+            <MenuButton
+              label={t.topbar.file}
+              items={fileItems}
+              testId="ed-menu-file"
+              onOpen={() => preloadDialog("download")}
+            />
+            <MenuButton
+              label={t.topbar.view}
+              items={viewItems}
+              testId="ed-menu-view"
+            />
           </nav>
         )}
         {readOnly ? null : (
           <span className={styles.history}>
-            <Tooltip label={history.undoLabel ? `${t.topbar.undo} ${history.undoLabel.toLowerCase()}` : t.topbar.undo} shortcut="Mod+Z" disabled={!history.canUndo}>
-              <button type="button" className={`${ed.btn} ${ed.iconOnly} ${ed.ghost}`} aria-label={t.topbar.undo} disabled={!history.canUndo} data-testid="ed-undo" onClick={() => void editor.undo()}>
+            <Tooltip
+              label={
+                history.undoLabel
+                  ? `${t.topbar.undo} ${history.undoLabel.toLowerCase()}`
+                  : t.topbar.undo
+              }
+              shortcut="Mod+Z"
+              disabled={!history.canUndo}
+            >
+              <button
+                type="button"
+                className={`${ed.btn} ${ed.iconOnly} ${ed.ghost}`}
+                aria-label={t.topbar.undo}
+                disabled={!history.canUndo}
+                data-testid="ed-undo"
+                onClick={() => void editor.undo()}
+              >
                 {I.undo}
               </button>
             </Tooltip>
-            <Tooltip label={history.redoLabel ? `${t.topbar.redo} ${history.redoLabel.toLowerCase()}` : t.topbar.redo} shortcut="Mod+Shift+Z" disabled={!history.canRedo}>
-              <button type="button" className={`${ed.btn} ${ed.iconOnly} ${ed.ghost}`} aria-label={t.topbar.redo} disabled={!history.canRedo} data-testid="ed-redo" onClick={() => void editor.redo()}>
+            <Tooltip
+              label={
+                history.redoLabel
+                  ? `${t.topbar.redo} ${history.redoLabel.toLowerCase()}`
+                  : t.topbar.redo
+              }
+              shortcut="Mod+Shift+Z"
+              disabled={!history.canRedo}
+            >
+              <button
+                type="button"
+                className={`${ed.btn} ${ed.iconOnly} ${ed.ghost}`}
+                aria-label={t.topbar.redo}
+                disabled={!history.canRedo}
+                data-testid="ed-redo"
+                onClick={() => void editor.redo()}
+              >
                 {I.redo}
               </button>
             </Tooltip>
@@ -372,10 +665,19 @@ export function TopBar({ start, end, onTitle, onPresent }: TopBarProps) {
         <div className={styles.presence}>
           <PresenceStack />
         </div>
-        {!narrow ? endTools.map((p) => <EndTool key={p.id} panel={p} open={openId === p.id} onToggle={() => toggle(p.id)} />) : null}
+        {!narrow
+          ? endTools.map((p) => (
+              <EndTool
+                key={p.id}
+                panel={p}
+                open={openId === p.id}
+                onToggle={() => toggle(p.id)}
+              />
+            ))
+          : null}
         {end ? <div className={styles.end}>{end}</div> : null}
         <ShareMenu onPresent={onPresent} />
       </div>
     </header>
-  )
+  );
 }

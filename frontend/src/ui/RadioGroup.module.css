@@ -27,7 +27,7 @@
   gap: var(--space-3);
 }
 
-.group[data-orientation='horizontal'] .options {
+.group[data-orientation="horizontal"] .options {
   flex-direction: row;
   flex-wrap: wrap;
   gap: var(--space-5);
@@ -71,7 +71,7 @@
 }
 
 .visual::after {
-  content: '';
+  content: "";
   display: block;
   width: 100%;
   height: 100%;

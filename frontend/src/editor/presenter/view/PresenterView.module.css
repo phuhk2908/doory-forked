@@ -147,8 +147,8 @@
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-.timerText[data-kind='off'],
-.timerText[data-kind='paused'] {
+.timerText[data-kind="off"],
+.timerText[data-kind="paused"] {
   color: var(--color-text-muted);
 }
 
@@ -255,7 +255,7 @@
   opacity: 0.4;
   cursor: default;
 }
-.ctl[aria-pressed='true'] {
+.ctl[aria-pressed="true"] {
   border-color: var(--color-brand);
   background: var(--color-brand-soft);
   color: var(--color-brand);

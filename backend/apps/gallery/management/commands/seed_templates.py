@@ -1,6 +1,6 @@
 """Install the starter templates that ship with Doory (`backend/data/templates/`).
 
-The files are generated, reproducibly, by `npm run templates:build` in `frontend/`:
+The files are generated, reproducibly, by `bun run templates:build` in `frontend/`:
 `manifest.json` lists every template, `<slug>.json` is its document and `thumbs/<slug>.webp` its
 preview. The photos the templates use are in `photos/`; they are copied to media storage
 (`templates/photos/<name>.webp`, where the documents point) every time the command runs. The import goes

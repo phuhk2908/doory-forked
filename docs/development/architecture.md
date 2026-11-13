@@ -26,6 +26,7 @@ All three backend entry points share the same code, settings and database. See t
 | `collab` | Realtime co-editing: rooms, Yjs updates, snapshots, presence (`collab_maintenance`) |
 | `core` | Site-wide config endpoint, background-removal models (`sync_models`) |
 | `designs` | Designs, folders, trash (`purge_trash`), version history |
+| `drawings` | Excalidraw-style whiteboards, bounded JSON documents, guest migration, room links, account-bound room management and optimistic-concurrency saves |
 | `elements` | Element library: shapes, icons, emoji, illustrations (`seed_elements`, `sync_element_packs`) |
 | `exports` | Server-side PDF, image and SVG export with headless Chromium (`purge_exports`); image optimizers (built-in, TinyPNG, Kraken.io, custom) and the optimize endpoint for browser downloads |
 | `fonts` | Font catalogue and user fonts (`sync_fonts`) |
@@ -44,7 +45,8 @@ read from the environment must have a row in [configuration.md](../self-hosting/
 | `app/` | App shell, routing, providers |
 | `pages/` | Route-level pages |
 | `features/` | Non-editor features: auth, dashboard, templates, settings, brand, uploads, … |
-| `editor/` | The editor: `engine/` (drawing), `panels/`, `toolbar/`, `collab/`, `animation/`, `clips/` (video clips: timing, sources, sound), `presenter/`, `headless/` (the render page used by server-side image export), … |
+| `editor/` | The design editor: `engine/` (drawing), `panels/`, `toolbar/`, `collab/`, `animation/`, `clips/` (video clips: timing, sources, sound), `presenter/`, `headless/` (the render page used by server-side image export), … |
+| `drawing/` | The whiteboard module: scene model, geometry, history, Rough.js renderer, exports and browser-local persistence |
 | `ui/`, `lib/`, `styles/` | Shared components, helpers and styles |
 
 Besides `index.html`, the frontend builds two more entry pages: `presenter-view.html` (the second presenter

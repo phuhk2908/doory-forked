@@ -23,9 +23,9 @@ A new site has no content yet. Add it next: see [content.md](content.md).
 | `realtime` | always | Live co-editing (uvicorn). Settings: `REALTIME_WORKERS`, `REALTIME_MEM_LIMIT` |
 | `web` | always | nginx with the built frontend, published on `WEB_BIND:WEB_PORT` |
 | `mcp` | with `COMPOSE_PROFILES=mcp` | See [mcp.md](mcp.md) |
-| `redis` | with `COMPOSE_PROFILES=redis` | See [realtime.md](realtime.md) |
+| `redis` | always | Shared channel layer for API, realtime and optional MCP services |
 
-To start optional services, set the profiles in `.env`, e.g. `COMPOSE_PROFILES=mcp,redis`, then
+To start optional services, set the profiles in `.env`, e.g. `COMPOSE_PROFILES=mcp`, then
 `docker compose up -d`.
 
 ## Pre-built images

@@ -25,6 +25,7 @@ REST_FRAMEWORK = {
         **REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"],
         "auth": "100000/min",
         "oidc": "100000/min",
+        "guest_room_create": "100000/min",
     },
 }
 GOOGLE_CLIENT_ID = "test-google-client-id.apps.googleusercontent.com"

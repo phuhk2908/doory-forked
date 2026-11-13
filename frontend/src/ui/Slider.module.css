@@ -33,7 +33,11 @@
 .input::-webkit-slider-runnable-track {
   height: 4px;
   border-radius: var(--radius-full);
-  background: linear-gradient(to right, var(--color-brand-fill) var(--fill), var(--color-border-strong) var(--fill));
+  background: linear-gradient(
+    to right,
+    var(--color-brand-fill) var(--fill),
+    var(--color-border-strong) var(--fill)
+  );
 }
 
 .input::-moz-range-track {

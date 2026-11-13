@@ -1,0 +1,826 @@
+import { useEffect, useRef, useState } from "react";
+import { useLatest } from "../lib/useLatest";
+import { uuid } from "../lib/uuid";
+import {
+  applyDrawingDelta,
+  computeDrawingDelta,
+  mergeDrawingDocuments,
+  type DrawingDelta,
+  type DrawingDocument,
+} from "./model";
+
+export type DrawingRoomRealtimeStatus =
+  | "offline"
+  | "connecting"
+  | "live"
+  | "closed";
+
+export interface DrawingRoomPeer {
+  id: string;
+  clientId?: string;
+  userId?: string;
+  name?: string;
+  avatarUrl?: string | null;
+  mode: "edit" | "view";
+  cursor: { x: number; y: number } | null;
+  selection: string[];
+}
+
+export interface DrawingRoomRealtimeState {
+  status: DrawingRoomRealtimeStatus;
+  peerCount: number;
+  mode: "edit" | "view" | null;
+  canEdit: boolean;
+  peers: DrawingRoomPeer[];
+}
+
+export interface DrawingRoomSocket {
+  readyState: number;
+  onopen: (() => void) | null;
+  onmessage: ((event: { data: unknown }) => void) | null;
+  onclose: (() => void) | null;
+  onerror: (() => void) | null;
+  send(data: string): void;
+  close(): void;
+}
+
+export interface DrawingRoomRealtimeCallbacks {
+  onDocument(document: DrawingDocument, revision: number): void;
+  onSaved(document: DrawingDocument, revision: number, clientId: number): void;
+  onPresence(count: number): void;
+  onStatus(status: DrawingRoomRealtimeStatus): void;
+  onError(message: string): void;
+  onTitle?(title: string): void;
+  onAccess?(mode: "edit" | "view", canEdit: boolean): void;
+  onPeers?(peers: DrawingRoomPeer[]): void;
+  onClosed?(reason: string): void;
+}
+
+const OPEN = 1;
+const DURABLE_SAVE_DELAY_MS = 250;
+const PRESENCE_INTERVAL_MS = 33;
+const RETRY_BASE_MS = 1_000;
+const RETRY_MAX_MS = 30_000;
+const PING_MS = 5_000;
+const SNAPSHOT_EVERY_UPDATES = 20;
+const SNAPSHOT_EVERY_MS = 10_000;
+const DELTA_MAX_PAYLOAD_RATIO = 0.75;
+const RECOVERY_STORAGE_PREFIX = "doory:drawing-room-recovery:";
+
+interface RecoverySnapshot {
+  document: DrawingDocument;
+  baseRevision: number;
+}
+
+interface PublishWaiter {
+  resolve: () => void;
+}
+
+export const drawingRoomRecoveryStorageKey = (roomId: string): string =>
+  RECOVERY_STORAGE_PREFIX + roomId;
+
+export function drawingRoomRealtimeAddress(
+  roomId: string,
+  where: Pick<Location, "protocol" | "host"> = window.location,
+): string {
+  return (
+    (where.protocol === "https:" ? "wss:" : "ws:") +
+    "//" +
+    where.host +
+    "/ws/drawing-rooms/" +
+    encodeURIComponent(roomId) +
+    "/"
+  );
+}
+
+function validRevision(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value > 0;
+}
+
+function validDocument(value: unknown): value is DrawingDocument {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function validRecoverySnapshot(value: unknown): value is RecoverySnapshot {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const snapshot = value as Record<string, unknown>;
+  return (
+    validRevision(snapshot.baseRevision) &&
+    validDocument(snapshot.document) &&
+    Array.isArray(snapshot.document.elements)
+  );
+}
+
+function readRecoverySnapshot(key: string): RecoverySnapshot | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(key);
+    if (!raw) return null;
+    const value: unknown = JSON.parse(raw);
+    if (!validRecoverySnapshot(value)) {
+      window.sessionStorage.removeItem(key);
+      return null;
+    }
+    return value;
+  } catch {
+    return null;
+  }
+}
+
+function writeRecoverySnapshot(key: string, snapshot: RecoverySnapshot): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(key, JSON.stringify(snapshot));
+  } catch {
+    // Storage can be unavailable or full; the live room remains the durable source of truth.
+  }
+}
+
+function clearRecoverySnapshot(key: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.removeItem(key);
+  } catch {
+    // Private browsing can reject storage access; there is nothing else to clear.
+  }
+}
+
+function validDelta(value: unknown): value is DrawingDelta {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    (value as Record<string, unknown>).schemaVersion === 1 &&
+    Array.isArray((value as Record<string, unknown>).elements)
+  );
+}
+
+function payloadSize(value: unknown): number {
+  return JSON.stringify(value).length;
+}
+
+export class DrawingRoomRealtime {
+  private socket: DrawingRoomSocket | null = null;
+  private retryTimer: ReturnType<typeof setTimeout> | null = null;
+  private flushTimer: ReturnType<typeof setTimeout> | null = null;
+  private pingTimer: ReturnType<typeof setInterval> | null = null;
+  private presenceTimer: ReturnType<typeof setTimeout> | null = null;
+  private attempt = 0;
+  private nextClientId = 0;
+  private stopped = true;
+  private authenticated = false;
+  private pending: { document: DrawingDocument; clientId: number } | null =
+    null;
+  private inFlight: {
+    document: DrawingDocument;
+    clientId: number;
+    snapshot: boolean;
+  } | null = null;
+  private pendingWaiters: PublishWaiter[] = [];
+  private inFlightWaiters: PublishWaiter[] = [];
+  private serverDocument: DrawingDocument | null = null;
+  private serverRevision = 1;
+  private updatesSinceSnapshot = 0;
+  private lastSnapshotAt = 0;
+  private pendingPresence: {
+    cursor: { x: number; y: number } | null;
+    selection: string[];
+  } | null = null;
+  private latestPresence: {
+    cursor: { x: number; y: number } | null;
+    selection: string[];
+  } | null = null;
+  private canEdit = true;
+  private peerId: string | null = null;
+  private peers = new Map<string, DrawingRoomPeer>();
+  private departedPeers = new Set<string>();
+  private readonly recoveryStorageKey: string;
+
+  constructor(
+    private readonly url: string,
+    private readonly key: string,
+    private readonly callbacks: DrawingRoomRealtimeCallbacks,
+    private readonly createSocket: (url: string) => DrawingRoomSocket = (
+      address,
+    ) => new WebSocket(address) as unknown as DrawingRoomSocket,
+    recoveryId = url,
+  ) {
+    this.recoveryStorageKey = drawingRoomRecoveryStorageKey(recoveryId);
+  }
+
+  private readonly clientId = uuid();
+
+  start(): void {
+    if (!this.stopped) return;
+    this.stopped = false;
+    this.connect();
+  }
+
+  stop(): void {
+    if (this.pending) {
+      writeRecoverySnapshot(this.recoveryStorageKey, {
+        document: this.pending.document,
+        baseRevision: this.serverRevision,
+      });
+    } else if (this.inFlight) {
+      writeRecoverySnapshot(this.recoveryStorageKey, {
+        document: this.inFlight.document,
+        baseRevision: this.serverRevision,
+      });
+    }
+    this.stopped = true;
+    this.authenticated = false;
+    this.peerId = null;
+    this.clearRetry();
+    this.clearFlush();
+    this.clearPing();
+    this.clearPresence();
+    this.pendingPresence = null;
+    this.latestPresence = null;
+    const socket = this.socket;
+    this.socket = null;
+    this.resolvePendingWaiters();
+    socket?.close();
+    this.clearPeers();
+    this.callbacks.onPresence(0);
+    this.callbacks.onStatus("offline");
+  }
+
+  publish(document: DrawingDocument): Promise<void> {
+    if (!this.canEdit) return Promise.resolve();
+    this.pending = { document, clientId: ++this.nextClientId };
+    const result = new Promise<void>((resolve) => {
+      this.pendingWaiters.push({ resolve });
+    });
+    this.scheduleFlush();
+    return result;
+  }
+
+  publishPresence(presence: {
+    cursor: { x: number; y: number } | null;
+    selection: string[];
+  }): void {
+    this.latestPresence = presence;
+    this.pendingPresence = presence;
+    if (this.presenceTimer !== null) return;
+    this.presenceTimer = setTimeout(() => {
+      this.presenceTimer = null;
+      if (!this.authenticated || this.socket?.readyState !== OPEN) return;
+      const next = this.pendingPresence;
+      this.pendingPresence = null;
+      if (next) this.send({ type: "presence", state: next });
+    }, PRESENCE_INTERVAL_MS);
+  }
+
+  private connect(): void {
+    if (this.stopped || this.socket) return;
+    this.callbacks.onStatus("connecting");
+    let socket: DrawingRoomSocket;
+    try {
+      socket = this.createSocket(this.url);
+    } catch {
+      this.scheduleRetry();
+      return;
+    }
+    this.socket = socket;
+    socket.onopen = () => {
+      if (this.socket !== socket) return;
+      this.attempt = 0;
+      this.authenticated = false;
+      this.canEdit = true;
+      this.send({
+        type: "auth",
+        key: this.key,
+        client_id: this.clientId,
+        protocol: 2,
+      });
+    };
+    socket.onmessage = (event) => {
+      if (this.socket !== socket) return;
+      this.receive(event.data);
+    };
+    socket.onerror = () => undefined;
+    socket.onclose = () => {
+      if (this.socket !== socket) return;
+      this.socket = null;
+      this.authenticated = false;
+      this.peerId = null;
+      this.clearPeers();
+      this.callbacks.onPresence(0);
+      if (!this.pending && this.inFlight) {
+        this.pending = {
+          document: this.inFlight.document,
+          clientId: this.inFlight.clientId,
+        };
+      }
+      this.pendingWaiters.push(...this.inFlightWaiters);
+      this.inFlightWaiters = [];
+      this.inFlight = null;
+      this.clearPing();
+      if (!this.stopped) {
+        this.callbacks.onStatus("offline");
+        this.scheduleRetry();
+      }
+    };
+  }
+
+  private receive(data: unknown): void {
+    if (typeof data !== "string") return;
+    let message: unknown;
+    try {
+      message = JSON.parse(data);
+    } catch {
+      return;
+    }
+    if (!message || typeof message !== "object" || Array.isArray(message))
+      return;
+    const value = message as Record<string, unknown>;
+    if (value.type === "ready") {
+      this.authenticated = true;
+      const mode = value.mode === "view" ? "view" : "edit";
+      this.canEdit = value.can_edit !== false && mode === "edit";
+      this.peerId = typeof value.peer_id === "string" ? value.peer_id : null;
+      this.callbacks.onAccess?.(mode, this.canEdit);
+      this.callbacks.onStatus("live");
+      this.startPing();
+      if (validDocument(value.document) && validRevision(value.revision)) {
+        this.serverDocument = value.document;
+        this.serverRevision = value.revision;
+        this.updatesSinceSnapshot = 0;
+        this.lastSnapshotAt = Date.now();
+        this.callbacks.onDocument(value.document, value.revision);
+        if (!this.pending && !this.inFlight)
+          this.restoreRecovery(value.document, value.revision);
+      }
+      this.replacePeers(value.presence);
+      this.callbacks.onPresence(this.peers.size);
+      this.flushPendingPresence();
+      this.flushPending();
+      return;
+    }
+    if (value.type === "document") {
+      if (
+        !validRevision(value.revision) ||
+        value.revision < this.serverRevision
+      )
+        return;
+      if (validDocument(value.document)) {
+        this.serverDocument = value.document;
+        this.serverRevision = value.revision;
+        this.callbacks.onDocument(value.document, value.revision);
+      } else if (validDelta(value.delta) && this.serverDocument) {
+        try {
+          this.serverDocument = applyDrawingDelta(
+            this.serverDocument,
+            value.delta,
+          );
+        } catch {
+          return;
+        }
+        this.serverRevision = value.revision;
+        this.callbacks.onDocument(this.serverDocument, value.revision);
+      }
+      return;
+    }
+    if (value.type === "room_title") {
+      if (typeof value.title === "string" && value.title.trim())
+        this.callbacks.onTitle?.(value.title);
+      return;
+    }
+    if (value.type === "access") {
+      const mode = value.mode === "view" ? "view" : "edit";
+      this.canEdit = value.can_edit !== false && mode === "edit";
+      this.callbacks.onAccess?.(mode, this.canEdit);
+      return;
+    }
+    if (value.type === "saved") {
+      const clientId = value.client_id;
+      if (
+        validDocument(value.document) &&
+        validRevision(value.revision) &&
+        typeof clientId === "number" &&
+        Number.isInteger(clientId)
+      ) {
+        if (this.inFlight?.clientId !== clientId) return;
+        const snapshot = this.inFlight.snapshot;
+        this.inFlight = null;
+        const waiters = this.inFlightWaiters;
+        this.inFlightWaiters = [];
+        if (!this.serverDocument || value.revision >= this.serverRevision) {
+          this.serverDocument = value.document;
+          this.serverRevision = value.revision;
+        }
+        if (snapshot) {
+          this.updatesSinceSnapshot = 0;
+          this.lastSnapshotAt = Date.now();
+        }
+        this.callbacks.onSaved(
+          this.serverDocument ?? value.document,
+          this.serverRevision,
+          clientId,
+        );
+        this.resolveWaiters(waiters);
+        if (!this.pending) clearRecoverySnapshot(this.recoveryStorageKey);
+        this.flushPending();
+      }
+      return;
+    }
+    if (value.type === "presence") {
+      const state = value.state;
+      if (state && typeof state === "object" && !Array.isArray(state)) {
+        const presence = state as Record<string, unknown>;
+        this.applyPeer(presence);
+        this.callbacks.onPresence(this.peers.size);
+      }
+      return;
+    }
+    if (value.type === "closed") {
+      clearRecoverySnapshot(this.recoveryStorageKey);
+      this.stopped = true;
+      this.authenticated = false;
+      this.peerId = null;
+      this.clearRetry();
+      this.clearFlush();
+      this.clearPing();
+      this.clearPresence();
+      this.pendingPresence = null;
+      this.latestPresence = null;
+      const socket = this.socket;
+      this.socket = null;
+      this.resolvePendingWaiters();
+      socket?.close();
+      this.clearPeers();
+      this.callbacks.onPresence(0);
+      this.callbacks.onStatus("closed");
+      this.callbacks.onClosed?.(
+        typeof value.reason === "string" ? value.reason : "closed",
+      );
+      return;
+    }
+    if (value.type === "error") {
+      this.callbacks.onError(
+        typeof value.message === "string"
+          ? value.message
+          : String(value.code ?? "Room error"),
+      );
+    }
+  }
+
+  private send(message: Record<string, unknown>): void {
+    if (this.socket?.readyState !== OPEN) return;
+    this.socket.send(JSON.stringify(message));
+  }
+
+  private flushPendingPresence(): void {
+    if (!this.authenticated || this.socket?.readyState !== OPEN) return;
+    const presence = this.pendingPresence ?? this.latestPresence;
+    if (!presence) return;
+    this.pendingPresence = null;
+    this.send({ type: "presence", state: presence });
+  }
+
+  private restoreRecovery(
+    serverDocument: DrawingDocument,
+    serverRevision: number,
+  ): void {
+    const recovery = readRecoverySnapshot(this.recoveryStorageKey);
+    if (!recovery) return;
+    try {
+      const document =
+        recovery.baseRevision >= serverRevision
+          ? recovery.document
+          : mergeDrawingDocuments(serverDocument, recovery.document);
+      if (JSON.stringify(document) === JSON.stringify(serverDocument)) {
+        clearRecoverySnapshot(this.recoveryStorageKey);
+        return;
+      }
+      this.pending = { document, clientId: ++this.nextClientId };
+    } catch {
+      clearRecoverySnapshot(this.recoveryStorageKey);
+    }
+  }
+
+  private scheduleFlush(): void {
+    if (this.flushTimer !== null) return;
+    this.flushTimer = setTimeout(() => {
+      this.flushTimer = null;
+      this.flushPending();
+    }, DURABLE_SAVE_DELAY_MS);
+  }
+
+  private flushPending(): void {
+    if (
+      !this.pending ||
+      this.inFlight ||
+      !this.authenticated ||
+      !this.canEdit ||
+      this.socket?.readyState !== OPEN
+    )
+      return;
+    const pending = this.pending;
+    this.pending = null;
+    this.inFlightWaiters = this.pendingWaiters;
+    this.pendingWaiters = [];
+    const delta = this.serverDocument
+      ? computeDrawingDelta(this.serverDocument, pending.document)
+      : null;
+    const hasDelta = Boolean(
+      delta &&
+      (delta.elements.length > 0 ||
+        delta.background !== undefined ||
+        delta.files !== undefined ||
+        delta.order !== undefined),
+    );
+    if (!hasDelta && delta) {
+      const waiters = this.inFlightWaiters;
+      this.inFlightWaiters = [];
+      this.resolveWaiters(waiters);
+      return;
+    }
+    const sendSnapshot =
+      !delta ||
+      this.updatesSinceSnapshot >= SNAPSHOT_EVERY_UPDATES ||
+      Date.now() - this.lastSnapshotAt >= SNAPSHOT_EVERY_MS ||
+      payloadSize(delta) >=
+        payloadSize(pending.document) * DELTA_MAX_PAYLOAD_RATIO;
+    this.inFlight = { ...pending, snapshot: sendSnapshot };
+    writeRecoverySnapshot(this.recoveryStorageKey, {
+      document: pending.document,
+      baseRevision: this.serverRevision,
+    });
+    this.updatesSinceSnapshot = sendSnapshot
+      ? 0
+      : this.updatesSinceSnapshot + 1;
+    if (sendSnapshot) {
+      this.lastSnapshotAt = Date.now();
+      this.send({
+        type: "update",
+        document: pending.document,
+        client_id: pending.clientId,
+      });
+      return;
+    }
+    this.send({
+      type: "update",
+      delta,
+      base_revision: this.serverRevision,
+      client_id: pending.clientId,
+    });
+  }
+
+  private resolveWaiters(waiters: PublishWaiter[]): void {
+    for (const waiter of waiters) waiter.resolve();
+  }
+
+  private resolvePendingWaiters(): void {
+    const waiters = [...this.pendingWaiters, ...this.inFlightWaiters];
+    this.pendingWaiters = [];
+    this.inFlightWaiters = [];
+    this.resolveWaiters(waiters);
+  }
+
+  private scheduleRetry(): void {
+    if (this.stopped || this.retryTimer) return;
+    const delay = Math.min(RETRY_MAX_MS, RETRY_BASE_MS * 2 ** this.attempt);
+    this.attempt += 1;
+    this.retryTimer = setTimeout(() => {
+      this.retryTimer = null;
+      this.connect();
+    }, delay);
+  }
+
+  private clearRetry(): void {
+    if (!this.retryTimer) return;
+    clearTimeout(this.retryTimer);
+    this.retryTimer = null;
+  }
+
+  private clearFlush(): void {
+    if (!this.flushTimer) return;
+    clearTimeout(this.flushTimer);
+    this.flushTimer = null;
+  }
+
+  private startPing(): void {
+    this.clearPing();
+    this.pingTimer = setInterval(() => this.send({ type: "ping" }), PING_MS);
+  }
+
+  private clearPing(): void {
+    if (!this.pingTimer) return;
+    clearInterval(this.pingTimer);
+    this.pingTimer = null;
+  }
+
+  private clearPresence(): void {
+    if (this.presenceTimer === null) return;
+    clearTimeout(this.presenceTimer);
+    this.presenceTimer = null;
+  }
+
+  private replacePeers(value: unknown): void {
+    this.peers.clear();
+    this.departedPeers.clear();
+    if (Array.isArray(value)) {
+      const seenClientIds = new Set<string>();
+      const latestFirst: unknown[] = [];
+      for (let index = value.length - 1; index >= 0; index -= 1) {
+        const item = value[index];
+        const clientId =
+          item && typeof item === "object" && !Array.isArray(item)
+            ? (item as Record<string, unknown>).client_id
+            : undefined;
+        if (typeof clientId === "string") {
+          if (seenClientIds.has(clientId)) continue;
+          seenClientIds.add(clientId);
+        }
+        latestFirst.unshift(item);
+      }
+      for (const item of latestFirst) this.applyPeer(item);
+    }
+    this.callbacks.onPeers?.([...this.peers.values()]);
+  }
+
+  private clearPeers(): void {
+    this.peers.clear();
+    this.departedPeers.clear();
+    this.callbacks.onPeers?.([]);
+  }
+
+  private applyPeer(value: unknown): void {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return;
+    const item = value as Record<string, unknown>;
+    if (typeof item.peer_id !== "string") return;
+    const clientId =
+      typeof item.client_id === "string" ? item.client_id : undefined;
+    if (item.peer_id === this.peerId || clientId === this.clientId) return;
+    if (item.kind === "leave") {
+      const current = this.peers.get(item.peer_id);
+      if (!clientId || current?.clientId === clientId)
+        this.peers.delete(item.peer_id);
+      this.departedPeers.add(item.peer_id);
+      this.callbacks.onPeers?.([...this.peers.values()]);
+      return;
+    }
+    if (item.kind === "join") this.departedPeers.delete(item.peer_id);
+    else if (this.departedPeers.has(item.peer_id)) return;
+    if (clientId) {
+      const existing = [...this.peers.entries()].find(
+        ([peerId, peer]) =>
+          peerId !== item.peer_id && peer.clientId === clientId,
+      );
+      if (existing) {
+        if (item.kind !== "join") return;
+        this.peers.delete(existing[0]);
+      }
+    }
+    const point =
+      item.cursor &&
+      typeof item.cursor === "object" &&
+      !Array.isArray(item.cursor)
+        ? (item.cursor as Record<string, unknown>)
+        : null;
+    const x = point?.x;
+    const y = point?.y;
+    const selection = Array.isArray(item.selection)
+      ? item.selection
+          .filter((id): id is string => typeof id === "string")
+          .slice(0, 100)
+      : [];
+    const peer: DrawingRoomPeer = {
+      id: item.peer_id,
+      mode: item.mode === "view" ? "view" : "edit",
+      cursor:
+        typeof x === "number" &&
+        Number.isFinite(x) &&
+        typeof y === "number" &&
+        Number.isFinite(y)
+          ? { x, y }
+          : null,
+      selection,
+    };
+    if (clientId) peer.clientId = clientId;
+    if (typeof item.user_id === "string") peer.userId = item.user_id;
+    if (typeof item.name === "string") peer.name = item.name;
+    if (typeof item.avatar_url === "string") peer.avatarUrl = item.avatar_url;
+    this.peers.set(item.peer_id, peer);
+    this.callbacks.onPeers?.([...this.peers.values()]);
+  }
+}
+
+export function useDrawingRoomRealtime({
+  roomId,
+  key,
+  enabled,
+  onDocument,
+  onSaved,
+  onPresence,
+  onError,
+  onTitle,
+  onAccess,
+  onPeers,
+  onClosed,
+}: {
+  roomId: string;
+  key: string;
+  enabled: boolean;
+  onDocument: (document: DrawingDocument, revision: number) => void;
+  onSaved: (
+    document: DrawingDocument,
+    revision: number,
+    clientId: number,
+  ) => void;
+  onPresence: (count: number) => void;
+  onError: (message: string) => void;
+  onTitle?: (title: string) => void;
+  onAccess?: (mode: "edit" | "view", canEdit: boolean) => void;
+  onPeers?: (peers: DrawingRoomPeer[]) => void;
+  onClosed?: (reason: string, key: string) => void;
+}): DrawingRoomRealtimeState & {
+  publish(document: DrawingDocument): Promise<void>;
+  publishPresence(presence: {
+    cursor: { x: number; y: number } | null;
+    selection: string[];
+  }): void;
+} {
+  const latestCallbacks = useLatest({
+    onDocument,
+    onSaved,
+    onPresence,
+    onError,
+    onTitle,
+    onAccess,
+    onPeers,
+    onClosed,
+  });
+  const realtimeRef = useRef<DrawingRoomRealtime | null>(null);
+  const [state, setState] = useState<DrawingRoomRealtimeState>({
+    status: "offline",
+    peerCount: 0,
+    mode: null,
+    canEdit: false,
+    peers: [],
+  });
+
+  useEffect(() => {
+    if (
+      !enabled ||
+      !roomId ||
+      !key ||
+      typeof window === "undefined" ||
+      typeof WebSocket === "undefined"
+    ) {
+      realtimeRef.current?.stop();
+      realtimeRef.current = null;
+      return undefined;
+    }
+    const realtime = new DrawingRoomRealtime(
+      drawingRoomRealtimeAddress(roomId),
+      key,
+      {
+        onDocument: (document, revision) =>
+          latestCallbacks.get().onDocument(document, revision),
+        onSaved: (document, revision, clientId) =>
+          latestCallbacks.get().onSaved(document, revision, clientId),
+        onPresence: (count) => {
+          setState((value) => ({ ...value, peerCount: count }));
+          latestCallbacks.get().onPresence(count);
+        },
+        onStatus: (status) =>
+          setState((value) => ({
+            ...value,
+            status,
+            peerCount: status === "offline" ? 0 : value.peerCount,
+            peers: status === "offline" ? [] : value.peers,
+          })),
+        onError: (message) => latestCallbacks.get().onError(message),
+        onTitle: (title) => latestCallbacks.get().onTitle?.(title),
+        onAccess: (mode, canEdit) => {
+          setState((value) => ({ ...value, mode, canEdit }));
+          latestCallbacks.get().onAccess?.(mode, canEdit);
+        },
+        onPeers: (peers) => {
+          setState((value) => ({ ...value, peers }));
+          latestCallbacks.get().onPeers?.(peers);
+        },
+        onClosed: (reason) => latestCallbacks.get().onClosed?.(reason, key),
+      },
+      undefined,
+      roomId,
+    );
+    realtimeRef.current = realtime;
+    realtime.start();
+    return () => {
+      realtime.stop();
+      if (realtimeRef.current === realtime) realtimeRef.current = null;
+    };
+  }, [enabled, key, latestCallbacks, roomId]);
+
+  return {
+    ...state,
+    publish: (document) =>
+      realtimeRef.current?.publish(document) ?? Promise.resolve(),
+    publishPresence: (presence) =>
+      realtimeRef.current?.publishPresence(presence),
+  };
+}

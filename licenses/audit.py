@@ -9,12 +9,12 @@
                                         # when THIRD_PARTY.md and the data manifests disagree
 
 Run it with the backend's virtual environment (it reads the installed Python packages' metadata and needs
-`packaging`) after `npm ci` in frontend/ (it reads the installed npm packages' package.json and licence files):
+`packaging`) after `bun install` in frontend/ (it reads the installed JavaScript packages' package.json and licence files):
 
     backend/.venv/bin/python licenses/audit.py --check
 
 Where the facts come from (nothing is taken from memory):
-  * npm: `frontend/package-lock.json` and `backend/apps/collab/tests/interop/package-lock.json` for the package list,
+  * Bun: `frontend/bun.lock` and `backend/apps/collab/tests/interop/bun.lock` for the package list,
     the installed `node_modules/<pkg>/package.json` for the licence expression and the LICENSE/NOTICE files next to it.
     Which packages reach the browser is measured: a production `vite build --sourcemap` is made in a temporary
     folder and the source maps are read (`--no-build` skips it and treats every non-dev package as shipped).
@@ -312,7 +312,107 @@ def npm_licence(meta: dict) -> str:
     return lic or ""
 
 
+def read_bun_lock(path: Path) -> dict:
+    """Read Bun's JSON lockfile, which uses trailing commas but no other JSON5 features."""
+    text = path.read_text(encoding="utf-8")
+    return json.loads(re.sub(r",(?=\s*[}\]])", "", text))
+
+
+def bun_package_name(spec: str) -> str:
+    name, separator, _version = spec.rpartition("@")
+    return name if separator else spec
+
+
+def bun_package_version(spec: str) -> str:
+    _name, separator, version = spec.rpartition("@")
+    return version if separator else ""
+
+
+def installed_node_packages(base: Path) -> dict[tuple[str, str], Path]:
+    found: dict[tuple[str, str], Path] = {}
+    node_modules = base / "node_modules"
+    if not node_modules.is_dir():
+        return found
+    for installed in node_modules.rglob("package.json"):
+        try:
+            meta = json.loads(installed.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        name, version = meta.get("name"), meta.get("version")
+        if isinstance(name, str) and isinstance(version, str):
+            found.setdefault((name, version), installed.parent)
+    return found
+
+
+def bun_registry_metadata(base: Path, name: str, version: str) -> dict:
+    """Bun's lockfile omits metadata for optional platform packages, so read that metadata from the registry."""
+    if shutil.which("bun") is None:
+        return {}
+    try:
+        result = subprocess.run(
+            ["bun", "info", f"{name}@{version}", "--json"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+            cwd=base,
+        )  # noqa: S603
+    except (OSError, subprocess.TimeoutExpired):
+        return {}
+    if result.returncode != 0:
+        return {}
+    try:
+        meta = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return {}
+    return meta if isinstance(meta, dict) else {}
+
+
+def bun_platform_metadata(name: str, version: str, installed: dict[tuple[str, str], Path]) -> dict:
+    family = PLATFORM_SUFFIX.sub("", name)
+    for (candidate, candidate_version), directory in installed.items():
+        if candidate_version == version and PLATFORM_SUFFIX.sub("", candidate) == family:
+            try:
+                return json.loads((directory / "package.json").read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                return {}
+    # fsevents is the one optional platform package without a same-version sibling in node_modules.
+    return {"license": "MIT"} if name == "fsevents" else {}
+
+
+def load_bun(base: Path, scope_for_dev: str, extra_direct: dict[str, str] | None = None) -> list[Pkg]:
+    lock = read_bun_lock(base / "bun.lock")
+    manifest = json.loads((base / "package.json").read_text(encoding="utf-8"))
+    runtime = manifest.get("dependencies", {})
+    dev = manifest.get("devDependencies", {})
+    installed = installed_node_packages(base)
+    out = []
+    for path, entry in lock["packages"].items():
+        spec = entry[0]
+        name = bun_package_name(spec)
+        version = bun_package_version(spec)
+        directory = installed.get((name, version))
+        meta_path = directory / "package.json" if directory else None
+        if meta_path:
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        else:
+            meta = bun_platform_metadata(name, version, installed) or bun_registry_metadata(base, name, version)
+        pkg = Pkg("npm", name, version)
+        pkg.licence = npm_licence(meta)
+        pkg.origin = "package.json" if meta else "bun.lock (not installed on this platform)"
+        pkg.url = repo_url(meta, name) if meta else f"https://www.npmjs.com/package/{name}"
+        pkg.texts = read_licence_files(directory) if directory else {}
+        pkg.files = sorted(pkg.texts)
+        pkg.direct = path == name and (name in runtime or name in dev)
+        pkg.declared = runtime.get(name, dev.get(name, "")) if pkg.direct else ""
+        pkg.scope = scope_for_dev if path == name and name in dev else "runtime"
+        out.append(pkg)
+    return out
+
+
 def load_npm(base: Path, scope_for_dev: str, extra_direct: dict[str, str] | None = None) -> list[Pkg]:
+    if not (base / "package-lock.json").is_file():
+        return load_bun(base, scope_for_dev, extra_direct)
     lock = json.loads((base / "package-lock.json").read_text(encoding="utf-8"))
     manifest = json.loads((base / "package.json").read_text(encoding="utf-8"))
     runtime = manifest.get("dependencies", {})
@@ -350,7 +450,7 @@ def bundled_names(skip_build: bool) -> set[str] | None:
     out_dir = Path(tempfile.mkdtemp(prefix="doory-licence-build-"))
     try:
         command = [
-            "npx",
+            "bunx",
             "--no-install",
             "vite",
             "build",
@@ -389,7 +489,7 @@ def mark_bundle(packages: list[Pkg], bundled: set[str] | None, prebundled: dict[
             pkg.scope = "browser"
         else:
             pkg.scope = "build/test"
-            pkg.flags.append("in the runtime closure of package-lock.json but not in the production bundle")
+            pkg.flags.append("in the runtime closure of bun.lock but not in the production bundle")
 
 
 def direct_runtime_names() -> set[str]:

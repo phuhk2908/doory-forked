@@ -25,6 +25,10 @@ def asset_audio_path(instance, filename):
     return f"assets/{instance.owner_id}/audio/{instance.id}.m4a"
 
 
+def asset_processing_path(instance, filename):
+    return f"assets/{instance.owner_id}/processing/{instance.id}.source"
+
+
 class Asset(BaseModel):
     class Kind(models.TextChoices):
         IMAGE = "image", "Image"
@@ -56,6 +60,9 @@ class Asset(BaseModel):
     poster = models.ImageField(upload_to=asset_poster_path, blank=True)
     filmstrip = models.ImageField(upload_to=asset_filmstrip_path, blank=True)
     audio = models.FileField(upload_to=asset_audio_path, blank=True)
+    # Video only: the original source stays durable until a background conversion finishes.
+    processing_source = models.FileField(upload_to=asset_processing_path, blank=True)
+    processing_started_at = models.DateTimeField(null=True, blank=True)
     status = models.CharField(max_length=12, choices=Status.choices, default=Status.READY)
     error = models.CharField(max_length=255, blank=True)
 

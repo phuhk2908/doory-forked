@@ -19,7 +19,7 @@ from django.db.models import F, Q
 from django.utils import timezone
 
 from apps.designs.models import Design
-from apps.designs.services import record_auto_version_if_due
+from apps.designs.services import apply_document, document_values, record_auto_version_if_due
 from apps.designs.validators import describe_document, validate_document
 
 from .exceptions import bad_request
@@ -255,22 +255,14 @@ def save_shared_document(design: Design, document: Any, base_revision: int, acto
     info = describe_document(document)
     saved_at = timezone.now()
     written = Design.objects.filter(pk=locked.pk, revision=base_revision, trashed_at__isnull=True).update(
-        document=document,
-        width=info.width,
-        height=info.height,
-        page_count=info.page_count,
-        preset=info.preset,
+        **document_values(document, info=info),
         revision=base_revision + 1,
         updated_at=saved_at,
     )
     if not written:
         current = Design.objects.only("revision", "updated_at").get(pk=locked.pk)
         raise RevisionConflict(current.revision, current.updated_at)
-    locked.document, locked.page_count, locked.revision, locked.updated_at = (
-        document,
-        info.page_count,
-        base_revision + 1,
-        saved_at,
-    )
+    apply_document(locked, document, info=info)
+    locked.revision, locked.updated_at = base_revision + 1, saved_at
     record_auto_version_if_due(locked, actor)
     return SavedRevision(base_revision + 1, saved_at)

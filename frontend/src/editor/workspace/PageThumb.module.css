@@ -34,9 +34,13 @@
   border: 2px solid transparent;
   border-radius: var(--radius-sm);
   background: var(--color-surface);
-  box-shadow: var(--shadow-sm), 0 0 0 1px var(--color-border);
+  box-shadow:
+    var(--shadow-sm),
+    0 0 0 1px var(--color-border);
   cursor: pointer;
-  transition: border-color var(--duration-fast) var(--ease-out), transform var(--duration-fast) var(--ease-out);
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
 }
 .thumb:hover {
   transform: translateY(-1px);
@@ -68,7 +72,7 @@
 
 .before::before,
 .after::after {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   bottom: 18px;

@@ -1,42 +1,46 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { createUrl } from '@/features/presets'
-import { type SizePreset } from '@/lib/sizePresets'
-import { noteUsedSize } from '@/lib/sizePresets/choices'
-import { presetSizeText } from '@/lib/sizePresets/picker'
-import { PresetShape } from '@/lib/sizePresets/PresetShape'
-import { SizePicker } from '@/lib/sizePresets/SizePicker'
-import { Button, Dialog } from '@/ui'
-import { CustomSizeForm } from './CustomSizeForm'
-import styles from './CreateDesignDialog.module.css'
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { createUrl } from "@/features/presets";
+import { type SizePreset } from "@/lib/sizePresets";
+import { noteUsedSize } from "@/lib/sizePresets/choices";
+import { presetSizeText } from "@/lib/sizePresets/picker";
+import { PresetShape } from "@/lib/sizePresets/PresetShape";
+import { SizePicker } from "@/lib/sizePresets/SizePicker";
+import { Button, Dialog } from "@/ui";
+import { CustomSizeForm } from "./CustomSizeForm";
+import styles from "./CreateDesignDialog.module.css";
 
 export interface CreateDesignDialogProps {
-  open: boolean
-  onClose(): void
+  open: boolean;
+  onClose(): void;
   /** Open on the custom size instead of the popular sizes. */
-  initialTab?: 'sizes' | 'custom'
+  initialTab?: "sizes" | "custom";
 }
 
 /** Pick a size from the catalogue (by format or platform, filtered or searched) or enter a custom size. */
-export function CreateDesignDialog({ open, onClose, initialTab = 'sizes' }: CreateDesignDialogProps) {
-  const navigate = useNavigate()
-  const [chosen, setChosen] = useState<SizePreset | null>(null)
+export function CreateDesignDialog({
+  open,
+  onClose,
+  initialTab = "sizes",
+}: CreateDesignDialogProps) {
+  const navigate = useNavigate();
+  const [chosen, setChosen] = useState<SizePreset | null>(null);
   // The custom size form has its own Create button.
-  const [custom, setCustom] = useState(initialTab === 'custom')
+  const [custom, setCustom] = useState(initialTab === "custom");
 
   // The pages keep the dialog mounted while it is closed: it opens again with nothing chosen.
   function close() {
-    setChosen(null)
-    onClose()
+    setChosen(null);
+    onClose();
   }
   function go(url: string) {
-    close()
-    navigate(url)
+    close();
+    navigate(url);
   }
   const create = (preset: SizePreset): void => {
-    noteUsedSize(preset.id)
-    go(createUrl({ presetId: preset.id }))
-  }
+    noteUsedSize(preset.id);
+    go(createUrl({ presetId: preset.id }));
+  };
 
   return (
     <Dialog
@@ -59,7 +63,9 @@ export function CreateDesignDialog({ open, onClose, initialTab = 'sizes' }: Crea
                 </span>
               </>
             ) : custom ? null : (
-              <small>Pick a size, then create. A double click creates it at once.</small>
+              <small>
+                Pick a size, then create. A double click creates it at once.
+              </small>
             )}
           </div>
           <Button variant="ghost" onClick={close}>
@@ -73,7 +79,14 @@ export function CreateDesignDialog({ open, onClose, initialTab = 'sizes' }: Crea
         </>
       }
     >
-      <SizePicker selectedId={chosen?.id} onSelect={setChosen} onConfirm={create} startWithCustom={initialTab === 'custom'} onCustomChange={setCustom} custom={<CustomSizeForm onSubmit={(size) => go(createUrl(size))} />} />
+      <SizePicker
+        selectedId={chosen?.id}
+        onSelect={setChosen}
+        onConfirm={create}
+        startWithCustom={initialTab === "custom"}
+        onCustomChange={setCustom}
+        custom={<CustomSizeForm onSubmit={(size) => go(createUrl(size))} />}
+      />
     </Dialog>
-  )
+  );
 }

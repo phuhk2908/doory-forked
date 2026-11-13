@@ -88,7 +88,7 @@
   cursor: pointer;
 }
 .sizeButton:hover,
-.sizeButton[aria-expanded='true'] {
+.sizeButton[aria-expanded="true"] {
   background: var(--color-bg-muted);
   color: var(--color-text);
 }

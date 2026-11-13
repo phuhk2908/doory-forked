@@ -1,9 +1,9 @@
-import { Suspense } from 'react'
-import { Link, Outlet } from 'react-router-dom'
-import { PageLoader } from '@/app/PageLoader'
-import { AuthBrandPanel } from '@/features/auth/AuthBrandPanel'
-import { Logo } from '@/ui'
-import styles from './AuthLayout.module.css'
+import { Suspense } from "react";
+import { Link, Outlet } from "react-router-dom";
+import { PageLoader } from "@/app/PageLoader";
+import { AuthBrandPanel } from "@/features/auth/AuthBrandPanel";
+import { Logo } from "@/ui";
+import styles from "./AuthLayout.module.css";
 
 /** Split-screen layout shared by login, sign-up and password flows. */
 export function AuthLayout() {
@@ -25,5 +25,5 @@ export function AuthLayout() {
       </div>
       <AuthBrandPanel />
     </div>
-  )
+  );
 }

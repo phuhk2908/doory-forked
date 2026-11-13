@@ -40,7 +40,7 @@
     box-shadow var(--duration-fast) var(--ease-out);
 }
 
-.root[data-size='sm'] .text {
+.root[data-size="sm"] .text {
   height: 1.625rem;
   padding: 0 var(--space-2);
   font-size: var(--text-xs);
@@ -57,7 +57,7 @@
 }
 
 /* High contrast: muted text is nearly ink there, so the selected option also gets the selected outline. */
-:global(:root[data-contrast='more']) .segment[data-checked] .text {
+:global(:root[data-contrast="more"]) .segment[data-checked] .text {
   outline: 2px solid var(--color-text);
   outline-offset: -2px;
 }

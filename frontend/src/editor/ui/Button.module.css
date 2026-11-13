@@ -62,7 +62,7 @@
   background: var(--color-border);
 }
 /* High contrast: the border colour is a mid-tone there, too dark to put the label on. */
-:global(:root[data-contrast='more']) .ghost:active:not(:disabled) {
+:global(:root[data-contrast="more"]) .ghost:active:not(:disabled) {
   background: var(--color-brand-soft-hover);
 }
 

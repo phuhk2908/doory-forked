@@ -10,7 +10,7 @@
 | MCP | Model Context Protocol server for AI assistants | `mcp` (profile `mcp`) | `doory-mcp.service` | No, see [mcp.md](mcp.md) |
 | Database | PostgreSQL 16 (SQLite works for development only) | `db` | your PostgreSQL | Yes |
 | Cache | Shared cache for rate limits and stock search results | the database (`dbcache`) | the database (`dbcache`) | Yes in production |
-| Redis | Channel layer for running realtime on more than one worker | `redis` (profile `redis`) | your Redis | No, see [realtime.md](realtime.md) |
+| Redis | Shared channel layer between API, realtime and optional MCP processes | `redis` | your Redis | Yes for separate services, see [realtime.md](realtime.md) |
 | Chromium | Headless browser for server-side PDF and image export | inside the `api` and `mcp` images | Playwright's Chromium | No, see [image-export.md](image-export.md) |
 | ffmpeg | Checks and converts video clips | inside the `api`, `realtime` and `mcp` images | the `ffmpeg` package | No, see [video.md](video.md) |
 | Media storage | Uploads, fonts, element packs, audio, models | `media` volume | `MEDIA_ROOT` | Yes (local folder or [S3-compatible](../integrations/object-storage.md)) |
@@ -23,6 +23,10 @@ browser ──► web (nginx) ─┬─ /api, /admin ─► api ─────�
 ```
 
 The browser only ever talks to one address, so you don't need CORS or extra subdomains.
+
+Whiteboards use the API routes `/api/v1/drawings/` and `/api/v1/drawing-rooms/`, and the realtime routes
+`/ws/drawings/` and `/ws/drawing-rooms/`. Guest room keys stay in the URL fragment or browser session; they are not
+MCP tokens and are not sent in the WebSocket URL.
 
 ## Choose how to install
 
@@ -52,18 +56,26 @@ Without Docker, run the same commands with the `manage` helper from [manual.md](
 
 ## Scheduled tasks
 
-Nothing runs these for you. Add them to cron (or a systemd timer) on the host:
+Nothing runs these for you. Add them to cron (or a systemd timer) on the host. The preferred entry point is
+`manage.py maintenance --json`: it runs realtime cleanup, the durable video worker, video-folder cleanup and
+expired export cleanup, and writes a machine-readable summary plus normal maintenance logs. Add
+`--purge-trash` to the daily run when you also want permanent deletion of designs past the trash retention period.
+The individual commands below remain useful for focused runs; do not schedule `process_video_jobs` separately when
+the unified command is already scheduled.
 
 | Command | What it does | Suggested |
 |---------|--------------|-----------|
+| `manage.py maintenance --json` | Runs the recurring realtime, video-job and export housekeeping tasks | every 5 minutes |
+| `manage.py maintenance --json --purge-trash` | The same tasks plus permanent trash deletion | daily |
 | `manage.py purge_trash` | Permanently deletes designs that have been in the trash for more than 30 days (`--days N` to change) | daily |
 | `manage.py collab_maintenance` | Saves live edits left behind after a crash, compacts update logs, removes stale presence entries | daily |
+| `manage.py process_video_jobs` | Converts video jobs persisted before an API restart | every 5 minutes when video is enabled |
 | `manage.py purge_exports` | Deletes server-side exports whose download link has expired | hourly, optional |
 | `manage.py sweep_video_jobs` | Marks video conversions whose process was stopped as failed and removes the temporary folders they left | hourly, optional |
 
 Docker example (crontab on the host, run from the checkout):
 
 ```cron
-0 3 * * * cd /opt/doory && docker compose exec -T api python manage.py purge_trash
-15 3 * * * cd /opt/doory && docker compose exec -T api python manage.py collab_maintenance
+*/5 * * * * cd /opt/doory && docker compose exec -T api python manage.py maintenance --json
+0 3 * * * cd /opt/doory && docker compose exec -T api python manage.py maintenance --json --purge-trash
 ```

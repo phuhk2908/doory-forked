@@ -116,6 +116,14 @@ def validate_page_files(files: list) -> None:
         )
 
 
+@extend_schema_field(
+    {
+        "oneOf": [
+            {"type": "integer", "minimum": 1},
+            {"type": "string", "maxLength": 100},
+        ]
+    }
+)
 class PageRefField(serializers.Field):
     """A page by its id or by its number counting from 1 (as the MCP tools name pages)."""
 
@@ -271,6 +279,8 @@ class ResolutionField(serializers.Field):
 class ImageExportSerializer(serializers.Serializer):
     page = PageRefField(required=False, default=None, allow_null=True)
     pages = PagesField(required=False, default=None, allow_null=True)
+    # Opt-in only: the legacy response remains a file unless this is true.
+    background = serializers.BooleanField(required=False, default=False, write_only=True)
     format = serializers.ChoiceField(
         choices=["png", "jpg", "jpeg", "webp", "avif", "auto", *DOCUMENT_FORMATS, *VIDEO_FORMATS],
         default="png",

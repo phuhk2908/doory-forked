@@ -62,7 +62,9 @@
   border-radius: var(--radius-md);
   background: var(--color-surface);
   cursor: pointer;
-  transition: border-color var(--duration-fast) var(--ease-out), background var(--duration-fast) var(--ease-out);
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    background var(--duration-fast) var(--ease-out);
 }
 .chip input {
   position: absolute;

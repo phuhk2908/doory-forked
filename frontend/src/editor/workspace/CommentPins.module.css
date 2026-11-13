@@ -36,7 +36,7 @@
 }
 /* A bigger target than the drawing, for fingers. */
 .pin::before {
-  content: '';
+  content: "";
   position: absolute;
   inset: -7px;
   border-radius: 50%;
@@ -81,7 +81,7 @@
   box-shadow: 0 8px 20px rgb(0 0 0 / 0.35);
 }
 .pin[data-pulse]::after {
-  content: '';
+  content: "";
   position: absolute;
   inset: -4px;
   border: 2px solid var(--color-brand);
@@ -115,7 +115,7 @@
   box-shadow: var(--shadow-md);
   pointer-events: none;
 }
-.preview[data-side='left'] {
+.preview[data-side="left"] {
   margin-left: 0;
   transform: translateX(calc(-100% - 8px));
 }

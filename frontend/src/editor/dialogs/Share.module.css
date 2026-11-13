@@ -35,8 +35,8 @@
   border-radius: var(--radius-md);
   background: var(--color-surface);
 }
-.link[data-status='off'],
-.link[data-status='expired'] {
+.link[data-status="off"],
+.link[data-status="expired"] {
   opacity: 0.75;
 }
 .meta {

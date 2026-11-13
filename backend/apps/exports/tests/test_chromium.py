@@ -753,7 +753,7 @@ def test_browser_processes_that_outlive_the_worker_are_killed_with_their_work_di
 DIST = Path(__file__).resolve().parents[4] / "frontend" / "dist"
 requires_dist = pytest.mark.skipif(
     not (DIST / "render.html").is_file(),
-    reason=f"no built frontend at {DIST}; run `npm run build` in frontend/",
+    reason=f"no built frontend at {DIST}; run `bun run build` in frontend/",
 )
 
 
@@ -1141,12 +1141,22 @@ def with_sound(design, src: str):
     return design
 
 
+def bundle_bytes(bundle):
+    """Read a streamed video bundle; image bundles keep their bytes inline."""
+    if bundle.file is None:
+        return bundle.data
+    with bundle.file:
+        bundle.file.seek(0)
+        return bundle.file.read()
+
+
 @requires_dist
 def test_a_gif_of_all_pages_at_the_alias_of_the_render_page(video_site, user):
     design = two_pages(user, rect(10, 10, 40, 30, "#ff0000"))
     bundle = export_images(design, pages="all", format="gif", resolution=240, fps=5, page_seconds=1)
-    assert bundle.data.startswith(b"GIF89a") and bundle.mime == "image/gif"
-    image = Image.open(io.BytesIO(bundle.data))
+    data = bundle_bytes(bundle)
+    assert data.startswith(b"GIF89a") and bundle.mime == "image/gif"
+    image = Image.open(io.BytesIO(data))
     assert (image.size, image.n_frames > 1) == ((480, 240), True)
     first = image.convert("RGB").getpixel((30, 30))
     assert first[0] > 200 and first[1] < 80  # the red box of the first page, scaled 2x
@@ -1170,10 +1180,11 @@ def test_a_video_with_the_designs_sound(video_site, user, fmt, magic, video):
         bundle = export_images(design, pages="all", format=fmt, resolution=480, fps=24, page_seconds=1)
     finally:
         default_storage.delete(name)
-    assert magic in bundle.data[:16] and bundle.mime == f"video/{fmt}"
+    data = bundle_bytes(bundle)
+    assert magic in data[:16] and bundle.mime == f"video/{fmt}"
     assert (bundle.images[0].width, bundle.images[0].height) == (960, 480)
     assert bundle.options["video"] == video and bundle.options["audio"] in ("Opus", "AAC")
-    assert (b"mp4a" in bundle.data or b"Opus" in bundle.data) if fmt == "mp4" else b"A_OPUS" in bundle.data
+    assert (b"mp4a" in data or b"Opus" in data) if fmt == "mp4" else b"A_OPUS" in data
     if bundle.options["audio"] == "Opus" and fmt == "mp4":
         assert any("Opus, not AAC" in text for text in bundle.warnings)
 
@@ -1195,5 +1206,5 @@ def test_the_rest_endpoint_returns_a_video(client, video_site, user):
         format="json",
     )
     assert response.status_code == 200 and response["Content-Type"] == "video/webm"
-    assert response.content.startswith(b"\x1a\x45\xdf\xa3")
+    assert b"".join(response.streaming_content).startswith(b"\x1a\x45\xdf\xa3")
     assert response["Content-Disposition"] == 'attachment; filename="Two.webm"'

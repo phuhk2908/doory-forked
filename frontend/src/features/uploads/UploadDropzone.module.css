@@ -78,7 +78,7 @@
   border-radius: var(--radius-md);
 }
 
-.item[data-status='error'] {
+.item[data-status="error"] {
   border-color: var(--color-danger);
 }
 
@@ -88,11 +88,11 @@
   color: var(--color-brand);
 }
 
-.item[data-status='done'] .status {
+.item[data-status="done"] .status {
   color: var(--color-success);
 }
 
-.item[data-status='error'] .status {
+.item[data-status="error"] .status {
   color: var(--color-danger);
 }
 
@@ -146,6 +146,6 @@
 }
 
 /* High contrast: the pale track gets an outline, so the full length of the bar shows. */
-:global(:root[data-contrast='more']) .progress {
+:global(:root[data-contrast="more"]) .progress {
   box-shadow: inset 0 0 0 1px var(--color-border);
 }

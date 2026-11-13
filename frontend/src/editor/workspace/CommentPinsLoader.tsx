@@ -1,16 +1,21 @@
-import { type KeyboardEvent, type MouseEvent, type RefObject, useEffect } from 'react'
-import { createPortal } from 'react-dom'
-import { useEditor, useEditorState, useEditorStateShallow } from '../context'
-import { t } from '../strings'
-import { loadable } from '../ui/loadable'
-import { holdPlacement } from './commentPlacement'
-import { useArtboards } from './useArtboards'
-import surface from './CommentSurface.module.css'
+import {
+  type KeyboardEvent,
+  type MouseEvent,
+  type RefObject,
+  useEffect,
+} from "react";
+import { createPortal } from "react-dom";
+import { useEditor, useEditorState, useEditorStateShallow } from "../context";
+import { t } from "../strings";
+import { loadable } from "../ui/loadable";
+import { holdPlacement } from "./commentPlacement";
+import { useArtboards } from "./useArtboards";
+import surface from "./CommentSurface.module.css";
 
-type Artboards = RefObject<Map<string, HTMLDivElement>>
+type Artboards = RefObject<Map<string, HTMLDivElement>>;
 interface PinsProps {
-  scrollRef: RefObject<HTMLDivElement | null>
-  artboards: Artboards
+  scrollRef: RefObject<HTMLDivElement | null>;
+  artboards: Artboards;
 }
 
 /**
@@ -20,17 +25,24 @@ interface PinsProps {
  * button was pressed is never lost to the download.
  */
 function WaitingSurfaces({ scrollRef, artboards }: PinsProps) {
-  const editor = useEditor()
-  const mode = useEditorState((s) => s.comments.mode)
-  const pageIds = useEditorStateShallow((s) => s.doc.pages.map((p) => p.id))
-  const elements = useArtboards(scrollRef, artboards)
-  if (!mode) return null
+  const editor = useEditor();
+  const mode = useEditorState((s) => s.comments.mode);
+  const pageIds = useEditorStateShallow((s) => s.doc.pages.map((p) => p.id));
+  const elements = useArtboards(scrollRef, artboards);
+  if (!mode) return null;
 
-  const hold = (pageId: string, client: { x: number; y: number } | null): void => {
-    const ui = editor.state.ui
-    if (ui.spaceDown || ui.tool === 'hand') return
-    holdPlacement(editor, pageId, client ? editor.view.clientToPage(pageId, client.x, client.y) : null)
-  }
+  const hold = (
+    pageId: string,
+    client: { x: number; y: number } | null,
+  ): void => {
+    const ui = editor.state.ui;
+    if (ui.spaceDown || ui.tool === "hand") return;
+    holdPlacement(
+      editor,
+      pageId,
+      client ? editor.view.clientToPage(pageId, client.x, client.y) : null,
+    );
+  };
 
   return (
     <>
@@ -44,11 +56,13 @@ function WaitingSurfaces({ scrollRef, artboards }: PinsProps) {
             aria-description={t.comments.mode.surfaceHelp}
             aria-busy="true"
             data-testid="comment-surface"
-            onClick={(e: MouseEvent<HTMLDivElement>) => hold(id, e.detail === 0 ? null : { x: e.clientX, y: e.clientY })}
+            onClick={(e: MouseEvent<HTMLDivElement>) =>
+              hold(id, e.detail === 0 ? null : { x: e.clientX, y: e.clientY })
+            }
             onKeyDown={(e: KeyboardEvent<HTMLDivElement>) => {
-              if (e.key !== 'Enter' && e.key !== ' ') return
-              e.preventDefault()
-              hold(id, null)
+              if (e.key !== "Enter" && e.key !== " ") return;
+              e.preventDefault();
+              hold(id, null);
             }}
           />,
           element,
@@ -56,26 +70,31 @@ function WaitingSurfaces({ scrollRef, artboards }: PinsProps) {
         ),
       )}
     </>
-  )
+  );
 }
 
 // The pin layers are only drawn while the Comments sidebar is open (or pins were left on), so their code waits for that.
-const Pins = loadable(() => import('./CommentPins').then((m) => m.CommentPins), { fallback: (props) => <WaitingSurfaces {...props} /> })
+const Pins = loadable(
+  () => import("./CommentPins").then((m) => m.CommentPins),
+  { fallback: (props) => <WaitingSurfaces {...props} /> },
+);
 
 /**
  * The comment pins over the pages (see `CommentPins.tsx`), fetched the first time the comments are shown. The download
  * starts as soon as the Comments sidebar is asked for, alongside the sidebar's own code and not after it.
  */
 export function LazyCommentPins({ scrollRef, artboards }: PinsProps) {
-  const editor = useEditor()
-  const offered = !!editor.adapter.services.comments
-  const pinsOn = useEditorState((s) => s.comments.pins)
-  const sidebarOpen = useEditorState((s) => s.ui.panelId === 'comments')
+  const editor = useEditor();
+  const offered = !!editor.adapter.services.comments;
+  const pinsOn = useEditorState((s) => s.comments.pins);
+  const sidebarOpen = useEditorState((s) => s.ui.panelId === "comments");
   useEffect(() => {
-    if (offered && sidebarOpen) void Pins.preload()
-  }, [offered, sidebarOpen])
-  return offered && pinsOn ? <Pins scrollRef={scrollRef} artboards={artboards} /> : null
+    if (offered && sidebarOpen) void Pins.preload();
+  }, [offered, sidebarOpen]);
+  return offered && pinsOn ? (
+    <Pins scrollRef={scrollRef} artboards={artboards} />
+  ) : null;
 }
 
 /** Starts downloading the pins; the Comments button calls it when it is hovered or focused. */
-LazyCommentPins.preload = Pins.preload
+LazyCommentPins.preload = Pins.preload;

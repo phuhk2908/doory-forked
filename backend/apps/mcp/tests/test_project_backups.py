@@ -80,7 +80,7 @@ def test_project_backup_tools_refuse_other_users_and_bad_files(as_caller, user, 
     assert (Design.objects.filter(owner=user).count(), Asset.objects.filter(owner=user).count()) == before
 
 
-def test_import_project_backup_requires_upload_scope(user):
+def test_import_project_backup_requires_upload_scope(user, keep_the_test_connection):
     from apps.apitokens import services as tokens
     from apps.apitokens.scopes import DESIGNS_WRITE
     from apps.mcp import context

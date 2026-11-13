@@ -3,14 +3,14 @@
 # ---- build the SPA ----
 # On the machine's own platform: the files it makes are the same for every platform, and building an arm64 image
 # under emulation is slow enough to stall (the bundler hung for two hours there).
-FROM --platform=$BUILDPLATFORM node:22-alpine AS build
+FROM --platform=$BUILDPLATFORM oven/bun:1.4.4-alpine AS build
 WORKDIR /app
-COPY package.json package-lock.json ./
+COPY package.json bun.lock ./
 # --ignore-scripts: the install scripts only matter for the test tooling (`canvas` compiles a native module that has
 # no prebuilt binary for Alpine/musl and needs a compiler); the production build needs none of them.
-RUN npm ci --ignore-scripts
+RUN bun install --frozen-lockfile --ignore-scripts
 COPY . .
-RUN npm run build
+RUN bun run build
 
 # ---- serve it (unprivileged nginx on :8080) and reverse-proxy the API ----
 FROM nginxinc/nginx-unprivileged:1.29-alpine AS runtime

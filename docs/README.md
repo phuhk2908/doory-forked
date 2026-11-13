@@ -28,6 +28,7 @@ These docs are for people who install, run or develop Doory. The editor's featur
 | Turn on stock photo and video search          | [integrations/stock-media.md](integrations/stock-media.md)   |
 | Set up a development environment             | [development/README.md](development/README.md)               |
 | Find my way around the code                   | [development/architecture.md](development/architecture.md)   |
+| Define the whiteboard MCP interface            | [development/mcp-whiteboards.md](development/mcp-whiteboards.md) |
 | Run the tests                                 | [development/testing.md](development/testing.md)             |
 
 ## How these docs are organised

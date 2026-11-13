@@ -1,35 +1,38 @@
-import { MailCheck } from 'lucide-react'
-import { type FormEvent, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { describeFormError } from '@/features/auth/errors'
-import { authApi } from '@/lib/api'
-import { usePageMeta } from '@/lib/usePageMeta'
-import { Button, Input } from '@/ui'
-import formStyles from '@/features/auth/AuthForms.module.css'
-import styles from './AuthPage.module.css'
+import { MailCheck } from "lucide-react";
+import { type FormEvent, useState } from "react";
+import { Link } from "react-router-dom";
+import { describeFormError } from "@/features/auth/errors";
+import { authApi } from "@/lib/api";
+import { usePageMeta } from "@/lib/usePageMeta";
+import { Button, Input } from "@/ui";
+import formStyles from "@/features/auth/AuthForms.module.css";
+import styles from "./AuthPage.module.css";
 
 export default function ForgotPasswordPage() {
-  usePageMeta({ title: 'Reset your password', noindex: true })
-  const [email, setEmail] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [sent, setSent] = useState(false)
-  const [error, setError] = useState('')
+  usePageMeta({ title: "Reset your password", noindex: true });
+  const [email, setEmail] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState("");
 
   async function submit(event: FormEvent) {
-    event.preventDefault()
+    event.preventDefault();
     if (!/^\S+@\S+\.\S+$/.test(email.trim())) {
-      setError('Enter the email address you signed up with.')
-      return
+      setError("Enter the email address you signed up with.");
+      return;
     }
-    setError('')
-    setBusy(true)
+    setError("");
+    setBusy(true);
     try {
-      await authApi.requestPasswordReset(email.trim())
-      setSent(true)
+      await authApi.requestPasswordReset(email.trim());
+      setSent(true);
     } catch (failure) {
-      setError(describeFormError(failure, ['email']).fields.email ?? describeFormError(failure, ['email']).message)
+      setError(
+        describeFormError(failure, ["email"]).fields.email ??
+          describeFormError(failure, ["email"]).message,
+      );
     } finally {
-      setBusy(false)
+      setBusy(false);
     }
   }
 
@@ -40,22 +43,38 @@ export default function ForgotPasswordPage() {
           <MailCheck size={28} />
         </div>
         <h1 className={styles.title}>Check your inbox</h1>
-        <p className={styles.lead}>If an account exists for {email.trim()}, we’ve sent a link to choose a new password. It can take a minute to arrive.</p>
+        <p className={styles.lead}>
+          If an account exists for {email.trim()}, we’ve sent a link to choose a
+          new password. It can take a minute to arrive.
+        </p>
         <div className={styles.actions}>
           <Link to="/login">Back to log in</Link>
         </div>
       </div>
-    )
+    );
   }
 
   return (
     <>
       <div className={styles.header}>
         <h1 className={styles.title}>Forgot your password?</h1>
-        <p className={styles.lead}>Enter your email and we’ll send you a link to reset it.</p>
+        <p className={styles.lead}>
+          Enter your email and we’ll send you a link to reset it.
+        </p>
       </div>
       <form className={formStyles.form} onSubmit={submit} noValidate>
-        <Input label="Email" type="email" name="email" autoComplete="email" inputMode="email" autoFocus value={email} onChange={(event) => setEmail(event.target.value)} error={error} required />
+        <Input
+          label="Email"
+          type="email"
+          name="email"
+          autoComplete="email"
+          inputMode="email"
+          autoFocus
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          error={error}
+          required
+        />
         <Button type="submit" fullWidth loading={busy}>
           Send reset link
         </Button>
@@ -64,5 +83,5 @@ export default function ForgotPasswordPage() {
         <Link to="/login">Back to log in</Link>
       </p>
     </>
-  )
+  );
 }
